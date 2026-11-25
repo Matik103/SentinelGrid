@@ -1,29 +1,35 @@
 # Raw event payload object storage (Phase 0)
 
-**Status:** Scaffold implemented (local_dev backend + `payload_objects` metadata). S3-compatible path is configured but not invoked without credentials.
+**Status:** Local development storage is implemented with SHA-256 verification. Production object storage is not implemented. The API deliberately rejects S3 configuration rather than creating metadata for missing objects.
 
-## What exists
+## Implemented
 
-| Piece | Location | Meaning |
-| ----- | -------- | ------- |
-| `original_payload_ref` | `events` | Opaque URI / key for original bytes |
-| `payload_ref` / `payload_sha256` | `evidence_records` | Evidence bytes ref + digest |
-| `payload_objects` | migration `20261125190000_…` | Tenant-scoped object metadata (key, sha256, backend, classification) |
-| `PayloadStorageService` | `apps/api/src/evidence/payload-storage.service.ts` | Writes bytes (local_dev) + metadata row |
+- Local-only filesystem backend under `.payload-store` (or `PAYLOAD_STORAGE_ROOT`).
+- Tenant-prefixed opaque object keys.
+- SHA-256 computed over the exact stored bytes.
+- Files created with restrictive directory/file permissions.
+- Metadata is inserted only after the object write succeeds.
+- Failed metadata writes trigger object cleanup.
+- Duplicate-event cleanup removes unreferenced local objects and metadata.
+- Retrieval requires `evidence.read`, matches both object ID and organisation ID, and verifies SHA-256 before returning bytes.
+- Maximum payload size defaults to 1 MiB and can be changed with `MAX_EVIDENCE_PAYLOAD_BYTES`.
 
-Postgres stores **references and digests**, not the raw payload body.
+## Explicit limitations
 
-## Model
+- `PAYLOAD_STORAGE_BACKEND=s3` is rejected until a real S3-compatible adapter is installed, configured, and tested.
+- `local_dev` is rejected when `NODE_ENV=production`.
+- Local filesystem storage is not a production durability or backup solution.
+- The DLQ stores a bounded structured event envelope in Postgres for replay; the original_payload field is stripped from that envelope. It does not store arbitrary binary payload bytes.
+- No signed URL or direct browser object-storage access is implemented.
 
-1. Ingestion / evidence API receives payload → `PayloadStorageService.storeRaw`.
-2. Path shape: `{organisation_id}/{yyyy-mm-dd}/{sha16}-{uuid}.json`.
-3. Persist `object_key` on `payload_objects` and optionally `original_payload_ref` on `events`.
-4. SHA-256 computed over stored bytes.
-5. Access is server-mediated; RLS allows authenticated `evidence.read` SELECT on metadata only.
-6. Service-role credentials for storage/admin never appear in frontend code.
+## Production gate
 
-## Security notes
+Before enabling production evidence storage, implement and test an S3-compatible adapter with:
+1. server-side encryption and tenant-scoped bucket/prefix policy;
+2. object versioning or retention controls appropriate to customer policy;
+3. write-after-read verification and digest validation;
+4. private retrieval through short-lived signed URLs or a server-mediated stream;
+5. access logging, lifecycle/retention enforcement, backup and restore tests;
+6. failure handling that never commits metadata before object durability is confirmed.
 
-- A hash proves integrity of stored bytes — **not** truthfulness of the original sensor.
-- Object paths are tenant-prefixed; API enforces `evidence.write` / `evidence.read` via `has_org_permission` — never trust client tenant_id alone.
-- Default OT posture remains read-only; storage does not invent live OT data.
+A hash proves integrity of stored bytes, not truthfulness of the original sensor.

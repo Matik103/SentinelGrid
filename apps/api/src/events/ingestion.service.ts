@@ -114,7 +114,6 @@ export class IngestionService {
       .update({
         status: "processing",
         replay_started_at: new Date().toISOString(),
-        attempt_count: 0,
         updated_at: new Date().toISOString(),
       })
       .eq("id", dlqId)
@@ -137,7 +136,7 @@ export class IngestionService {
       const reason = error instanceof Error ? error.message : String(error);
       const { error: releaseError } = await this.admin.client
         .from("event_ingestion_dlq")
-        .update({ status: "open", last_error: reason, updated_at: new Date().toISOString() })
+        .update({ status: "open", replay_started_at: null, attempt_count: (claimed.attempt_count ?? 1) + 1, last_error: reason, updated_at: new Date().toISOString() })
         .eq("id", dlqId)
         .eq("organisation_id", organisationId)
         .eq("status", "processing");
@@ -150,6 +149,7 @@ export class IngestionService {
       .from("event_ingestion_dlq")
       .update({
         status: finalStatus,
+        attempt_count: (claimed.attempt_count ?? 1) + 1,
         last_error: result.status === "dlq" ? result.reason : null,
         replay_started_at: null,
         updated_at: new Date().toISOString(),

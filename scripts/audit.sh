@@ -267,11 +267,13 @@ if [[ -f apps/api/src/orgs/orgs.controller.ts ]] && grep -q 'bootstrap_organisat
 else fail_check high product.org_api "Org/RBAC API surface missing" "apps/api/src/orgs" "Implement bootstrap, membership, and permission checks."; fi
 
 # Browser/client code must never reference the service-role secret.
-CLIENT_FILES="$(git ls-files 'apps/web/**' 'packages/**' | grep -E '\.(ts|tsx|js|jsx)$' || true)"
+CLIENT_FILES="$(git ls-files apps/web packages 2>/dev/null | grep -E '\.(ts|tsx|js|jsx)$' || true)"
 if [[ -n "$CLIENT_FILES" ]]; then
-  if printf '%s\n' "$CLIENT_FILES" | xargs grep -nE "SUPABASE_SERVICE_ROLE_KEY|service_role[[:space:]]*=" 2>/dev/null >/dev/null; then
+  if printf '%s\n' "$CLIENT_FILES" | xargs grep -nE 'SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY' 2>/dev/null >/dev/null; then
     fail_check critical security.no_service_role_frontend "Possible service-role credential reference in client code" "apps/web or packages" "Keep service-role credentials exclusively in server-side secret storage."
-  else pass_check security.no_service_role_frontend "No service-role credential reference detected in client code" "apps/web and packages"; fi
+  else
+    pass_check security.no_service_role_frontend "No service-role credential reference detected in client code" "apps/web and packages"
+  fi
 else
   pass_check security.no_service_role_frontend "No browser application files exist yet; server API excluded from client scan" "apps/web"
 fi

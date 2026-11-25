@@ -78,6 +78,11 @@ else fail_check high seed.path "Supabase seed path mismatch" "supabase/config.to
 if [[ "$DB_READY" -eq 1 ]]; then
   if supabase db lint --local; then pass_check db.lint "Supabase local database lint passed" "$MIGRATIONS"
   else fail_check critical db.lint "Supabase local database lint failed" "$MIGRATIONS" "Fix SQL lint and schema errors."; fi
+  if scripts/run-phase0-upgrade-path.sh; then pass_check db.upgrade_path "Foundation-only then forward migrations succeeded" "scripts/run-phase0-upgrade-path.sh"
+  else fail_check critical db.upgrade_path "Upgrade-path migration test failed" "scripts/run-phase0-upgrade-path.sh" "Fix forward migrations without rewriting the foundation file."; fi
+  # Full reset restores seed + all migrations for subsequent checks
+  if supabase db reset --local --yes; then pass_check db.reset_after_upgrade "Local DB reset after upgrade-path test" "supabase/migrations"
+  else fail_check critical db.reset_after_upgrade "db reset after upgrade-path failed" "supabase/migrations" "Inspect migration/seed failures."; fi
   if scripts/run-phase0-security-tests.sh; then pass_check security.tenant_isolation "Tenant isolation and RBAC SQL tests passed" "supabase/tests/phase0_tenant_isolation.sql"
   else fail_check critical security.tenant_isolation "Tenant isolation and RBAC SQL tests failed" "supabase/tests/phase0_tenant_isolation.sql" "Fix regressions without weakening assertions."; fi
   DB_CTR="$(docker ps --format '{{.Names}}' | grep -E '^supabase_db_' | head -n 1 || true)"
@@ -88,6 +93,11 @@ if [[ "$DB_READY" -eq 1 ]]; then
   else fail_check critical db.container "Supabase database container not found" "scripts/audit.sh" "Check local Supabase startup."; fi
 else
   skip_check db.lint "Supabase database lint" "Local Supabase is not running." "$MIGRATIONS"
+  if [[ "${REQUIRE_DB_CHECKS:-0}" == "1" ]]; then
+    fail_check critical db.upgrade_path "Upgrade-path migration test unavailable" "scripts/run-phase0-upgrade-path.sh" "Start disposable Supabase; upgrade-path is mandatory in CI."
+  else
+    skip_check db.upgrade_path "Upgrade-path migration test" "Local Supabase is not running." "scripts/run-phase0-upgrade-path.sh"
+  fi
   skip_check security.tenant_isolation "Tenant isolation SQL tests" "Local Supabase is not running." "supabase/tests/phase0_tenant_isolation.sql"
   skip_check seed.demo_orgs "Demo seed verification" "Local Supabase is not running." "supabase/seed/phase0_demo.sql"
 fi

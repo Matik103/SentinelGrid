@@ -83,3 +83,13 @@ Add and execute regression tests for all cases below before marking this securit
 ## Cursor collaboration task
 
 Open this branch in Cursor and ask the agent to independently review and execute the migration against a disposable local Supabase database. Do not modify the original foundation migration, do not connect to production, and do not weaken policies to make tests pass. Fix any SQL, policy, grant, or test failures on this same branch, add repeatable regression tests, and report exact commands/results plus any remaining blockers. Review the changes before committing additional Cursor-generated edits.
+
+## Upgrade-path verification
+
+Mandatory local/CI check: `scripts/run-phase0-upgrade-path.sh`
+
+1. Reset with only `20261125160000_phase0_foundation.sql`
+2. Apply forward migrations with `supabase migration up --local`
+3. Assert `bootstrap_organisation`, `platform_admins`, same-org FKs, and membership policies
+
+Wired into `scripts/audit.sh` (fails CI when `REQUIRE_DB_CHECKS=1` if unavailable).

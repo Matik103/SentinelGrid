@@ -40,6 +40,7 @@ function adminCapturingInsert() {
                   ? {
                       object_key: lastInsert.object_key,
                       content_sha256: lastInsert.content_sha256,
+                      byte_length: lastInsert.byte_length,
                       organisation_id: lastInsert.organisation_id,
                     }
                   : null,

@@ -160,7 +160,8 @@ if [[ -f edge/connector/cmd/connector/main.go ]] \
   && [[ -f edge/connector/internal/adapter/modbus.go ]] \
   && [[ -f edge/connector/internal/adapter/mqtt.go ]] \
   && grep -q 'ProtocolAdapter' edge/connector/internal/adapter/adapter.go \
-  && grep -q 'writeSealedLocked\|REVOKED' edge/connector/internal/credentials/credentials.go; then
+  && grep -q 'writeSealedLocked\|REVOKED' edge/connector/internal/credentials/credentials.go \
+  && grep -q 'Authorize\|AuthGuard\|token.sha256\|hashToken' edge/connector/internal/credentials/credentials.go; then
   pass_check product.connector_runtime "Durable Go connector: buffer, retry, sealed credentials, read-only OT protocol adapters" "edge/connector"
 else fail_check high product.connector_runtime "Edge connector incomplete (need buffer/retry/credentials/adapters)" "edge/connector" "Add durable buffer, outbound retry, credential lifecycle, OPC UA/Modbus/MQTT adapters."; fi
 
@@ -171,7 +172,9 @@ else fail_check high product.org_api "Org/RBAC API surface missing" "apps/api/sr
 if [[ -f supabase/migrations/20261125210000_phase0_organisation_invitations.sql ]] \
   && grep -q 'create_organisation_invitation' apps/api/src/orgs/orgs.service.ts \
   && grep -q 'accept_organisation_invitation' apps/api/src/orgs/orgs.service.ts \
-  && grep -q 'revoke_organisation_invitation' apps/api/src/orgs/orgs.service.ts; then
+  && grep -q 'organisation_invitations' apps/api/src/orgs/orgs.service.ts \
+  && grep -q 'revokeInvite' apps/api/src/orgs/orgs.service.ts \
+  && grep -qE 'email_outbox|EmailOutbox|deliverInviteEmail' apps/api/src/orgs/orgs.service.ts; then
   pass_check product.org_invites "Organisation invitation create/accept/revoke path with membership RPCs" "apps/api/src/orgs"
 else fail_check high product.org_invites "Organisation invitation flow incomplete" "apps/api/src/orgs" "Wire invite RPCs and HTTP create/accept/revoke."; fi
 

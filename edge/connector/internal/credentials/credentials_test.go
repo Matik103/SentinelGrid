@@ -113,3 +113,51 @@ func TestProductionSealRequired(t *testing.T) {
 		t.Fatal("expected seal failure")
 	}
 }
+
+func TestHashedAuthGuardAndAuthorize(t *testing.T) {
+	dir := t.TempDir()
+	env := "SG_TEST_HASH_TOKEN"
+	keyEnv := "SG_TEST_HASH_SEAL"
+	t.Setenv(env, "alpha-token")
+	t.Setenv(keyEnv, "hash-seal-key")
+	m := NewWithOptions(Options{
+		EnvVar: env, StoreDir: dir, SealKeyEnv: keyEnv, RequireSeal: true,
+	})
+	if err := m.AuthGuard(); err != nil {
+		t.Fatalf("auth guard: %v", err)
+	}
+	if m.TokenHash() == "" {
+		t.Fatal("expected token hash")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "token.sha256")); err != nil {
+		t.Fatalf("expected hash file: %v", err)
+	}
+	if !m.Authorize("alpha-token") {
+		t.Fatal("Authorize should accept matching token")
+	}
+	if m.Authorize("wrong-token") {
+		t.Fatal("Authorize must reject wrong token")
+	}
+
+	os.Setenv(env, "beta-token")
+	if err := m.Rotate(); err != nil {
+		t.Fatal(err)
+	}
+	if m.Authorize("alpha-token") {
+		t.Fatal("old token must not authorize after rotate")
+	}
+	if !m.Authorize("beta-token") {
+		t.Fatal("new token must authorize after rotate")
+	}
+
+	m.Revoke()
+	if err := m.AuthGuard(); err == nil {
+		t.Fatal("auth guard must fail after revoke")
+	}
+	if m.Authorize("beta-token") {
+		t.Fatal("Authorize must fail after revoke")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "token.sha256")); !os.IsNotExist(err) {
+		t.Fatalf("hash file should be removed on revoke, err=%v", err)
+	}
+}

@@ -65,6 +65,7 @@ export class IngestionService {
         clock_quality: input.clock_quality,
         classification: input.classification,
         original_payload_ref: stored?.object_key ?? null,
+        payload_object_id: stored?.id ?? null,
       };
 
       const { data, error } = await this.admin.client
@@ -127,7 +128,7 @@ export class IngestionService {
 
     let result: IngestResult;
     try {
-      const raw = claimed.raw_body ?? {};
+      const raw = await this.rebuildReplayBody(claimed);
       result = await this.ingest(raw, {
         replay: true,
         authorisedOrganisationId: organisationId,
@@ -165,6 +166,39 @@ export class IngestionService {
     return result;
   }
 
+  /**
+   * Deterministic replay: restore original_payload from object store when present,
+   * otherwise replay the preserved envelope. Same fingerprint → same reconstructed body.
+   */
+  private async rebuildReplayBody(claimed: Record<string, unknown>): Promise<unknown> {
+    const raw =
+      claimed.raw_body && typeof claimed.raw_body === "object" && !Array.isArray(claimed.raw_body)
+        ? { ...(claimed.raw_body as Record<string, unknown>) }
+        : {};
+    const objectId =
+      (claimed.original_payload_object_id as string | null | undefined) ??
+      (raw.original_payload_object_id as string | null | undefined);
+    if (objectId) {
+      try {
+        const bytes = await this.payloads.readRaw(
+          claimed.organisation_id as string,
+          objectId,
+        );
+        // Prefer JSON parse; fall back to utf8 string for non-JSON originals.
+        try {
+          raw.original_payload = JSON.parse(bytes.toString("utf8"));
+        } catch {
+          raw.original_payload = bytes.toString("utf8");
+        }
+      } catch (err) {
+        this.log.warn(`replay payload restore failed object=${objectId}: ${String(err)}`);
+      }
+    }
+    delete raw.original_payload_object_id;
+    delete raw.original_payload_sha256;
+    return raw;
+  }
+
   private async findExisting(input: EventIngestInput): Promise<string | null> {
     const { data, error } = await this.admin.client
       .from("events")
@@ -183,13 +217,40 @@ export class IngestionService {
     raw: unknown,
     reason: string,
   ): Promise<IngestResult> {
-    // Keep the tenant association mandatory. Avoid duplicating original binary/raw
-    // payloads in Postgres; only the structured event envelope is retained here.
-    const safeRaw = raw && typeof raw === "object" && !Array.isArray(raw)
-      ? { ...(raw as Record<string, unknown>), organisation_id: organisationId, original_payload: undefined }
+    // Preserve original_payload in object storage; Postgres keeps envelope + refs only.
+    let originalObjectId: string | null = null;
+    let originalSha: string | null = null;
+    const rawObj =
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : null;
+    const originalPayload = rawObj?.original_payload ?? input?.original_payload;
+
+    if (originalPayload !== undefined) {
+      try {
+        const stored = await this.payloads.storeRaw(organisationId, originalPayload, {
+          classification: "real",
+        });
+        originalObjectId = stored.id;
+        originalSha = stored.content_sha256;
+      } catch (storeErr) {
+        this.log.error(`DLQ original payload store failed: ${String(storeErr)}`);
+      }
+    }
+
+    const safeRaw = rawObj
+      ? {
+          ...rawObj,
+          organisation_id: organisationId,
+          // Strip bulky original bytes from JSONB; restore from object store on replay.
+          original_payload: undefined,
+          original_payload_object_id: originalObjectId,
+          original_payload_sha256: originalSha,
+        }
       : { organisation_id: organisationId, rejected_value_type: typeof raw };
+
     const serialised = JSON.stringify(safeRaw);
-    const digest = createHash("sha256").update(serialised ?? "null").digest("hex");
+    const digest = createHash("sha256").update(serialised).digest("hex");
     const { data, error } = await this.admin.client
       .from("event_ingestion_dlq")
       .insert({
@@ -199,6 +260,9 @@ export class IngestionService {
         source_event_id: input?.source_event_id ?? null,
         failure_reason: reason.slice(0, 2000),
         payload_ref: digest,
+        replay_fingerprint: digest,
+        original_payload_object_id: originalObjectId,
+        original_payload_sha256: originalSha,
         raw_body: safeRaw,
         schema_version: input?.schema_version ?? null,
         status: "open",

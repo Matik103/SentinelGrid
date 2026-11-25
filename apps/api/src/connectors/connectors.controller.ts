@@ -33,6 +33,15 @@ export class ConnectorsController {
     return this.connectors.heartbeat(user, this.uuid(orgId), this.uuid(connectorId));
   }
 
+  @Post(":connectorId/rotate")
+  rotate(
+    @CurrentUser() user: AuthUser,
+    @Param("organisationId") orgId: string,
+    @Param("connectorId") connectorId: string,
+  ) {
+    return this.connectors.rotate(user, this.uuid(orgId), this.uuid(connectorId));
+  }
+
   @Post(":connectorId/revoke")
   revoke(
     @CurrentUser() user: AuthUser,

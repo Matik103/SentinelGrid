@@ -90,6 +90,10 @@ func (c *Client) deliverOne(ctx context.Context, e buffer.Entry) error {
 		c.log.Warn("api.base_url empty; delivery disabled and event retained", "id", e.ID)
 		return fmt.Errorf("event delivery disabled: api.base_url is not configured")
 	}
+	// Auth guard: refuse delivery when credentials are missing/revoked/mismatched.
+	if err := c.creds.AuthGuard(); err != nil {
+		return fmt.Errorf("outbound auth guard: %w", err)
+	}
 	token, err := c.creds.Token()
 	if err != nil {
 		return err

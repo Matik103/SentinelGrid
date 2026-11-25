@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { z } from "zod";
 import { SupabaseUserFactory } from "../common/supabase-user.factory.js";
+import { EmailOutboxService } from "../common/email-outbox.service.js";
 import type { AuthUser } from "../auth/auth.types.js";
 
 const BootstrapSchema = z.object({
@@ -37,7 +38,10 @@ const AcceptInviteSchema = z.object({
 export class OrgsService {
   private readonly log = new Logger(OrgsService.name);
 
-  constructor(private readonly users: SupabaseUserFactory) {}
+  constructor(
+    private readonly users: SupabaseUserFactory,
+    private readonly outbox: EmailOutboxService,
+  ) {}
 
   async bootstrap(user: AuthUser, body: unknown) {
     const input = BootstrapSchema.parse(body);
@@ -100,6 +104,11 @@ export class OrgsService {
     await this.requirePermission(user, organisationId, "user.manage");
     const sb = this.users.create(user.accessToken);
 
+    // Expire stale pending invites for this org inside the same request window.
+    await sb.rpc("expire_organisation_invitations", {
+      p_organisation_id: organisationId,
+    });
+
     const { data, error } = await sb.rpc("create_organisation_invitation", {
       p_organisation_id: organisationId,
       p_email: input.email,
@@ -117,7 +126,7 @@ export class OrgsService {
       token: string;
     };
 
-    this.deliverInviteEmail(result.email, result.token, organisationId);
+    const delivery = await this.deliverInviteEmail(result.email, result.token, organisationId);
 
     return {
       status: result.status,
@@ -126,9 +135,9 @@ export class OrgsService {
       email: result.email,
       role_key: result.role_key,
       role_id: result.role_id,
-      // Token exposed once so local_dev/stub mailer can deliver; production mailer should not log it.
       delivery: {
-        channel: process.env.NODE_ENV === "production" ? "not_configured" : "local_dev_log",
+        ...delivery,
+        // Token exposed once for local_dev accept flows; production relies on outbox/email.
         token_included: process.env.NODE_ENV !== "production",
         ...(process.env.NODE_ENV !== "production" ? { token: result.token } : {}),
       },
@@ -138,8 +147,19 @@ export class OrgsService {
   async acceptInvite(user: AuthUser, body: unknown) {
     const input = AcceptInviteSchema.parse(body);
     const sb = this.users.create(user.accessToken);
+    // Expiry is enforced transactionally inside the RPC (marks expired then raises).
     const { data, error } = await sb.rpc("accept_organisation_invitation", {
       p_token: input.token,
+    });
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async expireInvites(user: AuthUser, organisationId: string) {
+    await this.requirePermission(user, organisationId, "user.manage");
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb.rpc("expire_organisation_invitations", {
+      p_organisation_id: organisationId,
     });
     if (error) throw new BadRequestException(error.message);
     return data;
@@ -188,15 +208,39 @@ export class OrgsService {
     return data ?? [];
   }
 
-  private deliverInviteEmail(email: string, token: string, organisationId: string) {
-    // No production mail transport is configured yet. Never claim that an invite
-    // was queued or delivered when no durable outbox/provider exists.
-    if (process.env.NODE_ENV === "production") {
-      this.log.warn(`invite delivery not configured organisation=${organisationId} email=${email}`);
-      return;
+  private async deliverInviteEmail(
+    email: string,
+    token: string,
+    organisationId: string,
+  ): Promise<{ channel: string; outbox_id?: string; status: string }> {
+    const acceptPath = process.env.SG_INVITE_ACCEPT_URL ?? "/accept-invite";
+    const bodyText = [
+      "You have been invited to a SentinelGrid organisation.",
+      `Accept path: ${acceptPath}`,
+      `Token: ${token}`,
+      "",
+      "If you did not expect this email, ignore it.",
+    ].join("\n");
+
+    try {
+      const row = await this.outbox.enqueue({
+        organisationId,
+        templateKey: "organisation.invite",
+        toEmail: email,
+        subject: "SentinelGrid organisation invitation",
+        bodyText,
+        payload: { organisation_id: organisationId, accept_path: acceptPath },
+      });
+      const channel =
+        process.env.NODE_ENV === "production" && (process.env.SG_EMAIL_TRANSPORT ?? "none") === "none"
+          ? "outbox_pending"
+          : "outbox";
+      return { channel, outbox_id: row.id, status: row.status };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.log.error(`invite outbox failed organisation=${organisationId}: ${message}`);
+      // Invitation row already exists; surface delivery failure without rolling back RPC.
+      return { channel: "outbox_failed", status: "failed" };
     }
-    this.log.log(
-      `[local_dev] invite email → ${email} org=${organisationId} accept_token=${token}`,
-    );
   }
 }

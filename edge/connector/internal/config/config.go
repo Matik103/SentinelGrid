@@ -9,20 +9,27 @@ import (
 )
 
 type Config struct {
-	OrganisationID string      `yaml:"organisation_id"`
-	ConnectorID    string      `yaml:"connector_id"`
-	Mode           string      `yaml:"mode"` // poll | push
-	API            APIConfig   `yaml:"api"`
-	OT             OTConfig    `yaml:"ot"`
-	Buffer         BufferConfig `yaml:"buffer"`
-	Retry          RetryConfig `yaml:"retry"`
-	Sources        []Source    `yaml:"sources"`
+	OrganisationID string           `yaml:"organisation_id"`
+	ConnectorID    string           `yaml:"connector_id"`
+	Mode           string           `yaml:"mode"` // poll | push
+	API            APIConfig        `yaml:"api"`
+	OT             OTConfig         `yaml:"ot"`
+	Buffer         BufferConfig     `yaml:"buffer"`
+	Retry          RetryConfig      `yaml:"retry"`
+	Credentials    CredentialsConfig `yaml:"credentials"`
+	Sources        []Source         `yaml:"sources"`
 }
 
 type APIConfig struct {
 	BaseURL      string `yaml:"base_url"`
 	IngestPath   string `yaml:"ingest_path"`
 	AuthTokenEnv string `yaml:"auth_token_env"`
+}
+
+type CredentialsConfig struct {
+	StoreDir   string `yaml:"store_dir"`
+	SealKeyEnv string `yaml:"seal_key_env"`
+	RequireSeal bool  `yaml:"require_seal"`
 }
 
 type OTConfig struct {
@@ -77,6 +84,15 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Buffer.Dir == "" {
 		cfg.Buffer.Dir = "./.connector-buffer"
+	}
+	if cfg.Credentials.StoreDir == "" {
+		cfg.Credentials.StoreDir = "./.connector-credentials"
+	}
+	if cfg.Credentials.SealKeyEnv == "" {
+		cfg.Credentials.SealKeyEnv = "SENTINELGRID_CONNECTOR_SEAL_KEY"
+	}
+	if os.Getenv("SG_CONNECTOR_ENV") == "production" {
+		cfg.Credentials.RequireSeal = true
 	}
 	if cfg.Retry.MaxAttempts <= 0 {
 		cfg.Retry.MaxAttempts = 8

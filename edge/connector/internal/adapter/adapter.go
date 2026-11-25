@@ -1,5 +1,5 @@
-// Package adapter defines read-only OT protocol interfaces.
-// Phase 0: OPC UA / Modbus / MQTT are stubs behind these interfaces — no fake live telemetry.
+// Package adapter defines read-only OT protocol interfaces and implementations.
+// Implementations may probe connectivity; they must never invent live process values.
 package adapter
 
 import (
@@ -8,13 +8,15 @@ import (
 	"time"
 )
 
-// Sample is an explicit scaffold reading — never labeled as live process data by adapters.
+// Sample is a collection outcome. Scaffold=true means no live process telemetry.
 type Sample struct {
-	Source    string
-	Protocol  string
-	Note      string
+	Source     string
+	Protocol   string
+	Note       string
 	ObservedAt time.Time
-	Scaffold  bool // always true for stub adapters
+	Scaffold   bool // true when no authenticated live readings were taken
+	Reachable  *bool
+	Status     string // ok | unreachable | hardware_unavailable | misconfigured | stubbed
 }
 
 // Source describes a configured collection endpoint.
@@ -24,10 +26,10 @@ type Source struct {
 	Endpoint string
 }
 
-// ProtocolAdapter is the contract for OT collectors. Implementations must not invent live values.
+// ProtocolAdapter is the contract for OT collectors (read-only).
 type ProtocolAdapter interface {
 	Protocol() string
-	// Collect returns scaffold/status samples only in Phase 0 stubs.
+	// Collect returns status/probe samples. Must not fabricate process values.
 	Collect(ctx context.Context, src Source) ([]Sample, error)
 }
 
@@ -51,3 +53,5 @@ func (r *Registry) Get(protocol string) (ProtocolAdapter, error) {
 	}
 	return a, nil
 }
+
+func boolPtr(v bool) *bool { return &v }

@@ -156,10 +156,13 @@ if [[ -f edge/connector/cmd/connector/main.go ]] \
   && [[ -f edge/connector/internal/outbound/outbound.go ]] \
   && [[ -f edge/connector/internal/credentials/credentials.go ]] \
   && [[ -f edge/connector/internal/adapter/adapter.go ]] \
+  && [[ -f edge/connector/internal/adapter/opcua.go ]] \
+  && [[ -f edge/connector/internal/adapter/modbus.go ]] \
+  && [[ -f edge/connector/internal/adapter/mqtt.go ]] \
   && grep -q 'ProtocolAdapter' edge/connector/internal/adapter/adapter.go \
-  && grep -q 'opcua\|OPCUA' edge/connector/internal/adapter/stubs.go; then
-  pass_check product.connector_runtime "Durable Go connector: buffer, retry, credentials, read-only OT, protocol adapter stubs" "edge/connector"
-else fail_check high product.connector_runtime "Edge connector incomplete (need buffer/retry/credentials/adapters)" "edge/connector" "Add durable buffer, outbound retry, credential hooks, OPC UA/Modbus/MQTT adapter interfaces."; fi
+  && grep -q 'writeSealedLocked\|REVOKED' edge/connector/internal/credentials/credentials.go; then
+  pass_check product.connector_runtime "Durable Go connector: buffer, retry, sealed credentials, read-only OT protocol adapters" "edge/connector"
+else fail_check high product.connector_runtime "Edge connector incomplete (need buffer/retry/credentials/adapters)" "edge/connector" "Add durable buffer, outbound retry, credential lifecycle, OPC UA/Modbus/MQTT adapters."; fi
 
 if [[ -f apps/api/src/orgs/orgs.controller.ts ]] && grep -q 'bootstrap_organisation' apps/api/src/orgs/orgs.service.ts && grep -q 'has_org_permission' apps/api/src/orgs/orgs.service.ts; then
   pass_check product.org_api "Org provisioning/membership/RBAC API surface present" "apps/api/src/orgs"

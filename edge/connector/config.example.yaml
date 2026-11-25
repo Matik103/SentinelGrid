@@ -9,6 +9,10 @@ ot:
   access: read_only # Phase 0 hard default; non-read_only rejected at load
 buffer:
   dir: ./.connector-buffer
+credentials:
+  store_dir: ./.connector-credentials
+  seal_key_env: SENTINELGRID_CONNECTOR_SEAL_KEY
+  require_seal: false # forced true when SG_CONNECTOR_ENV=production
 retry:
   max_attempts: 8
   base_delay_ms: 500

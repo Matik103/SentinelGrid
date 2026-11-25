@@ -26,7 +26,12 @@ type Runtime struct {
 }
 
 func New(cfg *config.Config, log *slog.Logger) (*Runtime, error) {
-	creds := credentials.New(cfg.API.AuthTokenEnv)
+	creds := credentials.NewWithOptions(credentials.Options{
+		EnvVar:      cfg.API.AuthTokenEnv,
+		StoreDir:    cfg.Credentials.StoreDir,
+		SealKeyEnv:  cfg.Credentials.SealKeyEnv,
+		RequireSeal: cfg.Credentials.RequireSeal,
+	})
 	buf, err := buffer.New(cfg.Buffer.Dir)
 	if err != nil {
 		return nil, err
@@ -72,6 +77,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 			_ = r.out.Flush(context.Background())
 			return context.Canceled
 		case <-ticker.C:
+			if err := r.creds.RefreshFromDisk(); err != nil {
+				r.log.Warn("credential lifecycle", "err", err)
+			}
 			if err := r.tick(ctx); err != nil {
 				r.log.Warn("poll tick", "err", err)
 			}
@@ -117,9 +125,12 @@ func (r *Runtime) emitScaffold(ctx context.Context, s adapter.Sample) error {
 		"source_event_id": fmt.Sprintf("heartbeat-%s-%d", s.Protocol, s.ObservedAt.UnixNano()),
 		"schema_version":  "0.1.0",
 		"normalised": map[string]any{
-			"protocol": s.Protocol,
-			"note":     s.Note,
-			"scaffold": true,
+			"protocol":  s.Protocol,
+			"note":      s.Note,
+			"scaffold":  true,
+			"status":    s.Status,
+			"reachable": s.Reachable,
+			"ot_access": "read_only",
 		},
 		"classification": "synthetic",
 		"data_quality":   "unknown",

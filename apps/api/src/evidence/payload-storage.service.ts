@@ -33,8 +33,6 @@ export class PayloadStorageService {
     }
     const classification = opts?.classification ?? "real";
     if (!CLASSIFICATIONS.has(classification)) throw new Error("Invalid payload classification");
-
-    // S3 is intentionally unsupported until a real adapter is installed and tested.
     const requestedBackend = process.env.PAYLOAD_STORAGE_BACKEND ?? "local_dev";
     if (requestedBackend !== "local_dev") {
       throw new Error(`Unsupported PAYLOAD_STORAGE_BACKEND: ${requestedBackend}; refusing metadata-only evidence writes`);
@@ -56,7 +54,6 @@ export class PayloadStorageService {
 
     await mkdir(path.dirname(fullPath), { recursive: true, mode: 0o700 });
     await writeFile(fullPath, bytes, { flag: "wx", mode: 0o600 });
-
     try {
       const { data, error } = await this.admin.client
         .from("payload_objects")
@@ -83,6 +80,30 @@ export class PayloadStorageService {
       await rm(fullPath, { force: true });
       throw error;
     }
+  }
+
+  async deleteStored(organisationId: string, objectId: string): Promise<void> {
+    const { data, error } = await this.admin.client
+      .from("payload_objects")
+      .select("object_key, storage_backend")
+      .eq("id", objectId)
+      .eq("organisation_id", organisationId)
+      .single();
+    if (error || !data) throw new Error("Payload metadata not found for cleanup");
+    if (data.storage_backend !== "local_dev") throw new Error("Unsupported payload backend during cleanup");
+    const key = String(data.object_key);
+    if (!key.startsWith(`${organisationId}/`) || key.includes("..") || path.isAbsolute(key)) {
+      throw new Error("Stored evidence key failed tenant/path validation");
+    }
+    const fullPath = path.resolve(this.root, key);
+    if (!fullPath.startsWith(this.root + path.sep)) throw new Error("Stored evidence path escaped storage root");
+    await rm(fullPath, { force: true });
+    const { error: deleteError } = await this.admin.client
+      .from("payload_objects")
+      .delete()
+      .eq("id", objectId)
+      .eq("organisation_id", organisationId);
+    if (deleteError) throw new Error(`Payload metadata cleanup failed: ${deleteError.message}`);
   }
 
   async readRaw(organisationId: string, objectId: string): Promise<Buffer> {

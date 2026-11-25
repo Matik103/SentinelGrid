@@ -215,6 +215,20 @@ export class ConnectorsService {
     }
   }
 
+  /** Resolve tenant identity from the connector record, never from request data. */
+  async authenticateConnector(connectorId: string, presentedToken: string): Promise<{ id: string; organisation_id: string }> {
+    if (!presentedToken || !/^sgc_[a-f0-9]{48}$/.test(presentedToken)) throw new UnauthorizedException("Connector credential rejected");
+    const { data, error } = await this.admin.client.from("connectors")
+      .select("id, organisation_id, credential_status, credential_token_hash, status")
+      .eq("id", connectorId).maybeSingle();
+    if (error || !data || data.status === "revoked" || data.credential_status === "revoked") throw new UnauthorizedException("Connector credential rejected");
+    const stored = data.credential_token_hash as string | null;
+    if (!stored) throw new UnauthorizedException("Connector credential rejected");
+    const actual = Buffer.from(hashToken(presentedToken), "hex");
+    const expected = Buffer.from(stored, "hex");
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new UnauthorizedException("Connector credential rejected");
+    return { id: data.id as string, organisation_id: data.organisation_id as string };
+  }
   async assertConnectorAuthorized(
     organisationId: string,
     connectorId: string,

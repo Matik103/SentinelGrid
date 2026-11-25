@@ -9,6 +9,8 @@ export type IngestResult =
   | { status: "deduplicated"; event_id: string; deduplicated: true }
   | { status: "dlq"; dlq_id: string; reason: string };
 
+type IngestOptions = { replay?: boolean; authorisedOrganisationId: string };
+
 @Injectable()
 export class IngestionService {
   private readonly log = new Logger(IngestionService.name);
@@ -18,32 +20,34 @@ export class IngestionService {
     private readonly payloads: PayloadStorageService,
   ) {}
 
-  async ingest(raw: unknown, opts?: { replay?: boolean }): Promise<IngestResult> {
+  async ingest(raw: unknown, opts: IngestOptions): Promise<IngestResult> {
+    const organisationId = opts.authorisedOrganisationId;
     const parsed = EventIngestSchema.safeParse(raw);
     if (!parsed.success) {
-      return this.toDlq(null, raw, `schema_validation: ${parsed.error.message}`);
+      return this.toDlq(organisationId, null, raw, `schema_validation: ${parsed.error.message}`);
     }
     const input = parsed.data;
-    if (opts?.replay) {
-      input.classification = "replayed";
+    if (input.organisation_id !== organisationId) {
+      throw new BadRequestException("Event organisation_id does not match the authorised tenant");
     }
+    if (opts.replay) input.classification = "replayed";
 
+    // Check the idempotency key before writing any external payload bytes.
+    const existing = await this.findExisting(input);
+    if (existing) return { status: "deduplicated", event_id: existing, deduplicated: true };
+
+    let stored: Awaited<ReturnType<PayloadStorageService["storeRaw"]>> | undefined;
     try {
-      let payloadObjectId: string | undefined;
-      let originalPayloadRef: string | null = null;
-
       if (input.original_payload !== undefined) {
-        const stored = await this.payloads.storeRaw(
-          input.organisation_id,
+        stored = await this.payloads.storeRaw(
+          organisationId,
           input.original_payload,
           { classification: input.classification },
         );
-        payloadObjectId = stored.id;
-        originalPayloadRef = stored.object_key;
       }
 
       const row = {
-        organisation_id: input.organisation_id,
+        organisation_id: organisationId,
         facility_id: input.facility_id ?? null,
         asset_id: input.asset_id ?? null,
         device_id: input.device_id ?? null,
@@ -60,103 +64,148 @@ export class IngestionService {
         data_quality: input.data_quality,
         clock_quality: input.clock_quality,
         classification: input.classification,
-        original_payload_ref: originalPayloadRef,
+        original_payload_ref: stored?.object_key ?? null,
       };
 
       const { data, error } = await this.admin.client
         .from("events")
         .insert(row)
         .select("id")
-        .maybeSingle();
+        .single();
 
       if (error) {
-        // Unique violation on (organisation_id, source, source_event_id) => dedup
         if (error.code === "23505") {
-          const existing = await this.findExisting(input);
-          if (existing) {
-            return { status: "deduplicated", event_id: existing, deduplicated: true };
+          const raced = await this.findExisting(input);
+          if (raced) {
+            if (stored) await this.payloads.deleteStored(organisationId, stored.id);
+            return { status: "deduplicated", event_id: raced, deduplicated: true };
           }
         }
-        return this.toDlq(input, raw, error.message);
+        if (stored) await this.payloads.deleteStored(organisationId, stored.id);
+        return this.toDlq(organisationId, input, raw, error.message);
       }
-
       if (!data?.id) {
-        return this.toDlq(input, raw, "insert_returned_no_id");
+        if (stored) await this.payloads.deleteStored(organisationId, stored.id);
+        return this.toDlq(organisationId, input, raw, "insert_returned_no_id");
       }
 
       return {
         status: "accepted",
         event_id: data.id as string,
         deduplicated: false,
-        payload_object_id: payloadObjectId,
+        payload_object_id: stored?.id,
       };
     } catch (err) {
+      if (stored) {
+        try { await this.payloads.deleteStored(organisationId, stored.id); }
+        catch (cleanupError) { this.log.error(`orphan payload cleanup failed: ${String(cleanupError)}`); }
+      }
       const message = err instanceof Error ? err.message : String(err);
       this.log.warn(`ingest failure: ${message}`);
-      return this.toDlq(input, raw, message);
+      return this.toDlq(organisationId, input, raw, message);
     }
   }
 
-  async replayFromDlq(dlqId: string): Promise<IngestResult> {
-    const { data: dlq, error } = await this.admin.client
-      .from("event_ingestion_dlq")
-      .select("*")
-      .eq("id", dlqId)
-      .maybeSingle();
-    if (error || !dlq) {
-      throw new BadRequestException("DLQ entry not found");
-    }
-    if (dlq.status !== "open") {
-      throw new BadRequestException(`DLQ status is ${dlq.status}`);
-    }
-    const result = await this.ingest(dlq.raw_body ?? {}, { replay: true });
-    await this.admin.client
+  async replayFromDlq(dlqId: string, organisationId: string): Promise<IngestResult> {
+    // Conditional claim makes replay single-consumer. Tenant filter is mandatory
+    // on both the claim and final update; the service-role client bypasses RLS.
+    const { data: claimed, error: claimError } = await this.admin.client
       .from("event_ingestion_dlq")
       .update({
-        status: result.status === "dlq" ? "open" : "replayed",
-        attempt_count: (dlq.attempt_count ?? 1) + 1,
+        status: "processing",
+        attempt_count: 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", dlqId)
+      .eq("organisation_id", organisationId)
+      .eq("status", "open")
+      .select("*")
+      .maybeSingle();
+    if (claimError || !claimed) {
+      throw new BadRequestException("Open DLQ entry not found for this organisation");
+    }
+
+    let result: IngestResult;
+    try {
+      const raw = claimed.raw_body ?? {};
+      result = await this.ingest(raw, {
+        replay: true,
+        authorisedOrganisationId: organisationId,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const { error: releaseError } = await this.admin.client
+        .from("event_ingestion_dlq")
+        .update({ status: "open", last_error: reason, updated_at: new Date().toISOString() })
+        .eq("id", dlqId)
+        .eq("organisation_id", organisationId)
+        .eq("status", "processing");
+      if (releaseError) this.log.error(`failed to release DLQ claim: ${releaseError.message}`);
+      throw error;
+    }
+
+    const finalStatus = result.status === "dlq" ? "open" : "replayed";
+    const { data: updated, error: updateError } = await this.admin.client
+      .from("event_ingestion_dlq")
+      .update({
+        status: finalStatus,
         last_error: result.status === "dlq" ? result.reason : null,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", dlqId);
+      .eq("id", dlqId)
+      .eq("organisation_id", organisationId)
+      .eq("status", "processing")
+      .select("id")
+      .maybeSingle();
+    if (updateError || !updated) {
+      throw new BadRequestException("Replay completed but DLQ state update failed; operator reconciliation required");
+    }
     return result;
   }
 
   private async findExisting(input: EventIngestInput): Promise<string | null> {
-    const { data } = await this.admin.client
+    const { data, error } = await this.admin.client
       .from("events")
       .select("id")
       .eq("organisation_id", input.organisation_id)
       .eq("source", input.source)
       .eq("source_event_id", input.source_event_id)
       .maybeSingle();
+    if (error) throw new Error(`Idempotency lookup failed: ${error.message}`);
     return (data?.id as string) ?? null;
   }
 
   private async toDlq(
+    organisationId: string,
     input: EventIngestInput | null,
     raw: unknown,
     reason: string,
   ): Promise<IngestResult> {
-    const digest = createHash("sha256").update(JSON.stringify(raw)).digest("hex");
+    // Keep the tenant association mandatory. Avoid duplicating original binary/raw
+    // payloads in Postgres; only the structured event envelope is retained here.
+    const safeRaw = raw && typeof raw === "object" && !Array.isArray(raw)
+      ? { ...(raw as Record<string, unknown>), original_payload: undefined }
+      : { rejected_value_type: typeof raw };
+    const serialised = JSON.stringify(safeRaw);
+    const digest = createHash("sha256").update(serialised ?? "null").digest("hex");
     const { data, error } = await this.admin.client
       .from("event_ingestion_dlq")
       .insert({
-        organisation_id: input?.organisation_id ?? null,
+        organisation_id: organisationId,
         connector_id: input?.connector_id ?? null,
         source: input?.source ?? null,
         source_event_id: input?.source_event_id ?? null,
-        failure_reason: reason,
+        failure_reason: reason.slice(0, 2000),
         payload_ref: digest,
-        raw_body: raw as object,
+        raw_body: safeRaw,
         schema_version: input?.schema_version ?? null,
         status: "open",
       })
       .select("id")
-      .maybeSingle();
+      .single();
     if (error || !data?.id) {
       this.log.error(`DLQ write failed: ${error?.message ?? "unknown"}`);
-      throw new BadRequestException(`Ingest failed and DLQ write failed: ${reason}`);
+      throw new BadRequestException("Ingest failed and DLQ persistence failed");
     }
     return { status: "dlq", dlq_id: data.id as string, reason };
   }

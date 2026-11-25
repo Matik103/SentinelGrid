@@ -150,9 +150,16 @@ if [[ -f apps/api/src/evidence/payload-storage.service.ts ]] \
   pass_check product.payload_storage "S3-compatible payload storage with SHA-256 integrity and production fail-closed local_dev ban" "apps/api/src/evidence"
 else fail_check high product.payload_storage "Payload storage incomplete (need S3 adapter, integrity, docs)" "docs/PAYLOAD_STORAGE.md" "Implement ObjectStore + PayloadStorageService with fail-closed S3 config."; fi
 
-if [[ -f edge/connector/cmd/connector/main.go ]] && grep -q 'read_only' edge/connector/internal/config/config.go; then
-  pass_check product.connector_runtime "Edge connector runtime scaffold with read-only OT default" "edge/connector"
-else fail_check high product.connector_runtime "Edge connector scaffold incomplete" "edge/connector" "Add Go connector with read_only OT default."; fi
+if [[ -f edge/connector/cmd/connector/main.go ]] \
+  && grep -q 'read_only' edge/connector/internal/config/config.go \
+  && [[ -f edge/connector/internal/buffer/buffer.go ]] \
+  && [[ -f edge/connector/internal/outbound/outbound.go ]] \
+  && [[ -f edge/connector/internal/credentials/credentials.go ]] \
+  && [[ -f edge/connector/internal/adapter/adapter.go ]] \
+  && grep -q 'ProtocolAdapter' edge/connector/internal/adapter/adapter.go \
+  && grep -q 'opcua\|OPCUA' edge/connector/internal/adapter/stubs.go; then
+  pass_check product.connector_runtime "Durable Go connector: buffer, retry, credentials, read-only OT, protocol adapter stubs" "edge/connector"
+else fail_check high product.connector_runtime "Edge connector incomplete (need buffer/retry/credentials/adapters)" "edge/connector" "Add durable buffer, outbound retry, credential hooks, OPC UA/Modbus/MQTT adapter interfaces."; fi
 
 if [[ -f apps/api/src/orgs/orgs.controller.ts ]] && grep -q 'bootstrap_organisation' apps/api/src/orgs/orgs.service.ts && grep -q 'has_org_permission' apps/api/src/orgs/orgs.service.ts; then
   pass_check product.org_api "Org provisioning/membership/RBAC API surface present" "apps/api/src/orgs"

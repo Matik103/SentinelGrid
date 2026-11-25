@@ -3,28 +3,43 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	OrganisationID string   `yaml:"organisation_id"`
-	ConnectorID    string   `yaml:"connector_id"`
-	Mode           string   `yaml:"mode"` // poll | push
-	API            APIConfig `yaml:"api"`
-	OT             OTConfig  `yaml:"ot"`
-	Sources        []Source  `yaml:"sources"`
+	OrganisationID string      `yaml:"organisation_id"`
+	ConnectorID    string      `yaml:"connector_id"`
+	Mode           string      `yaml:"mode"` // poll | push
+	API            APIConfig   `yaml:"api"`
+	OT             OTConfig    `yaml:"ot"`
+	Buffer         BufferConfig `yaml:"buffer"`
+	Retry          RetryConfig `yaml:"retry"`
+	Sources        []Source    `yaml:"sources"`
 }
 
 type APIConfig struct {
-	BaseURL     string `yaml:"base_url"`
-	IngestPath  string `yaml:"ingest_path"`
+	BaseURL      string `yaml:"base_url"`
+	IngestPath   string `yaml:"ingest_path"`
 	AuthTokenEnv string `yaml:"auth_token_env"`
 }
 
 type OTConfig struct {
 	// Phase 0 default: read_only. Write/control paths must be explicit and gated later.
 	Access string `yaml:"access"`
+}
+
+type BufferConfig struct {
+	Dir string `yaml:"dir"`
+}
+
+type RetryConfig struct {
+	MaxAttempts int           `yaml:"max_attempts"`
+	BaseDelayMS int           `yaml:"base_delay_ms"`
+	MaxDelayMS  int           `yaml:"max_delay_ms"`
+	BaseDelay   time.Duration `yaml:"-"`
+	MaxDelay    time.Duration `yaml:"-"`
 }
 
 type Source struct {
@@ -60,5 +75,19 @@ func Load(path string) (*Config, error) {
 	if cfg.OrganisationID == "" {
 		return nil, fmt.Errorf("organisation_id is required")
 	}
+	if cfg.Buffer.Dir == "" {
+		cfg.Buffer.Dir = "./.connector-buffer"
+	}
+	if cfg.Retry.MaxAttempts <= 0 {
+		cfg.Retry.MaxAttempts = 8
+	}
+	if cfg.Retry.BaseDelayMS <= 0 {
+		cfg.Retry.BaseDelayMS = 500
+	}
+	if cfg.Retry.MaxDelayMS <= 0 {
+		cfg.Retry.MaxDelayMS = 30000
+	}
+	cfg.Retry.BaseDelay = time.Duration(cfg.Retry.BaseDelayMS) * time.Millisecond
+	cfg.Retry.MaxDelay = time.Duration(cfg.Retry.MaxDelayMS) * time.Millisecond
 	return &cfg, nil
 }

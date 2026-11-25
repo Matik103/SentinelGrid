@@ -24,7 +24,11 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	rt := runtime.New(cfg, logger)
+	rt, err := runtime.New(cfg, logger)
+	if err != nil {
+		slog.Error("runtime init", "err", err)
+		os.Exit(1)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -33,6 +37,7 @@ func main() {
 		"mode", cfg.Mode,
 		"ot_access", cfg.OT.Access,
 		"org_id", cfg.OrganisationID,
+		"buffer_dir", cfg.Buffer.Dir,
 	)
 
 	if err := rt.Run(ctx); err != nil && err != context.Canceled {

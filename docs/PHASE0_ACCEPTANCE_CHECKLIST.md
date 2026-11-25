@@ -46,7 +46,7 @@ Timezone for operator notes: America/Los_Angeles.
 
 | Tip SHA | CI | Migrations applied | Notes |
 |---|---|---|---|
-| `a518912` | pending/fix as recorded | through `20261125230000` | Findings 1–3 |
-| _(next)_ | | | Findings 4–9 |
+| `a518912` | failure ([45690313033](https://github.com/Matik103/SentinelGrid/actions/runs/45690313033)) | through `20261125230000` | Findings 1–3; TS test typing |
+| `adc000c` | **success** ([45691343420](https://github.com/Matik103/SentinelGrid/actions/runs/45691343420)) | through `20261125230000` | Findings 1–9 landed |
 
-**Phase 0 status:** PARTIALLY COMPLETE — not COMPLETE until row 12 + ops C are green on the same tip.
+**Phase 0 status:** PARTIALLY COMPLETE — tip CI green on `adc000c`, but NOT COMPLETE until ops restore-drill artefact + remaining open blockers in the tip report are closed.

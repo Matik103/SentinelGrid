@@ -74,13 +74,13 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("phase0 OT access must be read_only (got %q)", cfg.OT.Access)
 	}
 	if cfg.API.IngestPath == "" {
-		cfg.API.IngestPath = "/v1/events/ingest"
+		cfg.API.IngestPath = "/v1/connectors/ingest"
 	}
 	if cfg.API.AuthTokenEnv == "" {
 		cfg.API.AuthTokenEnv = "SENTINELGRID_CONNECTOR_TOKEN"
 	}
-	if cfg.OrganisationID == "" {
-		return nil, fmt.Errorf("organisation_id is required")
+	if cfg.ConnectorID == "" {
+		return nil, fmt.Errorf("connector_id is required for credential-bound ingestion")
 	}
 	if cfg.Buffer.Dir == "" {
 		cfg.Buffer.Dir = "./.connector-buffer"

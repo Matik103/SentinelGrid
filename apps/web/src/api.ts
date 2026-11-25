@@ -1,4 +1,18 @@
-const base = () => (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+import { loadPublicConfig } from "./bootstrap";
+
+let apiBase = "";
+let configReady: Promise<void> | null = null;
+
+export function ensureConfig(): Promise<void> {
+  if (!configReady) {
+    configReady = loadPublicConfig().then((cfg) => {
+      apiBase = (cfg.api_base_url || "").replace(/\/$/, "");
+    });
+  }
+  return configReady;
+}
+
+const base = () => apiBase;
 
 export function apiConfigured(): boolean {
   return Boolean(base());
@@ -23,10 +37,20 @@ export function organisationId(): string | null {
 export type ApiError = { status: number; message: string };
 
 export async function apiGet<T>(path: string): Promise<{ data?: T; error?: ApiError }> {
+  await ensureConfig();
   const root = base();
-  if (!root) return { error: { status: 0, message: "VITE_API_BASE_URL not configured" } };
+  if (!root) {
+    return {
+      error: {
+        status: 0,
+        message: "API base URL not set in app_public_config (and no VITE_API_BASE_URL override)",
+      },
+    };
+  }
   const token = authToken();
-  if (!token) return { error: { status: 401, message: "Sign in required (set VITE_DEV_ACCESS_TOKEN or sg_access_token)" } };
+  if (!token) {
+    return { error: { status: 401, message: "Sign in required (set VITE_DEV_ACCESS_TOKEN or sg_access_token)" } };
+  }
   try {
     const res = await fetch(`${root}${path.startsWith("/") ? path : `/${path}`}`, {
       headers: {
@@ -48,8 +72,16 @@ export async function apiPost<T>(
   path: string,
   body: unknown,
 ): Promise<{ data?: T; error?: ApiError }> {
+  await ensureConfig();
   const root = base();
-  if (!root) return { error: { status: 0, message: "VITE_API_BASE_URL not configured" } };
+  if (!root) {
+    return {
+      error: {
+        status: 0,
+        message: "API base URL not set in app_public_config (and no VITE_API_BASE_URL override)",
+      },
+    };
+  }
   const token = authToken();
   if (!token) return { error: { status: 401, message: "Sign in required" } };
   try {
@@ -73,8 +105,9 @@ export async function apiPost<T>(
 }
 
 export async function healthCheck(): Promise<string> {
+  await ensureConfig();
   const root = base();
-  if (!root) return "API base URL not configured";
+  if (!root) return "API base URL not configured (DB app_public_config)";
   try {
     const res = await fetch(`${root}/v1/health`);
     return res.ok ? "API reachable" : `API HTTP ${res.status}`;

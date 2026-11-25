@@ -48,7 +48,7 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
     setLoading(true);
     setError(null);
     if (!apiConfigured()) {
-      setError("Configure VITE_API_BASE_URL to load live data.");
+      setError("API base URL missing in Supabase app_public_config (or VITE_API_BASE_URL for local).");
       setLoading(false);
       return;
     }

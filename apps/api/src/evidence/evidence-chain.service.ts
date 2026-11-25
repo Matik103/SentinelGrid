@@ -29,73 +29,13 @@ export class EvidenceChainService {
    * Append an evidence record linking an event to a stored payload object.
    * Chain hash = sha256(previous_hash|payload_sha256|event_id).
    */
-  async linkEventPayload(
-    organisationId: string,
-    eventId: string,
-    payloadObjectId: string,
-  ): Promise<LinkResult> {
-    const { data: payload, error: payloadError } = await this.admin.client
-      .from("payload_objects")
-      .select("id, object_key, content_sha256, organisation_id")
-      .eq("id", payloadObjectId)
-      .eq("organisation_id", organisationId)
-      .maybeSingle();
-    if (payloadError || !payload) {
-      throw new BadRequestException("Payload object not found for organisation");
-    }
-
-    const { data: event, error: eventError } = await this.admin.client
-      .from("events")
-      .select("id, organisation_id")
-      .eq("id", eventId)
-      .eq("organisation_id", organisationId)
-      .maybeSingle();
-    if (eventError || !event) {
-      throw new BadRequestException("Event not found for organisation");
-    }
-
-    const previousHash = await this.latestChainHash(organisationId);
-    const chainHash = createHash("sha256")
-      .update(`${previousHash ?? ""}|${payload.content_sha256}|${eventId}`, "utf8")
-      .digest("hex");
-
-    const { data, error } = await this.admin.client
-      .from("evidence_records")
-      .insert({
-        organisation_id: organisationId,
-        event_id: eventId,
-        payload_sha256: payload.content_sha256,
-        payload_ref: payload.object_key,
-        previous_hash: previousHash,
-        chain_hash: chainHash,
-        integrity_status: previousHash ? "chained" : "hashed",
-        metadata: { payload_object_id: payloadObjectId },
-      })
-      .select("id, event_id, payload_sha256, previous_hash, chain_hash")
-      .single();
-    if (error || !data) {
-      throw new BadRequestException(`evidence link failed: ${error?.message ?? "unknown"}`);
-    }
-
-    await this.admin.client
-      .from("events")
-      .update({
-        integrity_status: previousHash ? "chained" : "hashed",
-        payload_object_id: payloadObjectId,
-        original_payload_ref: payload.object_key,
-      })
-      .eq("id", eventId)
-      .eq("organisation_id", organisationId);
-
-    return {
-      evidence_id: data.id as string,
-      event_id: data.event_id as string,
-      payload_sha256: data.payload_sha256 as string,
-      previous_hash: (data.previous_hash as string | null) ?? null,
-      chain_hash: data.chain_hash as string,
-    };
+  async linkEventPayload(organisationId: string, eventId: string, payloadObjectId: string): Promise<LinkResult> {
+    const { data, error } = await this.admin.client.rpc("append_evidence_record", {
+      p_organisation_id: organisationId, p_event_id: eventId, p_payload_object_id: payloadObjectId,
+    });
+    if (error || !data) throw new BadRequestException("Atomic evidence append failed: " + (error?.message ?? "empty response"));
+    return data as LinkResult;
   }
-
   async createCheckpoint(
     user: AuthUser,
     organisationId: string,

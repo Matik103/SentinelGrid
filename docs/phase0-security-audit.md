@@ -1,7 +1,7 @@
 # Phase 0 security audit — SentinelGrid
 
-**Branch:** `work/phase0-security-hardening`  
-**Remote DB (abaeizgfsskvjklfslrh):** apply of forward migrations is a separate explicit step; this audit’s local verification does not imply remote apply success until confirmed below or in the apply log.  
+**Branch:** `work/phase0-security-hardening` (`12cca40`)  
+**Remote DB (abaeizgfsskvjklfslrh):** Forward migrations `20261125170000` and `20261125180000` **applied** via Management API (statement-by-statement; multi-statement batches were no-ops). Verified: `platform_admins` present, `bootstrap_organisation` / `has_org_permission` present, 16 `*_same_org_*` FKs, `memberships_write` removed, `memberships_insert_admin` present, demo orgs=2.  
 **Phase 0 status:** Not COMPLETE.
 
 ## Exact findings (pre-fix review of `20261125170000`)

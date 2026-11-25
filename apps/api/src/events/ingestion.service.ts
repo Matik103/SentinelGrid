@@ -118,7 +118,7 @@ export class IngestionService {
       })
       .eq("id", dlqId)
       .eq("organisation_id", organisationId)
-      .eq("status", "open")
+      .or(`status.eq.open,and(status.eq.processing,replay_started_at.lt.${new Date(Date.now() - 5 * 60 * 1000).toISOString()})`)
       .select("*")
       .maybeSingle();
     if (claimError || !claimed) {

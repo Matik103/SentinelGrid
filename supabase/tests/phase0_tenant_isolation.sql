@@ -62,6 +62,8 @@ DECLARE
   device_a uuid;
   event_a uuid;
   evidence_a uuid;
+  connector_a uuid;
+  dlq_a uuid;
   membership_id uuid;
   tmp_count int;
   raised boolean;
@@ -438,6 +440,71 @@ BEGIN
     PERFORM pg_temp.fail('bootstrap did not write audit log');
   END IF;
   PERFORM pg_temp.pass('bootstrap_organisation writes audit log');
+
+  -- 16) DLQ tenant integrity and read isolation
+  INSERT INTO public.connectors (organisation_id, name, connector_uid)
+  VALUES (org_a, 'Connector A', 'connector-a-test') RETURNING id INTO connector_a;
+  PERFORM set_config('request.jwt.claim.role', 'service_role', true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  EXECUTE 'SET LOCAL ROLE service_role';
+  INSERT INTO public.event_ingestion_dlq (
+    organisation_id, connector_id, source, source_event_id, failure_reason, raw_body, status
+  ) VALUES (
+    org_a, connector_a, 'test', 'bad-evt-1', 'test failure',
+    jsonb_build_object('organisation_id', org_a), 'open'
+  ) RETURNING id INTO dlq_a;
+  RESET ROLE;
+
+  raised := false;
+  BEGIN
+    INSERT INTO public.event_ingestion_dlq (
+      organisation_id, connector_id, failure_reason, raw_body
+    ) VALUES (org_b, connector_a, 'cross tenant', '{}'::jsonb);
+  EXCEPTION WHEN foreign_key_violation OR others THEN
+    raised := true;
+  END;
+  IF NOT raised THEN
+    PERFORM pg_temp.fail('cross-tenant DLQ connector reference was accepted');
+  END IF;
+  PERFORM pg_temp.pass('cross-tenant DLQ connector reference rejected');
+
+  raised := false;
+  BEGIN
+    INSERT INTO public.event_ingestion_dlq (organisation_id, failure_reason)
+    VALUES (NULL, 'missing tenant');
+  EXCEPTION WHEN not_null_violation OR others THEN
+    raised := true;
+  END;
+  IF NOT raised THEN
+    PERFORM pg_temp.fail('tenantless DLQ record was accepted');
+  END IF;
+  PERFORM pg_temp.pass('tenantless DLQ record rejected');
+
+  PERFORM pg_temp.set_auth(u_admin_b);
+  SELECT count(*) INTO tmp_count FROM public.event_ingestion_dlq WHERE id = dlq_a;
+  IF tmp_count <> 0 THEN
+    PERFORM pg_temp.fail('org B can read org A DLQ entry');
+  END IF;
+  PERFORM pg_temp.pass('DLQ records are tenant-isolated');
+
+  -- Payload metadata is tenant-isolated as well.
+  PERFORM pg_temp.clear_auth();
+  PERFORM set_config('request.jwt.claim.role', 'service_role', true);
+  PERFORM set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+  EXECUTE 'SET LOCAL ROLE service_role';
+  INSERT INTO public.payload_objects (
+    organisation_id, object_key, content_sha256, byte_length, storage_backend, classification
+  ) VALUES (
+    org_a, org_a::text || '/test/payload.json', repeat('a', 64), 4, 'local_dev', 'simulated'
+  );
+  RESET ROLE;
+  PERFORM pg_temp.set_auth(u_admin_b);
+  SELECT count(*) INTO tmp_count FROM public.payload_objects WHERE organisation_id = org_a;
+  IF tmp_count <> 0 THEN
+    PERFORM pg_temp.fail('org B can read org A payload metadata');
+  END IF;
+  PERFORM pg_temp.pass('payload metadata is tenant-isolated');
+  PERFORM pg_temp.clear_auth();
 
   RAISE NOTICE 'ALL PHASE0 SECURITY TESTS PASSED';
 END;

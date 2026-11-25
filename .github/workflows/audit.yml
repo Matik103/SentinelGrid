@@ -67,6 +67,7 @@ jobs:
         # Includes upgrade-path (foundation → forward), npm build/test, Go connector, then tenant isolation.
         run: ./scripts/audit.sh
       - name: Scan repository for secrets
+        if: always()
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

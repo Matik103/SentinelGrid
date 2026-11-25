@@ -38,6 +38,7 @@ describe("EventsController tenant authorization", () => {
     const controller = new EventsController(
       { ingest: async () => { called = true; return { status: "accepted", event_id: "x", deduplicated: false }; } } as never,
       { requirePermission: async () => true } as never,
+      {} as never,
     );
     await assert.rejects(
       controller.ingest({ id: "user-1" } as never, { event_type: "test" }),
@@ -53,6 +54,7 @@ describe("EventsController tenant authorization", () => {
         return { status: "accepted", event_id: "event-1", deduplicated: false };
       } } as never,
       { requirePermission: async (...args: unknown[]) => { calls.push(args); } } as never,
+      {} as never,
     );
     const body = {
       organisation_id: "00000000-0000-4000-8000-000000000001",
@@ -75,6 +77,7 @@ describe("EventsController tenant authorization", () => {
     const controller = new EventsController(
       { replayFromDlq: async (...args: unknown[]) => { calls.push(args); return { status: "accepted", event_id: "event-2", deduplicated: false }; } } as never,
       { requirePermission: async (...args: unknown[]) => { calls.push(args); } } as never,
+      {} as never,
     );
     const org = "00000000-0000-4000-8000-000000000002";
     await controller.replay({ id: "user-2" } as never, "dlq-1", { organisation_id: org });

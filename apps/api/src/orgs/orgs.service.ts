@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { z } from "zod";
@@ -28,14 +29,19 @@ const InviteSchema = z.object({
   ]),
 });
 
+const AcceptInviteSchema = z.object({
+  token: z.string().min(16).max(256),
+});
+
 @Injectable()
 export class OrgsService {
+  private readonly log = new Logger(OrgsService.name);
+
   constructor(private readonly users: SupabaseUserFactory) {}
 
   async bootstrap(user: AuthUser, body: unknown) {
     const input = BootstrapSchema.parse(body);
     const sb = this.users.create(user.accessToken);
-    // Tenant id comes from RPC return — never from client claim alone for authorization.
     const { data, error } = await sb.rpc("bootstrap_organisation", {
       p_name: input.name,
       p_slug: input.slug,
@@ -86,29 +92,84 @@ export class OrgsService {
   }
 
   /**
-   * Invite is Phase 0 scaffolding: validates RBAC and role catalogue.
-   * Does not invent auth users or fabricate memberships for unknown accounts.
+   * Create invitation via RPC — writes organisation_invitations and seeds membership when user exists.
+   * Email delivery is stubbed/logged in local_dev; token returned once for the delivery path.
    */
   async invite(user: AuthUser, organisationId: string, body: unknown) {
     const input = InviteSchema.parse(body);
     await this.requirePermission(user, organisationId, "user.manage");
     const sb = this.users.create(user.accessToken);
 
-    const { data: role, error: roleErr } = await sb
-      .from("roles")
-      .select("id, key")
-      .eq("key", input.role_key)
-      .maybeSingle();
-    if (roleErr || !role) throw new BadRequestException("Unknown role");
+    const { data, error } = await sb.rpc("create_organisation_invitation", {
+      p_organisation_id: organisationId,
+      p_email: input.email,
+      p_role_key: input.role_key,
+    });
+    if (error) throw new BadRequestException(error.message);
+
+    const result = data as {
+      id: string;
+      organisation_id: string;
+      email: string;
+      role_key: string;
+      role_id: string;
+      status: string;
+      token: string;
+    };
+
+    this.deliverInviteEmail(result.email, result.token, organisationId);
 
     return {
-      status: "pending_invite",
-      organisation_id: organisationId,
-      email: input.email,
-      role_key: input.role_key,
-      role_id: role.id,
-      note: "Complete invite acceptance via Auth after user signup; no fabricated membership written.",
+      status: result.status,
+      invitation_id: result.id,
+      organisation_id: result.organisation_id,
+      email: result.email,
+      role_key: result.role_key,
+      role_id: result.role_id,
+      // Token exposed once so local_dev/stub mailer can deliver; production mailer should not log it.
+      delivery: {
+        channel: process.env.NODE_ENV === "production" ? "queued" : "local_dev_log",
+        token_included: process.env.NODE_ENV !== "production",
+        ...(process.env.NODE_ENV !== "production" ? { token: result.token } : {}),
+      },
     };
+  }
+
+  async acceptInvite(user: AuthUser, body: unknown) {
+    const input = AcceptInviteSchema.parse(body);
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb.rpc("accept_organisation_invitation", {
+      p_token: input.token,
+    });
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async revokeInvite(user: AuthUser, organisationId: string, invitationId: string) {
+    await this.requirePermission(user, organisationId, "user.manage");
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb.rpc("revoke_organisation_invitation", {
+      p_invitation_id: invitationId,
+    });
+    if (error) throw new BadRequestException(error.message);
+    const result = data as { organisation_id?: string };
+    if (result?.organisation_id && result.organisation_id !== organisationId) {
+      throw new ForbiddenException("Invitation does not belong to this organisation");
+    }
+    return data;
+  }
+
+  async listInvites(user: AuthUser, organisationId: string) {
+    await this.requirePermission(user, organisationId, "user.manage");
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb
+      .from("organisation_invitations")
+      .select("id, email, role_id, status, expires_at, created_at, accepted_at, revoked_at, roles(key, name)")
+      .eq("organisation_id", organisationId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
   }
 
   async listMembers(user: AuthUser, organisationId: string) {
@@ -120,5 +181,16 @@ export class OrgsService {
       .eq("organisation_id", organisationId);
     if (error) throw new BadRequestException(error.message);
     return data ?? [];
+  }
+
+  private deliverInviteEmail(email: string, token: string, organisationId: string) {
+    // Real path: enqueue mailer. Phase 0 local_dev stubs by logging (never in production logs with token).
+    if (process.env.NODE_ENV === "production") {
+      this.log.log(`invite queued organisation=${organisationId} email=${email}`);
+      return;
+    }
+    this.log.log(
+      `[local_dev] invite email → ${email} org=${organisationId} accept_token=${token}`,
+    );
   }
 }

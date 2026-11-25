@@ -22,12 +22,22 @@ $$;
 
 CREATE OR REPLACE FUNCTION pg_temp.set_auth(p_user uuid)
 RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+  v_email text;
 BEGIN
+  SELECT email INTO v_email FROM auth.users WHERE id = p_user;
   PERFORM set_config('request.jwt.claim.sub', p_user::text, true);
   PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
+  IF v_email IS NOT NULL THEN
+    PERFORM set_config('request.jwt.claim.email', v_email, true);
+  END IF;
   PERFORM set_config(
     'request.jwt.claims',
-    json_build_object('sub', p_user::text, 'role', 'authenticated')::text,
+    json_build_object(
+      'sub', p_user::text,
+      'role', 'authenticated',
+      'email', coalesce(v_email, '')
+    )::text,
     true
   );
   EXECUTE 'SET LOCAL ROLE authenticated';
@@ -67,6 +77,10 @@ DECLARE
   membership_id uuid;
   tmp_count int;
   raised boolean;
+  invite_payload jsonb;
+  invite_token text;
+  invite_id uuid;
+  u_invitee uuid := gen_random_uuid();
 BEGIN
   -- Create auth users (local only)
   INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
@@ -512,6 +526,63 @@ BEGIN
   PERFORM pg_temp.pass('payload metadata is tenant-isolated');
   PERFORM pg_temp.clear_auth();
 
+  -- 17) organisation_invitations create / accept / revoke create real memberships
+  INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+  VALUES
+    (u_invitee, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+     'invitee-b@example.test', crypt('x', gen_salt('bf')), now(), now(), now(), '{}', '{}');
+
+  PERFORM pg_temp.set_auth(u_admin_b);
+  invite_payload := public.create_organisation_invitation(
+    org_b, 'invitee-b@example.test', 'read_only_viewer'
+  );
+  invite_token := invite_payload ->> 'token';
+  invite_id := (invite_payload ->> 'id')::uuid;
+  IF invite_token IS NULL OR invite_id IS NULL THEN
+    PERFORM pg_temp.fail('create_organisation_invitation missing token/id');
+  END IF;
+  PERFORM pg_temp.pass('create_organisation_invitation returns pending invite');
+
+  -- Cross-tenant: org A admin cannot revoke org B invite
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.set_auth(u_admin_a);
+  raised := false;
+  BEGIN
+    PERFORM public.revoke_organisation_invitation(invite_id);
+  EXCEPTION WHEN others THEN
+    raised := true;
+  END;
+  IF NOT raised THEN
+    PERFORM pg_temp.fail('org A admin revoked org B invitation');
+  END IF;
+  PERFORM pg_temp.pass('cross-tenant invite revoke denied');
+
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.set_auth(u_invitee);
+  invite_payload := public.accept_organisation_invitation(invite_token);
+  IF invite_payload ->> 'status' <> 'accepted' THEN
+    PERFORM pg_temp.fail('accept_organisation_invitation did not accept');
+  END IF;
+  SELECT count(*) INTO tmp_count FROM public.memberships
+  WHERE organisation_id = org_b AND user_id = u_invitee AND status = 'active' AND role_id = role_viewer;
+  IF tmp_count <> 1 THEN
+    PERFORM pg_temp.fail('accept did not create active membership with RBAC role');
+  END IF;
+  PERFORM pg_temp.pass('accept_organisation_invitation creates active membership');
+  PERFORM pg_temp.clear_auth();
+
+  -- Revoke path on a fresh pending invite
+  PERFORM pg_temp.set_auth(u_admin_b);
+  invite_payload := public.create_organisation_invitation(
+    org_b, 'viewer-a@example.test', 'read_only_viewer'
+  );
+  invite_id := (invite_payload ->> 'id')::uuid;
+  invite_payload := public.revoke_organisation_invitation(invite_id);
+  IF invite_payload ->> 'status' <> 'revoked' THEN
+    PERFORM pg_temp.fail('revoke_organisation_invitation failed');
+  END IF;
+  PERFORM pg_temp.pass('revoke_organisation_invitation marks pending invite revoked');
+  PERFORM pg_temp.clear_auth();
 
   RAISE NOTICE 'ALL PHASE0 SECURITY TESTS PASSED';
 END;

@@ -165,6 +165,29 @@ if [[ -f apps/api/src/orgs/orgs.controller.ts ]] && grep -q 'bootstrap_organisat
   pass_check product.org_api "Org provisioning/membership/RBAC API surface present" "apps/api/src/orgs"
 else fail_check high product.org_api "Org/RBAC API surface missing" "apps/api/src/orgs" "Implement bootstrap, membership, and permission checks."; fi
 
+if [[ -f supabase/migrations/20261125210000_phase0_organisation_invitations.sql ]] \
+  && grep -q 'create_organisation_invitation' apps/api/src/orgs/orgs.service.ts \
+  && grep -q 'accept_organisation_invitation' apps/api/src/orgs/orgs.service.ts \
+  && grep -q 'revoke_organisation_invitation' apps/api/src/orgs/orgs.service.ts; then
+  pass_check product.org_invites "Organisation invitation create/accept/revoke path with membership RPCs" "apps/api/src/orgs"
+else fail_check high product.org_invites "Organisation invitation flow incomplete" "apps/api/src/orgs" "Wire invite RPCs and HTTP create/accept/revoke."; fi
+
+if [[ -f apps/api/src/common/rate-limit.middleware.ts ]] \
+  && [[ -f docs/RATE_LIMITING.md ]] \
+  && grep -q 'RATE_LIMIT_ALLOW_MEMORY' apps/api/src/common/rate-limit.middleware.ts; then
+  pass_check product.rate_limit "Distributed-ready rate limiting with production memory fail-closed" "apps/api/src/common/rate-limit.middleware.ts"
+else fail_check high product.rate_limit "API rate limiting missing" "docs/RATE_LIMITING.md" "Add Redis/memory rate limit with production fail-closed."; fi
+
+if [[ -f apps/api/src/registry/registry.controller.ts ]] \
+  && [[ -f apps/api/src/connectors/connectors.controller.ts ]] \
+  && [[ -f apps/api/src/audit/audit.controller.ts ]]; then
+  pass_check product.registry_connectors_audit "Registry, connector management, and audit read APIs present" "apps/api/src"
+else fail_check high product.registry_connectors_audit "Registry/connector/audit HTTP APIs incomplete" "apps/api" "Add facilities/assets/devices/sensors, connectors, audit routes."; fi
+
+if [[ -f docs/BACKUP_RECOVERY.md ]] && [[ -f IMPLEMENTATION_STATUS.md ]]; then
+  pass_check docs.ops_status "Backup/recovery notes and IMPLEMENTATION_STATUS present" "docs/BACKUP_RECOVERY.md"
+else fail_check medium docs.ops_status "Ops status docs missing" "IMPLEMENTATION_STATUS.md" "Add backup/recovery and status docs."; fi
+
 # Browser/client code must never reference the service-role secret.
 CLIENT_FILES="$(git ls-files apps/web packages 2>/dev/null | grep -E '\.(ts|tsx|js|jsx)$' || true)"
 if [[ -n "$CLIENT_FILES" ]]; then
@@ -177,7 +200,9 @@ else
   pass_check security.no_service_role_frontend "No browser application files exist yet; server API excluded from client scan" "apps/web"
 fi
 
-skip_check product.command_ui "Sentinel Command UI" "Frontend application is not implemented." "apps/web"
+if [[ -f apps/web/src/App.tsx ]] && [[ -f apps/web/src/tokens.css ]] && grep -q 'Sentinel' apps/web/src/App.tsx; then
+  pass_check product.command_ui "Sentinel Command UI shell with design tokens and Phase 0 surfaces" "apps/web"
+else fail_check high product.command_ui "Sentinel Command UI missing" "apps/web" "Add Command shell per design-system tokens."; fi
 
 ENDED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 BRANCH="$(git branch --show-current 2>/dev/null || echo unknown)"

@@ -95,6 +95,25 @@ export class PayloadStorageService implements OnModuleInit {
     return data as StoredPayloadMeta;
   }
 
+  async deleteStored(organisationId: string, payloadObjectId: string): Promise<void> {
+    if (!this.store) {
+      this.store = createObjectStoreFromEnv();
+    }
+    const { data, error } = await this.admin.client
+      .from("payload_objects")
+      .select("object_key")
+      .eq("id", payloadObjectId)
+      .eq("organisation_id", organisationId)
+      .maybeSingle();
+    if (error || !data) return;
+    await this.store.delete(data.object_key).catch(() => undefined);
+    await this.admin.client
+      .from("payload_objects")
+      .delete()
+      .eq("id", payloadObjectId)
+      .eq("organisation_id", organisationId);
+  }
+
   async readRaw(organisationId: string, payloadObjectId: string): Promise<Buffer> {
     if (!this.store) {
       this.store = createObjectStoreFromEnv();

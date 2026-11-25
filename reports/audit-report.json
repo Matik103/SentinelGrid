@@ -1,0 +1,146 @@
+{
+  "schema_version": "1.0",
+  "project": "SentinelGrid",
+  "gate": "engineering-quality-gate",
+  "started_at": "2026-11-25T17:48:00Z",
+  "ended_at": "2026-11-25T17:57:20Z",
+  "git": {
+    "branch": "work/phase0-security-hardening",
+    "sha": "pending-commit"
+  },
+  "summary": {
+    "failures": 1,
+    "passed": 9,
+    "failed": 1,
+    "not_applicable": 5,
+    "result": "failed"
+  },
+  "findings": [
+    {
+      "id": "env.supabase_cli",
+      "severity": "info",
+      "title": "Supabase CLI present",
+      "file": "scripts/audit.sh",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "repo.gitignore_env",
+      "severity": "info",
+      "title": ".env ignored",
+      "file": ".gitignore",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "repo.no_secret_files",
+      "severity": "info",
+      "title": "No obvious secret files tracked",
+      "file": ".gitignore",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.present.foundation",
+      "severity": "info",
+      "title": "Foundation migration present",
+      "file": "supabase/migrations/20261125160000_phase0_foundation.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.present.hardening",
+      "severity": "info",
+      "title": "Hardening migration present",
+      "file": "supabase/migrations/20261125170000_phase0_security_hardening.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.present.grants",
+      "severity": "info",
+      "title": "Grants/platform migration present",
+      "file": "supabase/migrations/20261125180000_phase0_security_grants_and_platform_boundary.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "seed.path",
+      "severity": "info",
+      "title": "Seed path points at phase0_demo.sql",
+      "file": "supabase/config.toml",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "security.tenant_isolation_sql",
+      "severity": "info",
+      "title": "Phase 0 tenant isolation SQL tests",
+      "file": "supabase/tests/phase0_tenant_isolation.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "seed.demo_orgs",
+      "severity": "info",
+      "title": "Demo simulated orgs present after local db reset",
+      "file": "supabase/seed/phase0_demo.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "deps.npm",
+      "severity": "info",
+      "title": "Application package dependencies",
+      "file": "",
+      "remediation": "No package.json yet \u2014 schema-only Phase 0 foundation.",
+      "status": "not_applicable"
+    },
+    {
+      "id": "product.connector_runtime",
+      "severity": "info",
+      "title": "Edge connector runtime",
+      "file": "",
+      "remediation": "Schema fields only; Go connector not implemented.",
+      "status": "not_applicable"
+    },
+    {
+      "id": "product.ingestion_api",
+      "severity": "info",
+      "title": "Event ingestion API",
+      "file": "",
+      "remediation": "Ledger uniqueness exists; HTTP ingestion API not implemented.",
+      "status": "not_applicable"
+    },
+    {
+      "id": "product.payload_storage",
+      "severity": "info",
+      "title": "Raw payload object storage",
+      "file": "docs/PAYLOAD_STORAGE.md",
+      "remediation": "Documented gap; refs/hashes only.",
+      "status": "not_applicable"
+    },
+    {
+      "id": "product.command_shell",
+      "severity": "info",
+      "title": "Sentinel Command UI",
+      "file": "",
+      "remediation": "No frontend application in repository yet.",
+      "status": "not_applicable"
+    },
+    {
+      "id": "upgrade.path",
+      "severity": "medium",
+      "title": "Foundation-then-upgrade path not fully completed in this session",
+      "file": "supabase/migrations/",
+      "remediation": "Re-run foundation-only reset then migration up before relying on upgrade evidence.",
+      "status": "failed"
+    }
+  ],
+  "notes": [
+    "Baseline committed from checks executed on local disposable Supabase in this session.",
+    "security.tenant_isolation_sql passed after db reset with migrations 160000+170000+180000.",
+    "upgrade.path marked failed because the upgrade simulation was interrupted; not claimed passed.",
+    "A green/partial audit is not Phase 0 product acceptance."
+  ]
+}

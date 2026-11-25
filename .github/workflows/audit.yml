@@ -1,0 +1,45 @@
+name: Engineering Quality Gate
+
+on:
+  push:
+    branches:
+      - work/phase0-security-hardening
+      - main
+  pull_request:
+    branches:
+      - work/phase0-security-hardening
+      - main
+  schedule:
+    # Daily audit (UTC)
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase (DB-focused)
+        run: |
+          supabase start --ignore-health-check -x storage,realtime,studio,imgproxy,edge-runtime,analytics || true
+          supabase db reset --yes
+
+      - name: Run audit (same command as local)
+        run: |
+          chmod +x scripts/audit.sh scripts/run-phase0-security-tests.sh
+          ./scripts/audit.sh
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-report
+          path: reports/audit-report.json

@@ -1,6 +1,6 @@
 # Phase 0 security hardening
 
-Status: implementation drafted on `work/phase0-security-hardening`; **not yet runtime-verified**.
+Status: drafted on `work/phase0-security-hardening`; **locally runtime-verified** (see [phase0-security-audit.md](./phase0-security-audit.md)). Follow-up migration `20261125180000` required for table grants + platform-admin boundary.
 
 ## Changes
 

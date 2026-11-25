@@ -147,7 +147,10 @@ export class OrgsService {
   async acceptInvite(user: AuthUser, body: unknown) {
     const input = AcceptInviteSchema.parse(body);
     const sb = this.users.create(user.accessToken);
-    // Expiry is enforced transactionally inside the RPC (marks expired then raises).
+    // Commit expiry separately: an exception inside accept RPC would roll back its UPDATE.
+    const { data: expiry, error: expiryError } = await sb.rpc("expire_organisation_invitation_by_token", { p_token: input.token });
+    if (expiryError) throw new BadRequestException(expiryError.message);
+    if ((expiry as { status?: string } | null)?.status === "expired") throw new BadRequestException("Invitation expired");
     const { data, error } = await sb.rpc("accept_organisation_invitation", {
       p_token: input.token,
     });

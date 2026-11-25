@@ -184,6 +184,10 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.current_user_org_ids() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.current_user_org_ids() TO authenticated;
+REVOKE ALL ON FUNCTION public.is_platform_admin() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_platform_admin() TO authenticated;
 REVOKE ALL ON FUNCTION public.has_org_permission(uuid, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.has_org_permission(uuid, text) TO authenticated;
 REVOKE ALL ON FUNCTION public.bootstrap_organisation(text, text) FROM PUBLIC, anon;
@@ -213,21 +217,21 @@ CREATE POLICY memberships_select ON public.memberships
 CREATE POLICY memberships_insert_admin ON public.memberships
   FOR INSERT TO authenticated
   WITH CHECK (
-    public.has_org_permission(organisation_id, 'user.manage')
+    (public.has_org_permission(organisation_id, 'user.manage') OR public.is_platform_admin())
     AND role_id <> (SELECT id FROM public.roles WHERE key = 'platform_administrator')
   );
 
 CREATE POLICY memberships_update_admin ON public.memberships
   FOR UPDATE TO authenticated
-  USING (public.has_org_permission(organisation_id, 'user.manage'))
+  USING (public.has_org_permission(organisation_id, 'user.manage') OR public.is_platform_admin())
   WITH CHECK (
-    public.has_org_permission(organisation_id, 'user.manage')
+    (public.has_org_permission(organisation_id, 'user.manage') OR public.is_platform_admin())
     AND role_id <> (SELECT id FROM public.roles WHERE key = 'platform_administrator')
   );
 
 CREATE POLICY memberships_delete_admin ON public.memberships
   FOR DELETE TO authenticated
-  USING (public.has_org_permission(organisation_id, 'user.manage'));
+  USING (public.has_org_permission(organisation_id, 'user.manage') OR public.is_platform_admin());
 
 -- Organisation metadata is administrator-only; tenant root deletion is not
 -- available through the client API.

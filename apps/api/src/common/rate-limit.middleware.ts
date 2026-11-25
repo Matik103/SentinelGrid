@@ -7,6 +7,7 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import type { NextFunction, Request, Response } from "express";
+import { createHash } from "node:crypto";
 import { createClient, type RedisClientType } from "redis";
 
 type CounterStore = {
@@ -21,6 +22,17 @@ class MemoryCounterStore implements CounterStore {
     const cur = this.buckets.get(key);
     if (!cur || cur.resetAt <= now) {
       this.buckets.set(key, { count: 1, resetAt: now + windowMs });
+      // Bound memory growth during sustained traffic with high-cardinality identities.
+      if (this.buckets.size > 10_000) {
+        for (const [bucketKey, bucket] of this.buckets) {
+          if (bucket.resetAt <= now) this.buckets.delete(bucketKey);
+        }
+      }
+      while (this.buckets.size > 50_000) {
+        const oldest = this.buckets.keys().next();
+        if (oldest.done) break;
+        this.buckets.delete(oldest.value);
+      }
       return 1;
     }
     cur.count += 1;
@@ -58,6 +70,12 @@ export class RateLimitMiddleware implements NestMiddleware {
   constructor() {
     this.limit = Number(process.env.RATE_LIMIT_MAX ?? 120);
     this.windowMs = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
+    if (!Number.isSafeInteger(this.limit) || this.limit < 1 || this.limit > 1_000_000) {
+      throw new Error("RATE_LIMIT_MAX must be an integer between 1 and 1000000");
+    }
+    if (!Number.isSafeInteger(this.windowMs) || this.windowMs < 1000 || this.windowMs > 86_400_000) {
+      throw new Error("RATE_LIMIT_WINDOW_MS must be an integer between 1000 and 86400000");
+    }
     const requested = (process.env.RATE_LIMIT_BACKEND ?? "").toLowerCase();
     const hasRedis = Boolean(process.env.REDIS_URL?.trim());
     if (requested === "redis" || (!requested && hasRedis)) {
@@ -108,9 +126,13 @@ export class RateLimitMiddleware implements NestMiddleware {
   private async apply(req: Request, res: Response, next: NextFunction) {
     try {
       const store = await this.ensureStore();
-      const subject =
-        (req.headers.authorization?.slice(0, 48) ?? req.ip ?? "anon") + ":" + (req.path ?? "");
-      const key = `rl:${subject}`;
+      // Hash the complete credential: JWTs often share prefixes, so truncation
+      // causes unrelated users to collide into one bucket. Never retain raw tokens.
+      const credential = req.headers.authorization?.trim();
+      const identity = credential
+        ? createHash("sha256").update(credential).digest("hex")
+        : req.ip ?? "anon";
+      const key = `rl:${identity}:${req.path ?? ""}`;
       const count = await store.incr(key, this.windowMs);
       res.setHeader("X-RateLimit-Limit", String(this.limit));
       res.setHeader("X-RateLimit-Remaining", String(Math.max(0, this.limit - count)));

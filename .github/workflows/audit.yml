@@ -30,6 +30,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache-dependency-path: edge/connector/go.sum
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
@@ -54,7 +64,7 @@ jobs:
           supabase status
           supabase db reset --local --yes
       - name: Run engineering quality gate
-        # Includes upgrade-path (foundation → forward), then full reset + tenant isolation.
+        # Includes upgrade-path (foundation → forward), npm build/test, Go connector, then tenant isolation.
         run: ./scripts/audit.sh
       - name: Scan repository for secrets
         uses: gitleaks/gitleaks-action@v2

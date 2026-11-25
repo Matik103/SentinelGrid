@@ -67,7 +67,7 @@ if [[ -d "$MIGRATIONS" ]]; then
   else fail_check critical db.migrations_missing "No SQL migrations found" "$MIGRATIONS" "Add versioned SQL migrations."; fi
 else fail_check critical db.migrations_dir_missing "Migration directory missing" "$MIGRATIONS" "Restore Supabase migrations."; fi
 
-for required in supabase/migrations/20261125160000_phase0_foundation.sql supabase/migrations/20261125170000_phase0_security_hardening.sql supabase/migrations/20261125180000_phase0_security_grants_and_platform_boundary.sql supabase/seed/phase0_demo.sql supabase/tests/phase0_tenant_isolation.sql; do
+for required in supabase/migrations/20261125160000_phase0_foundation.sql supabase/migrations/20261125170000_phase0_security_hardening.sql supabase/migrations/20261125180000_phase0_security_grants_and_platform_boundary.sql supabase/migrations/20261125190000_phase0_ingestion_dlq_and_payload_objects.sql supabase/seed/phase0_demo.sql supabase/tests/phase0_tenant_isolation.sql apps/api/src/main.ts apps/api/src/orgs/orgs.controller.ts apps/api/src/events/ingestion.service.ts apps/api/src/evidence/payload-storage.service.ts edge/connector/cmd/connector/main.go; do
   if [[ -f "$required" ]]; then pass_check "files.$(basename "$required")" "Required Phase 0 file exists" "$required"
   else fail_check critical "files.$(basename "$required")" "Required Phase 0 file missing" "$required" "Restore the required file."; fi
 done
@@ -106,22 +106,47 @@ if [[ -f package.json ]]; then
   if [[ -f package-lock.json ]]; then
     if npm ci --ignore-scripts; then
       pass_check deps.npm_install "npm lockfile install is reproducible" "package-lock.json"
+      if npm run build; then pass_check deps.npm_build "Workspace TypeScript build succeeded" "package.json"
+      else fail_check high deps.npm_build "Workspace TypeScript build failed" "package.json" "Fix compile errors in packages/shared and apps/api."; fi
+      if npm test; then pass_check deps.npm_test "API/shared unit tests passed" "apps/api"
+      else fail_check high deps.npm_test "API/shared unit tests failed" "apps/api" "Fix failing Node tests."; fi
       if npm audit --audit-level=high; then pass_check deps.npm_audit "No high/critical npm advisories" "package-lock.json"
       else fail_check high deps.npm_audit "npm audit reported high/critical advisories" "package-lock.json" "Upgrade or replace affected packages."; fi
     else fail_check high deps.npm_install "npm ci failed" "package-lock.json" "Regenerate a consistent lockfile."; fi
   else fail_check high deps.npm_lock "package.json has no package-lock.json" "package.json" "Commit package-lock.json."; fi
 else skip_check deps.npm "npm dependency audit" "No package.json exists yet." "package.json"; fi
 
-if [[ -f go.mod ]]; then
+if [[ -f edge/connector/go.mod ]]; then
   if command -v go >/dev/null 2>&1; then
-    if go mod verify && go test ./...; then pass_check deps.go "Go modules verified and tests passed" "go.mod"
-    else fail_check high deps.go "Go module verification or tests failed" "go.mod" "Repair module checksums and tests."; fi
-  else fail_check high deps.go_toolchain "go.mod exists but Go is unavailable" "go.mod" "Install Go in CI."; fi
-else skip_check deps.go "Go dependency audit" "Go connector has not been added yet." "go.mod"; fi
+    if (cd edge/connector && go mod tidy && go test ./... && go build -o /tmp/sg-connector ./cmd/connector); then
+      pass_check deps.go "Go connector modules verified, tested, and built" "edge/connector/go.mod"
+    else fail_check high deps.go "Go connector verify/test/build failed" "edge/connector" "Repair module checksums and build."; fi
+  else fail_check high deps.go_toolchain "edge/connector/go.mod exists but Go is unavailable" "edge/connector/go.mod" "Install Go in CI."; fi
+else skip_check deps.go "Go dependency audit" "Go connector has not been added yet." "edge/connector/go.mod"; fi
 
-skip_check product.connector_runtime "Edge connector runtime" "Not implemented in current repository." "edge/connector"
-skip_check product.ingestion_api "Event ingestion API and DLQ" "Schema exists; API/worker/DLQ are not implemented." "apps/api"
-skip_check product.payload_storage "Raw payload object storage" "References and hashes exist; byte storage is not implemented." "docs/PAYLOAD_STORAGE.md"
+if [[ -f apps/api/src/events/ingestion.service.ts ]] && grep -q 'event_ingestion_dlq' apps/api/src/events/ingestion.service.ts && grep -q 'deduplicated' apps/api/src/events/ingestion.service.ts; then
+  pass_check product.ingestion_api "Event ingestion API with dedup and DLQ hooks present" "apps/api/src/events/ingestion.service.ts"
+else fail_check high product.ingestion_api "Event ingestion API/DLQ missing expected hooks" "apps/api" "Implement ingest, dedup, and DLQ paths."; fi
+
+if [[ -f apps/api/src/evidence/payload-storage.service.ts ]] && [[ -f supabase/migrations/20261125190000_phase0_ingestion_dlq_and_payload_objects.sql ]]; then
+  pass_check product.payload_storage "Payload object storage service and metadata migration present" "apps/api/src/evidence/payload-storage.service.ts"
+else fail_check high product.payload_storage "Payload storage scaffold incomplete" "docs/PAYLOAD_STORAGE.md" "Add PayloadStorageService and payload_objects migration."; fi
+
+if [[ -f edge/connector/cmd/connector/main.go ]] && grep -q 'read_only' edge/connector/internal/config/config.go; then
+  pass_check product.connector_runtime "Edge connector runtime scaffold with read-only OT default" "edge/connector"
+else fail_check high product.connector_runtime "Edge connector scaffold incomplete" "edge/connector" "Add Go connector with read_only OT default."; fi
+
+if [[ -f apps/api/src/orgs/orgs.controller.ts ]] && grep -q 'bootstrap_organisation' apps/api/src/orgs/orgs.service.ts && grep -q 'has_org_permission' apps/api/src/orgs/orgs.service.ts; then
+  pass_check product.org_api "Org provisioning/membership/RBAC API surface present" "apps/api/src/orgs"
+else fail_check high product.org_api "Org/RBAC API surface missing" "apps/api/src/orgs" "Implement bootstrap, membership, and permission checks."; fi
+
+# Frontend must never embed service-role credentials
+if git ls-files 'apps/**' 'packages/**' | grep -E '\.(ts|tsx|js|jsx)$' >/dev/null 2>&1; then
+  if git ls-files 'apps/**' 'packages/**' | grep -E '\.(ts|tsx|js|jsx)$' | xargs grep -nE 'SERVICE_ROLE|service_role' 2>/dev/null | grep -v 'supabase-admin' | grep -v 'Server-only' | grep -v 'never appear' | grep -v 'Never exposed' >/dev/null; then
+    fail_check critical security.no_service_role_frontend "Possible service-role reference outside admin server path" "apps/" "Keep service-role only in server admin clients."
+  else pass_check security.no_service_role_frontend "No frontend service-role credential usage detected" "apps/"; fi
+fi
+
 skip_check product.command_ui "Sentinel Command UI" "Frontend application is not implemented." "apps/web"
 
 ENDED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"

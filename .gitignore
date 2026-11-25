@@ -7,6 +7,14 @@
 .supabase/
 .DS_Store
 
+# Node / build artifacts
+node_modules/
+dist/
+coverage/
+.payload-store/
+edge/connector/bin/
+*.exe
+
 # Generated audit output (uploaded by CI as an artifact)
 reports/audit-report.json
 .audit/

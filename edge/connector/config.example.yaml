@@ -1,0 +1,16 @@
+organisation_id: "00000000-0000-4000-8000-000000000001"
+connector_id: ""
+mode: poll
+api:
+  base_url: "" # set to http://127.0.0.1:8080 when API is running
+  ingest_path: /v1/events/ingest
+  auth_token_env: SENTINELGRID_CONNECTOR_TOKEN
+ot:
+  access: read_only # Phase 0 hard default; non-read_only rejected at load
+sources:
+  - name: scaffold-file
+    protocol: file
+    endpoint: ./samples/empty.json
+  - name: opcua-placeholder
+    protocol: opcua
+    endpoint: opc.tcp://plc.example.invalid:4840

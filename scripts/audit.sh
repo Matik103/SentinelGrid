@@ -48,9 +48,9 @@ fi
 if [[ -f .gitignore ]] && grep -Eq '^/?\.env(\*|$|\.)' .gitignore; then pass_check repo.env_ignored ".env files are ignored" ".gitignore"
 else fail_check high repo.env_ignored ".env ignore rule missing" ".gitignore" "Ignore local environment files."
 fi
-if git ls-files | grep -E '(^|/)(\.env($|\.)|id_rsa$|.*\.pem$|.*service_role.*)' >/dev/null; then
+if git ls-files | grep -E '(^|/)(\\.env($|\\.)|id_rsa$|.*\\.pem$|.*service_role.*)' | grep -Ev '(^|/)\\.env\\.example$' >/dev/null; then
   fail_check critical repo.secret_paths "Potential secret-bearing path is tracked" "." "Remove it, rotate the credential and purge it from history."
-else pass_check repo.secret_paths "No obvious secret-bearing paths tracked" ".gitignore"
+else pass_check repo.secret_paths "No obvious secret-bearing paths tracked (safe .env.example template excluded)" ".gitignore"
 fi
 
 MIGRATIONS="supabase/migrations"

@@ -28,3 +28,57 @@ describe("EventIngestSchema", () => {
     }
   });
 });
+
+
+import { EventsController } from "./events.controller.js";
+
+describe("EventsController tenant authorization", () => {
+  it("rejects ingestion without a valid tenant before calling ingestion", async () => {
+    let called = false;
+    const controller = new EventsController(
+      { ingest: async () => { called = true; return { status: "accepted", event_id: "x", deduplicated: false }; } } as never,
+      { requirePermission: async () => true } as never,
+    );
+    await assert.rejects(
+      controller.ingest({ id: "user-1" } as never, { event_type: "test" }),
+    );
+    assert.equal(called, false);
+  });
+
+  it("checks event.ingest permission before forwarding the authorised tenant", async () => {
+    const calls: unknown[] = [];
+    const controller = new EventsController(
+      { ingest: async (body: unknown, options: unknown) => {
+        calls.push({ body, options });
+        return { status: "accepted", event_id: "event-1", deduplicated: false };
+      } } as never,
+      { requirePermission: async (...args: unknown[]) => { calls.push(args); } } as never,
+    );
+    const body = {
+      organisation_id: "00000000-0000-4000-8000-000000000001",
+      event_type: "connector.heartbeat",
+    };
+    await controller.ingest({ id: "user-1" } as never, body);
+    assert.deepEqual(calls[0], [
+      { id: "user-1" },
+      body.organisation_id,
+      "event.ingest",
+    ]);
+    assert.deepEqual(calls[1], {
+      body,
+      options: { authorisedOrganisationId: body.organisation_id },
+    });
+  });
+
+  it("scopes DLQ replay to the tenant that passed permission checks", async () => {
+    const calls: unknown[] = [];
+    const controller = new EventsController(
+      { replayFromDlq: async (...args: unknown[]) => { calls.push(args); return { status: "accepted", event_id: "event-2", deduplicated: false }; } } as never,
+      { requirePermission: async (...args: unknown[]) => { calls.push(args); } } as never,
+    );
+    const org = "00000000-0000-4000-8000-000000000002";
+    await controller.replay({ id: "user-2" } as never, "dlq-1", { organisation_id: org });
+    assert.deepEqual(calls[0], [{ id: "user-2" }, org, "event.ingest"]);
+    assert.deepEqual(calls[1], ["dlq-1", org]);
+  });
+});

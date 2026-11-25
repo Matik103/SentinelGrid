@@ -6,7 +6,7 @@
   "ended_at": "2026-11-25T17:57:20Z",
   "git": {
     "branch": "work/phase0-security-hardening",
-    "sha": "pending-commit"
+    "sha": "9f11208fac0bc976f274066b988f394a642d2d14"
   },
   "summary": {
     "failures": 1,

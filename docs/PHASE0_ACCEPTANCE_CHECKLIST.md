@@ -49,8 +49,9 @@ Timezone for operator notes: America/Los_Angeles.
 | `a518912` | failure ([45690313033](https://github.com/Matik103/SentinelGrid/actions/runs/45690313033)) | through `20261125230000` | Findings 1–3; TS test typing |
 | `adc000c` | success ([45691343420](https://github.com/Matik103/SentinelGrid/actions/runs/45691343420)) | through `20261125230000` | Prior tip only; later fixes and migration require a new green run |
 | `cd7d842` | failure ([45692369309](https://github.com/Matik103/SentinelGrid/actions/runs/45692369309)) | local only until fixed tip | CI failed: migration `AS $` dollar-quote syntax |
-| *(next tip)* | pending | local `20261125240000` applied; remote pending apply | Dollar-quote + Zod/test/script portability fixes |
+| `e22d673` | failure ([45694367817](https://github.com/Matik103/SentinelGrid/actions/runs/45694367817)) | n/a | Empty/no-op “fix dollar quoting” commit; tip still broken |
+| `4061a4b` | **success** ([45696244525](https://github.com/Matik103/SentinelGrid/actions/runs/45696244525)) | local + remote `abaeizgfsskvjklfslrh` through `20261125240000` | Real `AS $$` fix; Zod/tests/script portability; RPCs confirmed |
 
-**Still OPEN (do not close Phase 0):** production email transport/worker; full OT telemetry (probes only); facility-manager facility scoping; real backup-restore drill (marker script ≠ restore).
+**Still OPEN (do not close Phase 0):** production email transport/worker + creds; full OT protocol acquisition (probes only); facility-scoped auth + isolation tests; real backup/object-store restore drill.
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — **not COMPLETE**.
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip CI green on `4061a4b`, **not COMPLETE**.

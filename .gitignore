@@ -21,3 +21,4 @@ reports/audit-report.json
 
 supabase/.branches
 supabase/.temp
+reports/restore-drill.json

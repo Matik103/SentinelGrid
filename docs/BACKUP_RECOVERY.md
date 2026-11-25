@@ -8,7 +8,7 @@ Phase 0 stores tenant data in Supabase Postgres and evidence payloads in S3-comp
 
 - Use Supabase project backups / PITR for `abaeizgfsskvjklfslrh` (or the linked project).
 - Schema is forward-only under `supabase/migrations/`. Restore DB, then ensure migrations match the deployed application revision.
-- **Drill status:** not executed in this environment — document the next scheduled restore drill before marking Phase 0 COMPLETE.
+- **Drill:** run `./scripts/restore-drill.sh` (parity + integrity markers). Set `ALLOW_LOCAL_DB_DRILL=1` to execute a disposable local `supabase db reset`. Record the JSON report under `reports/restore-drill.json` before marking Phase 0 COMPLETE.
 
 ## Object storage
 

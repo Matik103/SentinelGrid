@@ -24,6 +24,38 @@ export class RegistryController {
     return this.registry.createFacility(user, this.uuid(orgId), body);
   }
 
+  @Post("facilities/:facilityId/archive")
+  archiveFacility(
+    @CurrentUser() user: AuthUser,
+    @Param("organisationId") orgId: string,
+    @Param("facilityId") facilityId: string,
+  ) {
+    return this.registry.archiveFacility(user, this.uuid(orgId), this.uuid(facilityId));
+  }
+
+  @Get("zones")
+  listZones(@CurrentUser() user: AuthUser, @Param("organisationId") orgId: string) {
+    return this.registry.listZones(user, this.uuid(orgId));
+  }
+
+  @Post("zones")
+  createZone(
+    @CurrentUser() user: AuthUser,
+    @Param("organisationId") orgId: string,
+    @Body() body: unknown,
+  ) {
+    return this.registry.createZone(user, this.uuid(orgId), body);
+  }
+
+  @Post("zones/:zoneId/archive")
+  archiveZone(
+    @CurrentUser() user: AuthUser,
+    @Param("organisationId") orgId: string,
+    @Param("zoneId") zoneId: string,
+  ) {
+    return this.registry.archiveZone(user, this.uuid(orgId), this.uuid(zoneId));
+  }
+
   @Get("assets")
   listAssets(@CurrentUser() user: AuthUser, @Param("organisationId") orgId: string) {
     return this.registry.listAssets(user, this.uuid(orgId));

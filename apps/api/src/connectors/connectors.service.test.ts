@@ -9,11 +9,11 @@ function hash(token: string) {
 
 describe("ConnectorsService credential lifecycle", () => {
   it("register stores only a hash and returns one-time token", async () => {
-    let inserted: Record<string, unknown> | null = null;
+    const inserted: { current: Record<string, unknown> | null } = { current: null };
     const userSb = {
       from: () => ({
         insert: (row: Record<string, unknown>) => {
-          inserted = row;
+          inserted.current = row;
           return {
             select: () => ({
               single: async () => ({
@@ -58,9 +58,9 @@ describe("ConnectorsService credential lifecycle", () => {
     assert.equal(out.credential.status, "issued");
     assert.ok(out.credential.token?.startsWith("sgc_"));
     assert.equal(out.credential.token_hash, hash(out.credential.token));
-    assert.equal(inserted?.credential_token_hash, out.credential.token_hash);
-    assert.equal(inserted?.credential_status, "issued");
-    assert.ok(!JSON.stringify(inserted).includes(out.credential.token));
+    assert.equal(inserted.current?.credential_token_hash, out.credential.token_hash);
+    assert.equal(inserted.current?.credential_status, "issued");
+    assert.ok(!JSON.stringify(inserted.current).includes(out.credential.token));
   });
 
   it("authorizeConnectorToken accepts matching token and rejects wrong/revoked", async () => {

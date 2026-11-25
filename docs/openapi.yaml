@@ -1,0 +1,152 @@
+openapi: 3.0.3
+info:
+  title: SentinelGrid Phase 0 API
+  version: 0.1.0
+  description: |
+    Phase 0 HTTP surface for organisations, registry, connectors, events,
+    evidence, and audit. All tenant routes require Bearer JWT (Supabase Auth).
+servers:
+  - url: /v1
+paths:
+  /health:
+    get:
+      summary: Liveness and monitoring hooks
+      responses:
+        "200":
+          description: Service healthy
+  /orgs/bootstrap:
+    post:
+      summary: Bootstrap organisation for authenticated user
+      responses:
+        "201":
+          description: Organisation created
+  /orgs/mine:
+    get:
+      summary: List active memberships
+      responses:
+        "200":
+          description: Membership list
+  /orgs/{organisationId}/invites:
+    get:
+      summary: List invitations
+      responses:
+        "200":
+          description: Invitation list
+    post:
+      summary: Create invitation (email outbox)
+      responses:
+        "201":
+          description: Invitation created
+  /orgs/{organisationId}/facilities:
+    get:
+      summary: List facilities
+      responses:
+        "200":
+          description: Facility list
+    post:
+      summary: Create facility
+      responses:
+        "201":
+          description: Facility created
+  /orgs/{organisationId}/zones:
+    get:
+      summary: List zones
+      responses:
+        "200":
+          description: Zone list
+    post:
+      summary: Create zone
+      responses:
+        "201":
+          description: Zone created
+  /orgs/{organisationId}/connectors:
+    get:
+      summary: List connectors
+      responses:
+        "200":
+          description: Connector list
+    post:
+      summary: Register connector (returns one-time token; stores hash only)
+      responses:
+        "201":
+          description: Connector registered
+  /orgs/{organisationId}/connectors/{connectorId}/rotate:
+    post:
+      summary: Rotate connector credential
+      responses:
+        "200":
+          description: New token issued
+  /orgs/{organisationId}/connectors/{connectorId}/revoke:
+    post:
+      summary: Revoke connector credential
+      responses:
+        "200":
+          description: Revoked
+  /events/ingest:
+    post:
+      summary: Ingest event (dedup + DLQ)
+      responses:
+        "200":
+          description: Accepted, deduplicated, or DLQ
+  /events:
+    get:
+      summary: List events for organisation
+      parameters:
+        - in: query
+          name: organisation_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Event list
+  /events/dlq/{dlqId}/replay:
+    post:
+      summary: Deterministic DLQ replay
+      responses:
+        "200":
+          description: Replay result
+  /orgs/{organisationId}/evidence/records:
+    get:
+      summary: List evidence chain records
+      responses:
+        "200":
+          description: Evidence records
+  /orgs/{organisationId}/evidence/checkpoints:
+    get:
+      summary: List evidence checkpoints
+      responses:
+        "200":
+          description: Checkpoints
+    post:
+      summary: Create evidence checkpoint for a time range
+      responses:
+        "201":
+          description: Checkpoint created
+  /orgs/{organisationId}/evidence/verify:
+    post:
+      summary: Verify evidence chain hashes
+      responses:
+        "200":
+          description: Verification result
+  /orgs/{organisationId}/evidence/export:
+    get:
+      summary: Export evidence + checkpoints bundle
+      responses:
+        "200":
+          description: Export bundle
+  /orgs/{organisationId}/audit-logs:
+    get:
+      summary: List audit logs
+      responses:
+        "200":
+          description: Audit log list
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []

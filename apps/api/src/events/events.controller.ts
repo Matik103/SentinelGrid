@@ -58,7 +58,7 @@ export class EventsController {
     let q = sb
       .from("events")
       .select(
-        "id, organisation_id, facility_id, asset_id, event_type, occurred_at, ingested_at, source, source_event_id, classification, schema_version, created_at",
+        "id, organisation_id, facility_id, asset_id, event_type, occurred_at, ingested_at, source, source_event_id, classification, integrity_status, schema_version, created_at",
       )
       .eq("organisation_id", organisationId)
       .order("occurred_at", { ascending: false })

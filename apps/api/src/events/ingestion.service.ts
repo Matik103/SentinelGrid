@@ -3,9 +3,16 @@ import { EventIngestSchema, type EventIngestInput } from "@sentinelgrid/shared";
 import { createHash } from "node:crypto";
 import { SupabaseAdminService } from "../common/supabase-admin.service.js";
 import { PayloadStorageService } from "../evidence/payload-storage.service.js";
+import { EvidenceChainService } from "../evidence/evidence-chain.service.js";
 
 export type IngestResult =
-  | { status: "accepted"; event_id: string; deduplicated: false; payload_object_id?: string }
+  | {
+      status: "accepted";
+      event_id: string;
+      deduplicated: false;
+      payload_object_id?: string;
+      evidence_id?: string;
+    }
   | { status: "deduplicated"; event_id: string; deduplicated: true }
   | { status: "dlq"; dlq_id: string; reason: string };
 
@@ -18,6 +25,7 @@ export class IngestionService {
   constructor(
     private readonly admin: SupabaseAdminService,
     private readonly payloads: PayloadStorageService,
+    private readonly evidence: EvidenceChainService,
   ) {}
 
   async ingest(raw: unknown, opts: IngestOptions): Promise<IngestResult> {
@@ -90,11 +98,26 @@ export class IngestionService {
         return this.toDlq(organisationId, input, raw, "insert_returned_no_id");
       }
 
+      let evidenceId: string | undefined;
+      if (stored?.id) {
+        try {
+          const linked = await this.evidence.linkEventPayload(
+            organisationId,
+            data.id as string,
+            stored.id,
+          );
+          evidenceId = linked.evidence_id;
+        } catch (linkErr) {
+          this.log.error(`evidence link failed event=${data.id}: ${String(linkErr)}`);
+        }
+      }
+
       return {
         status: "accepted",
         event_id: data.id as string,
         deduplicated: false,
         payload_object_id: stored?.id,
+        evidence_id: evidenceId,
       };
     } catch (err) {
       if (stored) {

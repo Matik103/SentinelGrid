@@ -4,7 +4,7 @@
 **Phase status:** **PARTIALLY COMPLETE / IN TESTING** — not COMPLETE.  
 **Timezone note:** dates below are America/Los_Angeles unless marked otherwise.
 
-Do not mark Phase 0 COMPLETE until both product and operational evidence tables in `prd-phase0.md` are satisfied with artefacts.
+Do not mark Phase 0 COMPLETE until `docs/PHASE0_ACCEPTANCE_CHECKLIST.md` rows are all PASS with tip CI green + restore drill report. See also Project store PRD/gates.
 
 ## Capability maturity
 

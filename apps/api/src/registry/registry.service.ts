@@ -24,8 +24,16 @@ const FacilitySchema = z.object({
   status: z.enum(["active", "archived"]).optional(),
 });
 
+const ZoneSchema = z.object({
+  facility_id: z.string().uuid(),
+  name: z.string().min(1).max(200),
+  code: z.string().max(64).optional(),
+  status: z.enum(["active", "archived"]).optional(),
+});
+
 const AssetSchema = z.object({
   facility_id: z.string().uuid(),
+  zone_id: z.string().uuid().optional().nullable(),
   name: z.string().min(1).max(200),
   category: Categories.optional(),
   status: z.enum(["active", "commissioning", "maintenance", "archived"]).optional(),
@@ -87,12 +95,76 @@ export class RegistryService {
     return data;
   }
 
+  async listZones(user: AuthUser, organisationId: string, facilityId?: string) {
+    await this.orgs.requirePermission(user, organisationId, "facility.read");
+    const sb = this.users.create(user.accessToken);
+    let q = sb
+      .from("zones")
+      .select("id, facility_id, name, code, status, created_at, updated_at")
+      .eq("organisation_id", organisationId)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (facilityId) q = q.eq("facility_id", facilityId);
+    const { data, error } = await q;
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
+  async createZone(user: AuthUser, organisationId: string, body: unknown) {
+    const input = ZoneSchema.parse(body);
+    await this.orgs.requirePermission(user, organisationId, "facility.write");
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb
+      .from("zones")
+      .insert({
+        organisation_id: organisationId,
+        facility_id: input.facility_id,
+        name: input.name,
+        code: input.code ?? null,
+        status: input.status ?? "active",
+      })
+      .select("id, facility_id, name, code, status, created_at")
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async archiveZone(user: AuthUser, organisationId: string, zoneId: string) {
+    await this.orgs.requirePermission(user, organisationId, "facility.write");
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb
+      .from("zones")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", zoneId)
+      .eq("organisation_id", organisationId)
+      .select("id, facility_id, name, status, updated_at")
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new BadRequestException("Zone not found");
+    return data;
+  }
+
+  async archiveFacility(user: AuthUser, organisationId: string, facilityId: string) {
+    await this.orgs.requirePermission(user, organisationId, "facility.write");
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb
+      .from("facilities")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", facilityId)
+      .eq("organisation_id", organisationId)
+      .select("id, name, status, updated_at")
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new BadRequestException("Facility not found");
+    return data;
+  }
+
   async listAssets(user: AuthUser, organisationId: string) {
     await this.orgs.requirePermission(user, organisationId, "asset.read");
     const sb = this.users.create(user.accessToken);
     const { data, error } = await sb
       .from("assets")
-      .select("id, facility_id, name, category, status, created_at")
+      .select("id, facility_id, zone_id, name, category, status, created_at")
       .eq("organisation_id", organisationId)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -109,11 +181,12 @@ export class RegistryService {
       .insert({
         organisation_id: organisationId,
         facility_id: input.facility_id,
+        zone_id: input.zone_id ?? null,
         name: input.name,
         category: input.category ?? "industrial",
         status: input.status ?? "active",
       })
-      .select("id, facility_id, name, category, status, created_at")
+      .select("id, facility_id, zone_id, name, category, status, created_at")
       .single();
     if (error) throw new BadRequestException(error.message);
     return data;

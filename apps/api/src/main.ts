@@ -4,6 +4,7 @@ import { json, urlencoded } from "express";
 import { AppModule } from "./app.module.js";
 
 async function bootstrap() {
+  process.env.SG_PROCESS_STARTED_AT_MS ??= String(Date.now());
   const app = await NestFactory.create(AppModule, {
     logger: ["error", "warn", "log"],
     bodyParser: false,

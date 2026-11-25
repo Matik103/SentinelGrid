@@ -190,9 +190,23 @@ if [[ -f apps/api/src/registry/registry.controller.ts ]] \
   pass_check product.registry_connectors_audit "Registry, connector management, and audit read APIs present" "apps/api/src"
 else fail_check high product.registry_connectors_audit "Registry/connector/audit HTTP APIs incomplete" "apps/api" "Add facilities/assets/devices/sensors, connectors, audit routes."; fi
 
-if [[ -f docs/BACKUP_RECOVERY.md ]] && [[ -f IMPLEMENTATION_STATUS.md ]]; then
-  pass_check docs.ops_status "Backup/recovery notes and IMPLEMENTATION_STATUS present" "docs/BACKUP_RECOVERY.md"
-else fail_check medium docs.ops_status "Ops status docs missing" "IMPLEMENTATION_STATUS.md" "Add backup/recovery and status docs."; fi
+if [[ -f docs/BACKUP_RECOVERY.md ]] && [[ -f IMPLEMENTATION_STATUS.md ]] \
+  && [[ -f docs/PHASE0_ACCEPTANCE_CHECKLIST.md ]] \
+  && [[ -f docs/openapi.yaml ]] \
+  && [[ -f scripts/restore-drill.sh ]]; then
+  pass_check docs.ops_status "Backup/recovery, OpenAPI, acceptance checklist, restore drill present" "docs/BACKUP_RECOVERY.md"
+else fail_check medium docs.ops_status "Ops status docs missing" "IMPLEMENTATION_STATUS.md" "Add backup/recovery, OpenAPI, checklist, restore drill."; fi
+
+if [[ -f apps/api/src/evidence/evidence-chain.service.ts ]] \
+  && grep -q 'linkEventPayload' apps/api/src/evidence/evidence-chain.service.ts \
+  && grep -q 'verifyChain' apps/api/src/evidence/evidence-chain.service.ts; then
+  pass_check product.evidence_chain "Evidence event-payload linkage, checkpoints, verify/export" "apps/api/src/evidence"
+else fail_check high product.evidence_chain "Evidence chain incomplete" "apps/api/src/evidence" "Wire evidence_records/checkpoints verify/export."; fi
+
+if grep -q 'listZones\|createZone' apps/api/src/registry/registry.service.ts \
+  && grep -q 'zones' apps/api/src/registry/registry.controller.ts; then
+  pass_check product.registry_zones "Registry lifecycle includes zones" "apps/api/src/registry"
+else fail_check high product.registry_zones "Zones registry API missing" "apps/api/src/registry" "Add zones create/list/archive."; fi
 
 # Browser/client code must never reference the service-role secret.
 CLIENT_FILES="$(git ls-files apps/web packages 2>/dev/null | grep -E '\.(ts|tsx|js|jsx)$' || true)"
@@ -206,9 +220,11 @@ else
   pass_check security.no_service_role_frontend "No browser application files exist yet; server API excluded from client scan" "apps/web"
 fi
 
-if [[ -f apps/web/src/App.tsx ]] && [[ -f apps/web/src/tokens.css ]] && grep -q 'Sentinel' apps/web/src/App.tsx; then
-  pass_check product.command_ui "Sentinel Command UI shell with design tokens and Phase 0 surfaces" "apps/web"
-else fail_check high product.command_ui "Sentinel Command UI missing" "apps/web" "Add Command shell per design-system tokens."; fi
+if [[ -f apps/web/src/App.tsx ]] && [[ -f apps/web/src/tokens.css ]] && [[ -f apps/web/src/api.ts ]] \
+  && grep -q 'Sentinel' apps/web/src/App.tsx \
+  && grep -q 'apiGet\|VITE_API_BASE_URL' apps/web/src/api.ts; then
+  pass_check product.command_ui "Sentinel Command UI wired to Phase 0 API workflows" "apps/web"
+else fail_check high product.command_ui "Sentinel Command UI missing" "apps/web" "Add Command shell wired to live API workflows."; fi
 
 ENDED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 BRANCH="$(git branch --show-current 2>/dev/null || echo unknown)"

@@ -65,7 +65,7 @@ CREATE OR REPLACE FUNCTION public.create_organisation_invitation(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, public
+SET search_path = pg_catalog, public, extensions
 AS $$
 DECLARE
   v_role_id uuid;
@@ -114,7 +114,7 @@ BEGIN
   END IF;
 
   v_token := encode(gen_random_bytes(32), 'hex');
-  v_token_hash := encode(digest(v_token, 'sha256'), 'hex');
+  v_token_hash := encode(digest(convert_to(v_token, 'UTF8'), 'sha256'), 'hex');
 
   INSERT INTO public.organisation_invitations (
     organisation_id, email, role_id, token_hash, invited_by, status
@@ -169,7 +169,7 @@ CREATE OR REPLACE FUNCTION public.accept_organisation_invitation(p_token text)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, public
+SET search_path = pg_catalog, public, extensions
 AS $$
 DECLARE
   v_invite public.organisation_invitations%ROWTYPE;
@@ -194,7 +194,7 @@ BEGIN
     RAISE EXCEPTION 'Authenticated user email unavailable' USING ERRCODE = '42501';
   END IF;
 
-  v_token_hash := encode(digest(btrim(p_token), 'sha256'), 'hex');
+  v_token_hash := encode(digest(convert_to(btrim(p_token), 'UTF8'), 'sha256'), 'hex');
 
   SELECT * INTO v_invite
   FROM public.organisation_invitations
@@ -268,7 +268,7 @@ CREATE OR REPLACE FUNCTION public.revoke_organisation_invitation(p_invitation_id
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, public
+SET search_path = pg_catalog, public, extensions
 AS $$
 DECLARE
   v_invite public.organisation_invitations%ROWTYPE;

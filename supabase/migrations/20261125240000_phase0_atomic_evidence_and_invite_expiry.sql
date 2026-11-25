@@ -5,8 +5,8 @@ CREATE OR REPLACE FUNCTION public.append_evidence_record(
   p_organisation_id uuid, p_event_id uuid, p_payload_object_id uuid
 ) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = pg_catalog, public
-AS $$
+SET search_path = pg_catalog, public, extensions
+AS $
 DECLARE v_payload public.payload_objects%ROWTYPE; v_event public.events%ROWTYPE;
   v_previous text; v_chain text; v_record public.evidence_records%ROWTYPE;
 BEGIN

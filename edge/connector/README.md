@@ -7,7 +7,7 @@ Go runtime for OT/edge ingestion with durable buffering, credential lifecycle, a
 - **OT access: `read_only`** — config load fails if set otherwise.
 - **Durable buffer** under `buffer.dir` (crash-safe JSON files); flush on startup and poll.
 - **Retry / backoff** with jitter (`retry.*`); failed deliveries stay queued.
-- **Credential lifecycle** (production-ready hooks):
+- **Credential lifecycle** (credential lifecycle hooks):
   - Load from `SENTINELGRID_CONNECTOR_TOKEN`
   - Optional AES-GCM sealed store under `credentials.store_dir` (key: `SENTINELGRID_CONNECTOR_SEAL_KEY`)
   - Durable `REVOKED` marker; `Rotate` / `Revoke` / `ClearRevoke` / `RefreshFromDisk`
@@ -32,5 +32,6 @@ SG_CONNECTOR_LIVE_PROBES=1 ./bin/connector -config config.example.yaml
 ## Security notes
 
 - Connector never embeds the Supabase service role.
-- Tenant `organisation_id` is config-scoped; API still enforces RBAC on ingest.
+- Tenant identity is derived by the API from the connector bearer credential and connector ID; the edge payload cannot select its organisation.
+- Send events to `POST /v1/connectors/ingest` with `connector_id` in the envelope and `Authorization: Bearer <connector-token>`. The API injects the authorised `organisation_id`.
 - Revoked credentials block outbound delivery; buffered envelopes remain until re-auth.

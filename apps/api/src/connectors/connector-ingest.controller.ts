@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ConnectorsService } from "./connectors.service.js";
 import { IngestionService } from "../events/ingestion.service.js";
 
-const ConnectorEnvelope = z.record(z.unknown()).superRefine((value, ctx) => {
+const ConnectorEnvelope = z.record(z.string(), z.unknown()).superRefine((value, ctx) => {
   if (!z.string().uuid().safeParse(value.connector_id).success) ctx.addIssue({ code: "custom", message: "connector_id must be a UUID" });
 });
 

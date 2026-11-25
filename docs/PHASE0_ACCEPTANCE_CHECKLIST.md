@@ -12,10 +12,10 @@ Timezone for operator notes: America/Los_Angeles.
 | 1 | Multi-tenant bootstrap + membership RBAC | SQL isolation tests + org API | PASS (SQL + API) |
 | 2 | Organisation invitations create/accept/revoke + outbox | Migration RPCs + API + unit tests + real production transport | PARTIAL — expiry persistence fixed in `20261125240000`; production delivery worker/provider still absent |
 | 3 | Infrastructure registry incl. zones lifecycle | HTTP create/list/archive | PASS (API) |
-| 4 | Connector register/heartbeat/rotate/revoke + authenticated ingestion | API + credential guard + tenant-derived ingest + negative tests | PARTIAL — connector ingest endpoint added; tip CI and endpoint integration tests pending |
-| 5 | Edge connector durable buffer + read-only OT adapters | Go tests + protocol integration against representative devices | PARTIAL — probes are reachability checks, not production telemetry acquisition |
-| 6 | Event ingest dedup + DLQ with original payload preserve/replay | Ingestion tests + missing-object replay rejection | PARTIAL — replay now fails closed when required bytes cannot be restored; integration tests pending |
-| 7 | Evidence event↔payload linkage, checkpoints, verify/export | Atomic DB append RPC + concurrent append tests + API tests | PARTIAL — serialised append RPC added; migration and concurrency tests pending |
+| 4 | Connector register/heartbeat/rotate/revoke + authenticated ingestion | API + credential guard + tenant-derived ingest + negative tests | PARTIAL — connector ingest endpoint + unit guards present; Nest+DB endpoint E2E still open |
+| 5 | Edge connector durable buffer + read-only OT adapters | Go tests + protocol integration against representative devices | PARTIAL — probes are reachability checks, not production telemetry acquisition (**OPEN**) |
+| 6 | Event ingest dedup + DLQ with original payload preserve/replay | Ingestion tests + missing-object replay rejection | PARTIAL — replay fails closed when required bytes cannot be restored; broader Nest+DB E2E still open |
+| 7 | Evidence event↔payload linkage, checkpoints, verify/export | Atomic DB append RPC + concurrent append tests + API tests | PARTIAL — `append_evidence_record` RPC + unit tests; concurrency stress still open |
 | 8 | Payload storage SHA-256 + production fail-closed | Payload storage tests + docs | PASS |
 | 9 | Rate limiting Redis/memory fail-closed | Middleware tests + docs matching fixed-window semantics | PARTIAL — identity and bounded memory fixes present; distributed behavior and proxy identity need integration verification |
 | 10 | Audit log read API | Audit controller | PASS |
@@ -48,5 +48,9 @@ Timezone for operator notes: America/Los_Angeles.
 |---|---|---|---|
 | `a518912` | failure ([45690313033](https://github.com/Matik103/SentinelGrid/actions/runs/45690313033)) | through `20261125230000` | Findings 1–3; TS test typing |
 | `adc000c` | success ([45691343420](https://github.com/Matik103/SentinelGrid/actions/runs/45691343420)) | through `20261125230000` | Prior tip only; later fixes and migration require a new green run |
+| `cd7d842` | failure ([45692369309](https://github.com/Matik103/SentinelGrid/actions/runs/45692369309)) | local only until fixed tip | CI failed: migration `AS $` dollar-quote syntax |
+| *(next tip)* | pending | local `20261125240000` applied; remote pending apply | Dollar-quote + Zod/test/script portability fixes |
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING. Do not close until current-tip CI passes, migration `20261125240000` is applied and verified by Cursor, a real restore drill is recorded, production email transport is either implemented or formally excluded from Phase 0, and connector/evidence integration tests pass.
+**Still OPEN (do not close Phase 0):** production email transport/worker; full OT telemetry (probes only); facility-manager facility scoping; real backup-restore drill (marker script ≠ restore).
+
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — **not COMPLETE**.

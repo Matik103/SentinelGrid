@@ -14,11 +14,14 @@ docker info >/dev/null 2>&1 || { echo "ERROR: Docker daemon unavailable." >&2; e
 supabase status >/dev/null 2>&1 || { echo "ERROR: Local Supabase is not running." >&2; exit 1; }
 [[ -f "$FOUNDATION" ]] || { echo "ERROR: missing $FOUNDATION" >&2; exit 1; }
 
-mapfile -t FORWARD < <(
-  find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name '*.sql' -printf '%f\n' \
-    | sort \
-    | grep -v '^20261125160000_phase0_foundation\.sql$' \
-    | while read -r base; do echo "$MIGRATIONS_DIR/$base"; done
+# Portable across macOS/BSD find and bash 3.2 (no mapfile / -printf).
+FORWARD=()
+while IFS= read -r _base; do
+  [[ -n "$_base" ]] && FORWARD+=("$MIGRATIONS_DIR/$_base")
+done < <(
+  find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name '*.sql' -exec basename {} \; \
+    | LC_ALL=C sort \
+    | grep -v '^20261125160000_phase0_foundation\.sql$'
 )
 [[ "${#FORWARD[@]}" -gt 0 ]] || { echo "ERROR: no forward migrations found after foundation" >&2; exit 1; }
 for f in "${FORWARD[@]}"; do [[ -f "$f" ]] || { echo "ERROR: missing $f" >&2; exit 1; }; done

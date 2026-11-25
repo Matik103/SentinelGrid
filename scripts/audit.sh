@@ -55,7 +55,11 @@ fi
 
 MIGRATIONS="supabase/migrations"
 if [[ -d "$MIGRATIONS" ]]; then
-  mapfile -t SQL_FILES < <(find "$MIGRATIONS" -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
+  # Portable across macOS/BSD find and bash 3.2 (no mapfile / -printf).
+  SQL_FILES=()
+  while IFS= read -r _mig; do
+    [[ -n "$_mig" ]] && SQL_FILES+=("$_mig")
+  done < <(find "$MIGRATIONS" -maxdepth 1 -type f -name '*.sql' -exec basename {} \; | LC_ALL=C sort)
   if [[ "${#SQL_FILES[@]}" -gt 0 ]]; then
     pass_check db.migrations_present "${#SQL_FILES[@]} SQL migrations found" "$MIGRATIONS"
     if printf '%s\n' "${SQL_FILES[@]}" | grep -Ev '^[0-9]{14}_[a-z0-9_]+\.sql$' >/dev/null; then

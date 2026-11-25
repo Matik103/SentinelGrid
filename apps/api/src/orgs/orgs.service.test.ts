@@ -58,11 +58,14 @@ describe("OrgsService invitation flow", () => {
     }
   });
 
-  it("accept invite calls accept RPC", async () => {
+  it("accept invite expires-by-token then calls accept RPC", async () => {
     const rpcCalls: unknown[] = [];
     const sb = {
       rpc: async (name: string, args: unknown) => {
         rpcCalls.push({ name, args });
+        if (name === "expire_organisation_invitation_by_token") {
+          return { data: { status: "pending" }, error: null };
+        }
         return {
           data: {
             invitation_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -80,7 +83,8 @@ describe("OrgsService invitation flow", () => {
       token: "tokensecretvalue1234567890",
     });
     assert.equal((out as { status: string }).status, "accepted");
-    assert.equal((rpcCalls[0] as { name: string }).name, "accept_organisation_invitation");
+    assert.equal((rpcCalls[0] as { name: string }).name, "expire_organisation_invitation_by_token");
+    assert.equal((rpcCalls[1] as { name: string }).name, "accept_organisation_invitation");
   });
 
   it("revoke invite scopes mutation to organisation", async () => {

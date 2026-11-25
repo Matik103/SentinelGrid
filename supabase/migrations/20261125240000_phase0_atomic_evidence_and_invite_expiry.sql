@@ -6,15 +6,15 @@ CREATE OR REPLACE FUNCTION public.append_evidence_record(
 ) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, public, extensions
-AS $
-DECLARE v_payload public.payload_objects%ROWTYPE; v_event public.events%ROWTYPE;
+AS $$
+DECLARE v_payload public.payload_objects%ROWTYPE;
   v_previous text; v_chain text; v_record public.evidence_records%ROWTYPE;
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended(p_organisation_id::text, 0));
   SELECT * INTO v_payload FROM public.payload_objects
     WHERE id = p_payload_object_id AND organisation_id = p_organisation_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'Payload object not found for organisation' USING ERRCODE='P0002'; END IF;
-  SELECT * INTO v_event FROM public.events
+  PERFORM 1 FROM public.events
     WHERE id = p_event_id AND organisation_id = p_organisation_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Event not found for organisation' USING ERRCODE='P0002'; END IF;
   SELECT chain_hash INTO v_previous FROM public.evidence_records

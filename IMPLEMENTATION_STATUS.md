@@ -18,12 +18,15 @@ Do not mark Phase 0 COMPLETE until `docs/PHASE0_ACCEPTANCE_CHECKLIST.md` rows ar
 | Event ingest + dedup + DLQ | PARTIAL | Replay now rejects missing original payload; failure-path and integration tests pending |
 | Event search/list API | IMPLEMENTED | `GET /v1/events` |
 | Evidence payload storage SHA-256 + S3 | UNIT TESTED | `apps/api/src/evidence/*`, `docs/PAYLOAD_STORAGE.md` |
-| Evidence chain / checkpoints API | PARTIAL | API exists; atomic per-organisation append RPC added in `20261125240000`; migration apply + concurrency tests pending |
+| Evidence chain / checkpoints API | PARTIAL | API exists; atomic per-organisation append RPC in `20261125240000` (local applied; remote after local gate); concurrency stress still open |
 | Rate limiting | UNIT TESTED | Redis or memory; prod fail-closed — `docs/RATE_LIMITING.md` |
 | Audit log read API | IMPLEMENTED | `GET /v1/orgs/:id/audit-logs` |
 | Sentinel Command UI | PARTIAL (config-gated live API) | `apps/web`; full authentication/onboarding/browser E2E not proven |
-| Backup/recovery drill | DOCUMENTED ONLY | `docs/BACKUP_RECOVERY.md` — drill pending |
-| OpenAPI contract | NOT IMPLEMENTED | — |
+| Backup/recovery drill | DOCUMENTED ONLY | `docs/BACKUP_RECOVERY.md` — **real restore drill still OPEN** |
+| OpenAPI contract | DRAFTED | `docs/openapi.yaml` present; keep in sync with routes |
+| Production email transport/worker | OPEN | Outbox table + local_log only |
+| Full OT telemetry | OPEN | Adapters are reachability probes today |
+| Facility-manager facility scoping | OPEN | Org-scoped RBAC exists; facility-scoped manager grants not proven |
 
 ## Acceptance criteria (honest)
 
@@ -33,4 +36,5 @@ Operational table: isolation tests exist; backup drill **not** done; dashboard s
 
 ## Remote migrations (`abaeizgfsskvjklfslrh`)
 
-Previously applied through `20261125230000_phase0_outbox_dlq_creds_role_guard.sql` per prior branch notes. New migration `20261125240000_phase0_atomic_evidence_and_invite_expiry.sql` is committed to the working branch but NOT applied remotely; Cursor/operator must review and apply it to the intended non-production database, then verify the RPCs and tests. No production migration was applied by this work.
+Local disposable Supabase: through `20261125240000` (verified via `supabase db reset` + upgrade-path + `append_evidence_record` / `expire_organisation_invitation_by_token` present).  
+Remote `abaeizgfsskvjklfslrh`: previously through `20261125230000`; `20261125240000` applied only after local gate pass (see tip evidence log). No main merge.

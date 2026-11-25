@@ -1,10 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-/**
- * Server-only admin client (service role). Never exposed to browsers/frontends.
- * Used for ingestion writes, DLQ, and payload metadata that bypass RLS by design.
- */
+/** Server-only service-role client. Never expose this client to browsers. */
 @Injectable()
 export class SupabaseAdminService {
   readonly client: SupabaseClient;
@@ -13,14 +10,17 @@ export class SupabaseAdminService {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) {
-      // Allow boot for scaffolding/tests without live credentials.
-      this.client = createClient("http://127.0.0.1:54321", "service-role-placeholder", {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-      return;
+      throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for the API");
+    }
+    if (!/^https:\/\//i.test(url) && process.env.NODE_ENV === "production") {
+      throw new Error("SUPABASE_URL must use HTTPS in production");
+    }
+    if (!key || key === "service-role-placeholder") {
+      throw new Error("A real Supabase service-role key is required");
     }
     this.client = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { "X-Client-Info": "sentinelgrid-api" } },
     });
   }
 }

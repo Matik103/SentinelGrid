@@ -113,7 +113,8 @@ export class IngestionService {
       .from("event_ingestion_dlq")
       .update({
         status: "processing",
-        attempt_count: 1,
+        replay_started_at: new Date().toISOString(),
+        attempt_count: 0,
         updated_at: new Date().toISOString(),
       })
       .eq("id", dlqId)
@@ -150,6 +151,7 @@ export class IngestionService {
       .update({
         status: finalStatus,
         last_error: result.status === "dlq" ? result.reason : null,
+        replay_started_at: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", dlqId)
@@ -184,8 +186,8 @@ export class IngestionService {
     // Keep the tenant association mandatory. Avoid duplicating original binary/raw
     // payloads in Postgres; only the structured event envelope is retained here.
     const safeRaw = raw && typeof raw === "object" && !Array.isArray(raw)
-      ? { ...(raw as Record<string, unknown>), original_payload: undefined }
-      : { rejected_value_type: typeof raw };
+      ? { ...(raw as Record<string, unknown>), organisation_id: organisationId, original_payload: undefined }
+      : { organisation_id: organisationId, rejected_value_type: typeof raw };
     const serialised = JSON.stringify(safeRaw);
     const digest = createHash("sha256").update(serialised ?? "null").digest("hex");
     const { data, error } = await this.admin.client

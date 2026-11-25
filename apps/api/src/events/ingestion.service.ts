@@ -108,7 +108,9 @@ export class IngestionService {
           );
           evidenceId = linked.evidence_id;
         } catch (linkErr) {
-          this.log.error(`evidence link failed event=${data.id}: ${String(linkErr)}`);
+          const rollback = await this.admin.client.from("events").delete().eq("id", data.id as string).eq("organisation_id", organisationId);
+          if (rollback.error) throw new Error("evidence link and event rollback failed: " + String(linkErr) + "; " + rollback.error.message);
+          throw new Error("evidence link failed; event moved to DLQ: " + String(linkErr));
         }
       }
 
@@ -214,9 +216,12 @@ export class IngestionService {
           raw.original_payload = bytes.toString("utf8");
         }
       } catch (err) {
-        this.log.warn(`replay payload restore failed object=${objectId}: ${String(err)}`);
+        throw new Error("required original payload could not be restored (" + objectId + "): " + String(err));
       }
+    } else if (raw.original_payload_required === true) {
+      throw new Error("DLQ entry requires original payload, but no payload object reference exists");
     }
+    delete raw.original_payload_required;
     delete raw.original_payload_object_id;
     delete raw.original_payload_sha256;
     return raw;
@@ -269,6 +274,7 @@ export class IngestionService {
           original_payload: undefined,
           original_payload_object_id: originalObjectId,
           original_payload_sha256: originalSha,
+          original_payload_required: originalPayload !== undefined,
         }
       : { organisation_id: organisationId, rejected_value_type: typeof raw };
 

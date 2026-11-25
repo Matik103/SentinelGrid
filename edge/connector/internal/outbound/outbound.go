@@ -85,8 +85,10 @@ func (c *Client) Flush(ctx context.Context) error {
 
 func (c *Client) deliverOne(ctx context.Context, e buffer.Entry) error {
 	if c.dryRun {
-		c.log.Info("api.base_url empty; dry-run ack", "id", e.ID)
-		return c.buf.Ack(e.ID)
+		// A missing API endpoint is a configuration error, never a successful delivery.
+		// Keep the durable entry so it can be delivered after configuration is corrected.
+		c.log.Warn("api.base_url empty; delivery disabled and event retained", "id", e.ID)
+		return fmt.Errorf("event delivery disabled: api.base_url is not configured")
 	}
 	token, err := c.creds.Token()
 	if err != nil {

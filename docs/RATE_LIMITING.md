@@ -1,12 +1,12 @@
 # API rate limiting
 
-The NestJS API applies distributed-ready rate limiting on all `/v1/*` routes.
+The NestJS API applies fixed-window rate limiting on all `/v1/*` routes.
 
 ## Backends
 
 | `RATE_LIMIT_BACKEND` | Behaviour |
 |---|---|
-| `redis` (or unset when `REDIS_URL` is present) | Redis `INCR` + `PEXPIRE` sliding fixed window |
+| `redis` (or unset when `REDIS_URL` is present) | Redis `INCR` + `PEXPIRE` fixed window |
 | `memory` / default without Redis | In-process counters |
 
 ## Production fail-closed

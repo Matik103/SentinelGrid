@@ -1,12 +1,8 @@
 -- SentinelGrid Phase 0 foundation schema
 -- Multi-tenant registry, connectors, events, evidence, audit
--- Idempotent where practical. RLS enabled; tenant from auth JWT claims / membership.
+-- Order: tables → helpers → seed → RLS (helpers reference memberships)
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
--- ---------------------------------------------------------------------------
--- Helpers
--- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS trigger
@@ -18,39 +14,8 @@ BEGIN
 END;
 $$;
 
--- Current user's organisation IDs (never trust client-supplied tenant_id)
-CREATE OR REPLACE FUNCTION public.current_user_org_ids()
-RETURNS SETOF uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT organisation_id
-  FROM public.memberships
-  WHERE user_id = auth.uid()
-    AND status = 'active';
-$$;
-
-CREATE OR REPLACE FUNCTION public.is_platform_admin()
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.memberships m
-    JOIN public.roles r ON r.id = m.role_id
-    WHERE m.user_id = auth.uid()
-      AND m.status = 'active'
-      AND r.key = 'platform_administrator'
-  );
-$$;
-
 -- ---------------------------------------------------------------------------
--- Auth / tenancy
+-- Auth / tenancy tables
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.organisations (
@@ -113,7 +78,7 @@ CREATE INDEX IF NOT EXISTS memberships_user_id_idx ON public.memberships (user_i
 CREATE INDEX IF NOT EXISTS memberships_org_id_idx ON public.memberships (organisation_id);
 
 -- ---------------------------------------------------------------------------
--- Infrastructure registry: Facility → Zone → Asset → Device → Sensor
+-- Infrastructure registry
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.facilities (
@@ -244,7 +209,7 @@ CREATE TABLE IF NOT EXISTS public.connectors (
 CREATE INDEX IF NOT EXISTS connectors_org_idx ON public.connectors (organisation_id);
 
 -- ---------------------------------------------------------------------------
--- Events (ledger) + evidence
+-- Events + evidence
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.events (
@@ -310,10 +275,6 @@ CREATE TABLE IF NOT EXISTS public.evidence_checkpoints (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- ---------------------------------------------------------------------------
--- Audit
--- ---------------------------------------------------------------------------
-
 CREATE TABLE IF NOT EXISTS public.audit_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organisation_id uuid REFERENCES public.organisations (id) ON DELETE SET NULL,
@@ -329,10 +290,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 
 CREATE INDEX IF NOT EXISTS audit_logs_org_created_idx ON public.audit_logs (organisation_id, created_at DESC);
 
--- ---------------------------------------------------------------------------
 -- updated_at triggers
--- ---------------------------------------------------------------------------
-
 DO $$
 DECLARE
   t text;
@@ -352,10 +310,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- ---------------------------------------------------------------------------
--- Seed system roles (idempotent)
--- ---------------------------------------------------------------------------
-
+-- Seed system roles / permissions
 INSERT INTO public.roles (key, name, description) VALUES
   ('platform_administrator', 'Platform administrator', 'Cross-tenant platform ops'),
   ('organisation_administrator', 'Organisation administrator', 'Org-wide admin'),
@@ -383,7 +338,42 @@ INSERT INTO public.permissions (key, description) VALUES
 ON CONFLICT (key) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- Row Level Security
+-- Tenant helpers (after memberships exists)
+-- Never trust client-supplied tenant_id for authz.
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.current_user_org_ids()
+RETURNS SETOF uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT organisation_id
+  FROM public.memberships
+  WHERE user_id = auth.uid()
+    AND status = 'active';
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_platform_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.memberships m
+    JOIN public.roles r ON r.id = m.role_id
+    WHERE m.user_id = auth.uid()
+      AND m.status = 'active'
+      AND r.key = 'platform_administrator'
+  );
+$$;
+
+-- ---------------------------------------------------------------------------
+-- RLS
 -- ---------------------------------------------------------------------------
 
 ALTER TABLE public.organisations ENABLE ROW LEVEL SECURITY;
@@ -403,7 +393,6 @@ ALTER TABLE public.evidence_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.evidence_checkpoints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies if re-applied
 DO $$
 DECLARE r record;
 BEGIN
@@ -421,7 +410,6 @@ BEGIN
   END LOOP;
 END $$;
 
--- Roles / permissions: readable by authenticated users
 CREATE POLICY roles_select ON public.roles
   FOR SELECT TO authenticated USING (true);
 CREATE POLICY permissions_select ON public.permissions
@@ -429,7 +417,6 @@ CREATE POLICY permissions_select ON public.permissions
 CREATE POLICY role_permissions_select ON public.role_permissions
   FOR SELECT TO authenticated USING (true);
 
--- Profiles: users see self; platform admin sees all
 CREATE POLICY profiles_select_self ON public.profiles
   FOR SELECT TO authenticated
   USING (user_id = auth.uid() OR public.is_platform_admin());
@@ -441,7 +428,6 @@ CREATE POLICY profiles_insert_self ON public.profiles
   FOR INSERT TO authenticated
   WITH CHECK (user_id = auth.uid() OR public.is_platform_admin());
 
--- Organisations: members only
 CREATE POLICY organisations_select ON public.organisations
   FOR SELECT TO authenticated
   USING (id IN (SELECT public.current_user_org_ids()) OR public.is_platform_admin());
@@ -451,8 +437,7 @@ CREATE POLICY organisations_update ON public.organisations
   WITH CHECK (id IN (SELECT public.current_user_org_ids()) OR public.is_platform_admin());
 CREATE POLICY organisations_insert ON public.organisations
   FOR INSERT TO authenticated
-  WITH CHECK (public.is_platform_admin() OR true);
--- Note: org creation allowed for authenticated; membership must be created server-side.
+  WITH CHECK (true);
 
 CREATE POLICY memberships_select ON public.memberships
   FOR SELECT TO authenticated
@@ -462,7 +447,6 @@ CREATE POLICY memberships_write ON public.memberships
   USING (organisation_id IN (SELECT public.current_user_org_ids()) OR public.is_platform_admin())
   WITH CHECK (organisation_id IN (SELECT public.current_user_org_ids()) OR public.is_platform_admin());
 
--- Tenant-owned tables share the same pattern
 CREATE POLICY facilities_tenant ON public.facilities
   FOR ALL TO authenticated
   USING (organisation_id IN (SELECT public.current_user_org_ids()) OR public.is_platform_admin())
@@ -512,7 +496,6 @@ CREATE POLICY audit_logs_tenant ON public.audit_logs
   FOR SELECT TO authenticated
   USING (
     organisation_id IN (SELECT public.current_user_org_ids())
-    OR organisation_id IS NULL AND public.is_platform_admin()
     OR public.is_platform_admin()
   );
 CREATE POLICY audit_logs_insert ON public.audit_logs
@@ -522,7 +505,6 @@ CREATE POLICY audit_logs_insert ON public.audit_logs
     OR public.is_platform_admin()
   );
 
--- Service role bypasses RLS by default in Supabase (used by API / migrations).
 COMMENT ON TABLE public.organisations IS 'SentinelGrid Phase 0 tenant root';
 COMMENT ON TABLE public.events IS 'Phase 0 event ledger; simulated events must set classification=simulated';
 COMMENT ON TABLE public.evidence_records IS 'SHA-256 integrity of stored payloads; hash != truth of sensor';

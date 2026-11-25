@@ -10,6 +10,26 @@ import { RegistryService } from "./registry.service.js";
 export class RegistryController {
   constructor(private readonly registry: RegistryService) {}
 
+  @Get("facility-assignments")
+  listFacilityAssignments(@CurrentUser() user: AuthUser, @Param("organisationId") orgId: string) {
+    return this.registry.listFacilityAssignments(user, this.uuid(orgId));
+  }
+
+  @Post("facility-assignments")
+  assignFacility(@CurrentUser() user: AuthUser, @Param("organisationId") orgId: string, @Body() body: unknown) {
+    return this.registry.assignFacility(user, this.uuid(orgId), body);
+  }
+
+  @Post("facilities/:facilityId/assignments/:userId/revoke")
+  unassignFacility(
+    @CurrentUser() user: AuthUser,
+    @Param("organisationId") orgId: string,
+    @Param("facilityId") facilityId: string,
+    @Param("userId") memberId: string,
+  ) {
+    return this.registry.unassignFacility(user, this.uuid(orgId), this.uuid(facilityId), this.uuid(memberId));
+  }
+
   @Get("facilities")
   listFacilities(@CurrentUser() user: AuthUser, @Param("organisationId") orgId: string) {
     return this.registry.listFacilities(user, this.uuid(orgId));

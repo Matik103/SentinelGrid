@@ -153,6 +153,16 @@ function Overview() {
       title="Sentinel Command"
       lead="Live organisation, registry, connector, event, and audit workflows against the Phase 0 API."
     >
+      <div className="overview-hero" aria-hidden={false}>
+        <img
+          className="overview-logo"
+          src="/assets/sentinelgrid-logo.jpg"
+          alt="SentinelGrid"
+          width={96}
+          height={96}
+        />
+        <p className="overview-brand">SentinelGrid</p>
+      </div>
       <div className="stats">
         <div className="stat">
           <strong>{orgCount}</strong>
@@ -333,7 +343,16 @@ export function App() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          Sentinel <span>Command</span>
+          <img
+            className="brand-logo"
+            src="/assets/sentinelgrid-logo.jpg"
+            alt="SentinelGrid"
+            width={40}
+            height={40}
+          />
+          <div className="brand-text">
+            Sentinel <span>Command</span>
+          </div>
         </div>
         <nav className="nav" aria-label="Primary">
           {NAV.map((item) => (

@@ -117,7 +117,6 @@ func (r *Runtime) tick(ctx context.Context) error {
 
 func (r *Runtime) emitScaffold(ctx context.Context, s adapter.Sample) error {
 	body := map[string]any{
-		"organisation_id": r.cfg.OrganisationID,
 		"connector_id":    nullIfEmpty(r.cfg.ConnectorID),
 		"event_type":      "connector.heartbeat",
 		"occurred_at":     s.ObservedAt.UTC().Format(time.RFC3339Nano),

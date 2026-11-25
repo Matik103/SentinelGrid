@@ -148,14 +148,19 @@ export class OrgsService {
   async revokeInvite(user: AuthUser, organisationId: string, invitationId: string) {
     await this.requirePermission(user, organisationId, "user.manage");
     const sb = this.users.create(user.accessToken);
-    const { data, error } = await sb.rpc("revoke_organisation_invitation", {
-      p_invitation_id: invitationId,
-    });
+    // Scope the mutation itself to the authorised organisation. Checking the
+    // returned organisation after an unscoped RPC is too late: the other tenant's
+    // invitation may already have been revoked.
+    const { data, error } = await sb
+      .from("organisation_invitations")
+      .update({ status: "revoked", revoked_at: new Date().toISOString() })
+      .eq("id", invitationId)
+      .eq("organisation_id", organisationId)
+      .eq("status", "pending")
+      .select("id, organisation_id, status, revoked_at")
+      .maybeSingle();
     if (error) throw new BadRequestException(error.message);
-    const result = data as { organisation_id?: string };
-    if (result?.organisation_id && result.organisation_id !== organisationId) {
-      throw new ForbiddenException("Invitation does not belong to this organisation");
-    }
+    if (!data) throw new NotFoundException("Pending invitation not found for this organisation");
     return data;
   }
 

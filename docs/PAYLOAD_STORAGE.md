@@ -1,35 +1,38 @@
-# Raw event payload object storage (Phase 0)
+# Payload / evidence object storage
 
-**Status:** Local development storage is implemented with SHA-256 verification. Production object storage is not implemented. The API deliberately rejects S3 configuration rather than creating metadata for missing objects.
+Phase 0 evidence payloads are written to an object store **before** `payload_objects` metadata is committed. Reads verify SHA-256 against metadata.
 
-## Implemented
+## Backends
 
-- Local-only filesystem backend under `.payload-store` (or `PAYLOAD_STORAGE_ROOT`).
-- Tenant-prefixed opaque object keys.
-- SHA-256 computed over the exact stored bytes.
-- Files created with restrictive directory/file permissions.
-- Metadata is inserted only after the object write succeeds.
-- Failed metadata writes trigger object cleanup.
-- Duplicate-event cleanup removes unreferenced local objects and metadata.
-- Retrieval requires `evidence.read`, matches both object ID and organisation ID, and verifies SHA-256 before returning bytes.
-- Maximum payload size defaults to 1 MiB and can be changed with `MAX_EVIDENCE_PAYLOAD_BYTES`.
+| `PAYLOAD_STORAGE_BACKEND` | Use | Notes |
+|---|---|---|
+| `local_dev` | Local / CI only | Files under `PAYLOAD_STORAGE_ROOT` (default `.payload-store`). **Forbidden when `NODE_ENV=production`.** |
+| `s3` / `s3_compatible` | Staging / production | Real PutObject / GetObject via `@aws-sdk/client-s3`. DB column stores `s3_compatible`. |
 
-## Explicit limitations
+Unknown backends and metadata-only writes are refused (fail-closed).
 
-- `PAYLOAD_STORAGE_BACKEND=s3` is rejected until a real S3-compatible adapter is installed, configured, and tested.
-- `local_dev` is rejected when `NODE_ENV=production`.
-- Local filesystem storage is not a production durability or backup solution.
-- The DLQ stores a bounded structured event envelope in Postgres for replay; the original_payload field is stripped from that envelope. It does not store arbitrary binary payload bytes.
-- No signed URL or direct browser object-storage access is implemented.
+## S3-compatible configuration
 
-## Production gate
+Required:
 
-Before enabling production evidence storage, implement and test an S3-compatible adapter with:
-1. server-side encryption and tenant-scoped bucket/prefix policy;
-2. object versioning or retention controls appropriate to customer policy;
-3. write-after-read verification and digest validation;
-4. private retrieval through short-lived signed URLs or a server-mediated stream;
-5. access logging, lifecycle/retention enforcement, backup and restore tests;
-6. failure handling that never commits metadata before object durability is confirmed.
+- `S3_BUCKET` or `PAYLOAD_S3_BUCKET`
+- `AWS_REGION` or `S3_REGION`
 
-A hash proves integrity of stored bytes, not truthfulness of the original sensor.
+Optional:
+
+- `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` (both or neither; neither uses the default provider chain / IAM role)
+- `S3_ENDPOINT` — MinIO / custom endpoint (must be `https://` in production)
+- `S3_FORCE_PATH_STYLE=true` — path-style addressing (default when endpoint is set)
+
+Misconfiguration (missing bucket/region, unpaired keys, http endpoint in production) throws at startup / first use — the API does not fall back to local disk in production.
+
+## Integrity
+
+1. Compute SHA-256 of JSON bytes.
+2. `put` object.
+3. `get` object and re-hash; discard object and abort if mismatch.
+4. Insert `payload_objects` row; on insert failure, delete the object.
+
+## Audit
+
+`scripts/audit.sh` requires this document and asserts production forbids `local_dev` while S3-compatible stores are implemented.

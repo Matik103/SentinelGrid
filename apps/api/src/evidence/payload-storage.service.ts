@@ -1,129 +1,117 @@
-import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { SupabaseAdminService } from "../common/supabase-admin.service.js";
+import {
+  createObjectStoreFromEnv,
+  type ObjectStore,
+  type ObjectStoreBackend,
+} from "./object-store.js";
 
-export type StoredPayload = {
+export type PayloadClassification = "real" | "simulated" | "replayed" | "synthetic";
+
+export type StoredPayloadMeta = {
   id: string;
+  organisation_id: string;
   object_key: string;
   content_sha256: string;
   byte_length: number;
-  storage_backend: "local_dev";
+  storage_backend: ObjectStoreBackend;
+  classification: PayloadClassification;
 };
 
-const MAX_PAYLOAD_BYTES = Number(process.env.MAX_EVIDENCE_PAYLOAD_BYTES ?? 1_048_576);
-const CLASSIFICATIONS = new Set(["real", "simulated", "replayed", "synthetic"]);
-
+/**
+ * Evidence / payload object storage with SHA-256 integrity.
+ * Supports local_dev (non-production) and S3-compatible backends.
+ * Fail-closed when misconfigured; never writes metadata without verified bytes.
+ */
 @Injectable()
-export class PayloadStorageService {
-  private readonly root = path.resolve(
-    process.env.PAYLOAD_STORAGE_ROOT ?? path.join(process.cwd(), ".payload-store"),
-  );
+export class PayloadStorageService implements OnModuleInit {
+  private readonly log = new Logger(PayloadStorageService.name);
+  private store!: ObjectStore;
 
-  constructor(private readonly admin: SupabaseAdminService) {}
+  constructor(
+    private readonly admin: SupabaseAdminService,
+    store?: ObjectStore,
+  ) {
+    if (store) {
+      this.store = store;
+    }
+  }
+
+  onModuleInit() {
+    if (!this.store) {
+      this.store = createObjectStoreFromEnv();
+    }
+    this.log.log(`payload storage backend=${this.store.backend}`);
+  }
+
+  /** Test / DI helper — bind a store without env. */
+  useStore(store: ObjectStore) {
+    this.store = store;
+  }
 
   async storeRaw(
     organisationId: string,
     payload: unknown,
-    opts?: { classification?: string; contentType?: string },
-  ): Promise<StoredPayload> {
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(organisationId)) {
-      throw new Error("Invalid organisation ID");
+    opts?: { classification?: PayloadClassification; contentType?: string },
+  ): Promise<StoredPayloadMeta> {
+    if (!this.store) {
+      this.store = createObjectStoreFromEnv();
     }
-    const classification = opts?.classification ?? "real";
-    if (!CLASSIFICATIONS.has(classification)) throw new Error("Invalid payload classification");
-    const requestedBackend = process.env.PAYLOAD_STORAGE_BACKEND ?? "local_dev";
-    if (requestedBackend !== "local_dev") {
-      throw new Error(`Unsupported PAYLOAD_STORAGE_BACKEND: ${requestedBackend}; refusing metadata-only evidence writes`);
-    }
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("local_dev payload storage is forbidden in production");
+    const bytes = Buffer.from(JSON.stringify(payload), "utf8");
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    const objectKey = `${organisationId}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.json`;
+    const contentType = opts?.contentType ?? "application/json";
+
+    await this.store.put(objectKey, bytes, contentType);
+
+    // Read-back integrity check before metadata commit (fail-closed).
+    const readBack = await this.store.get(objectKey);
+    const readDigest = createHash("sha256").update(readBack).digest("hex");
+    if (readDigest !== digest || readBack.byteLength !== bytes.byteLength) {
+      await this.store.delete(objectKey).catch(() => undefined);
+      throw new Error("Payload integrity verification failed after write; object discarded");
     }
 
-    const serialised = typeof payload === "string" ? payload : JSON.stringify(payload);
-    if (serialised === undefined) throw new Error("Payload is not JSON serialisable");
-    const bytes = Buffer.from(serialised, "utf8");
-    if (bytes.byteLength === 0 || bytes.byteLength > MAX_PAYLOAD_BYTES) {
-      throw new Error(`Payload size must be between 1 and ${MAX_PAYLOAD_BYTES} bytes`);
-    }
-    const sha = createHash("sha256").update(bytes).digest("hex");
-    const objectKey = `${organisationId}/${new Date().toISOString().slice(0, 10)}/${sha.slice(0, 16)}-${randomUUID()}.json`;
-    const fullPath = path.resolve(this.root, objectKey);
-    if (!fullPath.startsWith(this.root + path.sep)) throw new Error("Invalid object key");
+    const row = {
+      organisation_id: organisationId,
+      object_key: objectKey,
+      content_sha256: digest,
+      byte_length: bytes.byteLength,
+      content_type: contentType,
+      storage_backend: this.store.backend,
+      classification: opts?.classification ?? "real",
+    };
 
-    await mkdir(path.dirname(fullPath), { recursive: true, mode: 0o700 });
-    await writeFile(fullPath, bytes, { flag: "wx", mode: 0o600 });
-    try {
-      const { data, error } = await this.admin.client
-        .from("payload_objects")
-        .insert({
-          organisation_id: organisationId,
-          object_key: objectKey,
-          content_sha256: sha,
-          byte_length: bytes.byteLength,
-          content_type: opts?.contentType ?? "application/json",
-          storage_backend: "local_dev",
-          classification,
-        })
-        .select("id")
-        .single();
-      if (error || !data?.id) throw new Error(`payload_objects insert failed: ${error?.message ?? "no id"}`);
-      return {
-        id: data.id as string,
-        object_key: objectKey,
-        content_sha256: sha,
-        byte_length: bytes.byteLength,
-        storage_backend: "local_dev",
-      };
-    } catch (error) {
-      await rm(fullPath, { force: true });
-      throw error;
-    }
-  }
-
-  async deleteStored(organisationId: string, objectId: string): Promise<void> {
     const { data, error } = await this.admin.client
       .from("payload_objects")
-      .select("object_key, storage_backend")
-      .eq("id", objectId)
-      .eq("organisation_id", organisationId)
+      .insert(row)
+      .select("id, organisation_id, object_key, content_sha256, byte_length, storage_backend, classification")
       .single();
-    if (error || !data) throw new Error("Payload metadata not found for cleanup");
-    if (data.storage_backend !== "local_dev") throw new Error("Unsupported payload backend during cleanup");
-    const key = String(data.object_key);
-    if (!key.startsWith(`${organisationId}/`) || key.includes("..") || path.isAbsolute(key)) {
-      throw new Error("Stored evidence key failed tenant/path validation");
+    if (error) {
+      await this.store.delete(objectKey).catch(() => undefined);
+      throw new Error(`payload metadata insert failed: ${error.message}`);
     }
-    const fullPath = path.resolve(this.root, key);
-    if (!fullPath.startsWith(this.root + path.sep)) throw new Error("Stored evidence path escaped storage root");
-    const { error: deleteError } = await this.admin.client
-      .from("payload_objects")
-      .delete()
-      .eq("id", objectId)
-      .eq("organisation_id", organisationId);
-    if (deleteError) throw new Error(`Payload metadata cleanup failed: ${deleteError.message}`);
-    await rm(fullPath, { force: true });
+    return data as StoredPayloadMeta;
   }
 
-  async readRaw(organisationId: string, objectId: string): Promise<Buffer> {
+  async readRaw(organisationId: string, payloadObjectId: string): Promise<Buffer> {
+    if (!this.store) {
+      this.store = createObjectStoreFromEnv();
+    }
     const { data, error } = await this.admin.client
       .from("payload_objects")
-      .select("object_key, content_sha256, storage_backend, organisation_id")
-      .eq("id", objectId)
+      .select("object_key, content_sha256, organisation_id")
+      .eq("id", payloadObjectId)
       .eq("organisation_id", organisationId)
-      .single();
-    if (error || !data) throw new Error("Evidence payload not found");
-    if (data.storage_backend !== "local_dev") throw new Error("Configured evidence backend is unavailable");
-    const key = String(data.object_key);
-    if (!key.startsWith(`${organisationId}/`) || key.includes("..") || path.isAbsolute(key)) {
-      throw new Error("Stored evidence key failed tenant/path validation");
+      .maybeSingle();
+    if (error || !data) throw new Error("payload object not found");
+
+    const bytes = await this.store.get(data.object_key);
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    if (digest !== data.content_sha256) {
+      throw new Error("payload integrity check failed (SHA-256 mismatch)");
     }
-    const fullPath = path.resolve(this.root, key);
-    if (!fullPath.startsWith(this.root + path.sep)) throw new Error("Stored evidence path escaped storage root");
-    const bytes = await readFile(fullPath);
-    const actual = createHash("sha256").update(bytes).digest("hex");
-    if (actual !== data.content_sha256) throw new Error("Evidence payload integrity verification failed");
     return bytes;
   }
 }

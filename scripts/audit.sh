@@ -140,9 +140,15 @@ if [[ -f apps/api/src/events/ingestion.service.ts ]] && grep -q 'event_ingestion
   pass_check product.ingestion_api "Event ingestion API with dedup and DLQ hooks present" "apps/api/src/events/ingestion.service.ts"
 else fail_check high product.ingestion_api "Event ingestion API/DLQ missing expected hooks" "apps/api" "Implement ingest, dedup, and DLQ paths."; fi
 
-if [[ -f apps/api/src/evidence/payload-storage.service.ts ]] && [[ -f supabase/migrations/20261125190000_phase0_ingestion_dlq_and_payload_objects.sql ]]; then
-  pass_check product.payload_storage "Payload object storage service and metadata migration present" "apps/api/src/evidence/payload-storage.service.ts"
-else fail_check high product.payload_storage "Payload storage scaffold incomplete" "docs/PAYLOAD_STORAGE.md" "Add PayloadStorageService and payload_objects migration."; fi
+if [[ -f apps/api/src/evidence/payload-storage.service.ts ]] \
+  && [[ -f apps/api/src/evidence/object-store.ts ]] \
+  && [[ -f supabase/migrations/20261125190000_phase0_ingestion_dlq_and_payload_objects.sql ]] \
+  && [[ -f docs/PAYLOAD_STORAGE.md ]] \
+  && grep -q 'forbidden in production' apps/api/src/evidence/object-store.ts \
+  && grep -q 'S3ObjectStore\|s3_compatible' apps/api/src/evidence/object-store.ts \
+  && grep -q 'sha256' apps/api/src/evidence/payload-storage.service.ts; then
+  pass_check product.payload_storage "S3-compatible payload storage with SHA-256 integrity and production fail-closed local_dev ban" "apps/api/src/evidence"
+else fail_check high product.payload_storage "Payload storage incomplete (need S3 adapter, integrity, docs)" "docs/PAYLOAD_STORAGE.md" "Implement ObjectStore + PayloadStorageService with fail-closed S3 config."; fi
 
 if [[ -f edge/connector/cmd/connector/main.go ]] && grep -q 'read_only' edge/connector/internal/config/config.go; then
   pass_check product.connector_runtime "Edge connector runtime scaffold with read-only OT default" "edge/connector"

@@ -1,72 +1,52 @@
 # SentinelGrid Engineering Quality Gate
 
-This checklist is matched to the **current** repository state (Supabase schema + security migrations + SQL tests). A green CI run proves only the checks that were executed — not full Phase 0 product acceptance.
+Run locally:
 
-Run locally and in CI:
+    supabase start -x storage,realtime,studio,imgproxy,edge-runtime,analytics
+    supabase db reset --local --yes
+    ./scripts/audit.sh
 
-```bash
-./scripts/audit.sh
-```
+The security test runner targets the local Supabase database only. It never links, pushes or applies migrations to a remote project.
 
-Machine-readable output: `reports/audit-report.json`
+## CI behavior
 
-## Eight areas
+- Runs on pushes and pull requests to main and the working branch, daily at 06:00 UTC, and manually.
+- Uses a pinned Supabase CLI version.
+- Uses the runner's Docker endpoint; scripts do not hard-code a Colima socket.
+- Startup and reset failures stop the workflow.
+- CI sets REQUIRE_DB_CHECKS=1. Database readiness, SQL lint and tenant-isolation failures fail CI.
+- ShellCheck validates shell scripts.
+- Gitleaks scans repository content for secrets.
+- Audit JSON is uploaded as a workflow artifact and ignored by Git.
 
-### 1. Code quality
-- [ ] SQL migrations are forward-only and reviewable
-- [ ] No secrets committed (`.env` ignored; `.env.example` placeholders only)
-- [ ] Foundation migration `20261125160000` is not rewritten after apply
+## Checks
 
-### 2. Dependencies
-- [ ] No application `package.json` / lockfile yet — N/A until app stack lands
-- [ ] Supabase CLI version documented when used for local verification
+- Toolchain and Docker availability.
+- Environment-file ignore rules and obvious tracked secret paths.
+- Migration presence, naming and uniqueness.
+- Supabase seed path.
+- Local database lint.
+- Tenant isolation, RBAC, membership and append-only SQL regression tests.
+- Demo seed presence and simulated classification.
+- npm lockfile reproducibility and high/critical vulnerability audit when a Node project exists.
+- Go module verification and tests when a Go module exists.
+- Explicit reporting of product capabilities not implemented yet.
 
-### 3. API coverage
-- [ ] No public HTTP API yet — N/A
-- [ ] DB RPC surface documented: `bootstrap_organisation`, `has_org_permission`, `is_platform_admin`, platform-admin grant/revoke
+## Finding semantics
 
-### 4. Architecture
-- [ ] Modular monolith + separate edge connector (preferred) — connector not implemented
-- [ ] Tenant ownership on customer records
-- [ ] Read-only OT default preserved (no write industrial paths in schema)
+- passed: check executed and passed.
+- failed: check failed, or a required CI check could not execute.
+- not_applicable: capability does not exist yet, or an optional local check was unavailable.
 
-### 5. Database
-- [ ] Migrations apply cleanly on disposable local DB
-- [ ] Seed path `./seed/phase0_demo.sql` loads simulated orgs
-- [ ] Composite same-tenant FKs present
-- [ ] Append-only events/evidence policies + grant revocation
+A CI run must not be green if required database checks did not execute.
 
-### 6. Security
-- [ ] Automated tenant-isolation / RBAC regression SQL tests
-- [ ] Organisation provisioning via `bootstrap_organisation` only for clients
-- [ ] Membership escalation blocked; platform admin separate from memberships
-- [ ] Audit log client insert denied
-- [ ] Service-role key never in frontend (no frontend yet; `.env.example` warns)
+## Current product gaps (not Phase 0 acceptance)
 
-### 7. Operations
-- [ ] Local audit command identical to CI
-- [ ] Scheduled GitHub Actions audit
-- [ ] Remote/production apply requires explicit approval; preflight for cross-tenant rows
+- Auth UI and end-to-end invitations.
+- Sentinel Command frontend.
+- Go edge connector runtime and credential lifecycle.
+- Event ingestion API, schema validation, deduplication, replay protection and dead-letter processing.
+- Raw payload object storage, byte-level verification and evidence export.
+- Backup/restore and recovery drill.
 
-### 8. Product completeness (Phase 0 gate — not claimed by this audit)
-- [ ] Auth UI / invitations end-to-end
-- [ ] Command shell UI
-- [ ] Edge connector runtime
-- [ ] Event ingestion API with validation / dedup / DLQ
-- [ ] Evidence object storage + verify/export
-- [ ] Backup/recovery drill documented and tested
-
-## SentinelGrid-specific checks
-
-| Check | Status in this repo |
-| ----- | ------------------- |
-| Connector identity / heartbeat / credential rotation | Schema fields only; workflows not implemented |
-| Event ingestion / dedup / replay / DLQ | Ledger uniqueness on `(org, source, source_event_id)`; no API/DLQ |
-| Evidence integrity | Hash + ref columns; object store absent ([PAYLOAD_STORAGE.md](./PAYLOAD_STORAGE.md)) |
-| Incident linkage | Not in Phase 0 schema |
-| Agent authority | Out of Phase 0 scope |
-| Simulated vs measured vs estimate vs hypothesis | `events.classification` includes simulated/replayed/synthetic/real |
-| Read-only OT defaults | No OT write paths in schema |
-| Tenant isolation | RLS + grants + SQL regression tests (see `supabase/tests/`) |
-
-**Reminder:** A green build is not proof that connectors, ingestion, evidence storage, or the Command shell work.
+A green quality gate is not proof that these capabilities exist or that Phase 0 is complete.

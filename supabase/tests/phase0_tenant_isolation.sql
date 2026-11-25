@@ -480,7 +480,13 @@ BEGIN
   END IF;
   PERFORM pg_temp.pass('tenantless DLQ record rejected');
 
+  -- Tenant isolation must use a non-platform-admin org B principal.
+  -- u_admin_b was granted platform_admins above (step 14); revoke for this check.
+  DELETE FROM public.platform_admins WHERE user_id = u_admin_b;
   PERFORM pg_temp.set_auth(u_admin_b);
+  IF public.is_platform_admin() THEN
+    PERFORM pg_temp.fail('platform admin still active for org B isolation check');
+  END IF;
   SELECT count(*) INTO tmp_count FROM public.event_ingestion_dlq WHERE id = dlq_a;
   IF tmp_count <> 0 THEN
     PERFORM pg_temp.fail('org B can read org A DLQ entry');
@@ -505,6 +511,7 @@ BEGIN
   END IF;
   PERFORM pg_temp.pass('payload metadata is tenant-isolated');
   PERFORM pg_temp.clear_auth();
+
 
   RAISE NOTICE 'ALL PHASE0 SECURITY TESTS PASSED';
 END;

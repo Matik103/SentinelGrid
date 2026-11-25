@@ -1,14 +1,20 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
+import { json, urlencoded } from "express";
 import { AppModule } from "./app.module.js";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ["error", "warn", "log"],
-    bodyParser: true,
+    bodyParser: false,
   });
-  app.useBodyParser("json", { limit: process.env.JSON_BODY_LIMIT ?? "1mb" });
-  app.useBodyParser("urlencoded", { limit: process.env.FORM_BODY_LIMIT ?? "64kb", extended: false });
+  app.use(json({ limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
+  app.use(
+    urlencoded({
+      extended: false,
+      limit: process.env.FORM_BODY_LIMIT ?? "64kb",
+    }),
+  );
   app.setGlobalPrefix("v1");
 
   const port = Number(process.env.PORT ?? 8080);

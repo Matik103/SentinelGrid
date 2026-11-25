@@ -192,7 +192,7 @@ if [[ -d "$MIGRATIONS" ]]; then
   else fail_check critical db.migrations_missing "No SQL migrations found" "$MIGRATIONS" "Add versioned SQL migrations."; fi
 else fail_check critical db.migrations_dir_missing "Migration directory missing" "$MIGRATIONS" "Restore Supabase migrations."; fi
 
-for required in supabase/migrations/20261125160000_phase0_foundation.sql supabase/migrations/20261125170000_phase0_security_hardening.sql supabase/migrations/20261125180000_phase0_security_grants_and_platform_boundary.sql supabase/migrations/20261125190000_phase0_ingestion_dlq_and_payload_objects.sql supabase/seed/phase0_demo.sql supabase/tests/phase0_tenant_isolation.sql apps/api/src/main.ts apps/api/src/orgs/orgs.controller.ts apps/api/src/events/ingestion.service.ts apps/api/src/evidence/payload-storage.service.ts edge/connector/cmd/connector/main.go; do
+for required in supabase/migrations/20261125160000_phase0_foundation.sql supabase/migrations/20261125170000_phase0_security_hardening.sql supabase/migrations/20261125180000_phase0_security_grants_and_platform_boundary.sql supabase/migrations/20261125190000_phase0_ingestion_dlq_and_payload_objects.sql supabase/migrations/20261125200000_phase0_ingestion_replay_and_tenant_integrity.sql supabase/seed/phase0_demo.sql supabase/tests/phase0_tenant_isolation.sql apps/api/src/main.ts apps/api/src/orgs/orgs.controller.ts apps/api/src/events/ingestion.service.ts apps/api/src/evidence/payload-storage.service.ts edge/connector/cmd/connector/main.go; do
   if [[ -f "$required" ]]; then pass_check "files.$(basename "$required")" "Required Phase 0 file exists" "$required"
   else fail_check critical "files.$(basename "$required")" "Required Phase 0 file missing" "$required" "Restore the required file."; fi
 done

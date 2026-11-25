@@ -5,7 +5,8 @@ import { RegistryService } from "./registry.service.js";
 const org = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const facility = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const member = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
-const user = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", accessToken: "tok" } as never;
+const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const user = { id: userId, accessToken: "tok" } as { id: string; accessToken: string } as never;
 
 describe("RegistryService facility assignments", () => {
   it("assignFacility requires user.manage and upserts assignment", async () => {
@@ -24,7 +25,7 @@ describe("RegistryService facility assignments", () => {
                     organisation_id: org,
                     facility_id: facility,
                     user_id: member,
-                    assigned_by: user.id,
+                    assigned_by: userId,
                     created_at: new Date().toISOString(),
                   },
                   error: null,

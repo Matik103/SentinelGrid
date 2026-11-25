@@ -10,3 +10,6 @@
 # Generated audit output (uploaded by CI as an artifact)
 reports/audit-report.json
 .audit/
+
+supabase/.branches
+supabase/.temp

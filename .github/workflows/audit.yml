@@ -42,9 +42,13 @@ jobs:
         run: shellcheck scripts/*.sh
       - name: Start disposable local Supabase
         run: |
+          set -euo pipefail
           docker info
           supabase --version
-          supabase start -x storage,realtime,studio,imgproxy,edge-runtime,analytics
+          # Exclude only names valid for pinned CLI 2.75.0 (see `supabase start -h`).
+          # Do not use --ignore-health-check: startup failure must fail the job.
+          supabase start \
+            -x storage-api,realtime,studio,imgproxy,edge-runtime,vector,logflare,supavisor
           supabase status
           supabase db reset --local --yes
       - name: Run engineering quality gate

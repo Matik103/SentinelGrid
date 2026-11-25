@@ -128,7 +128,7 @@ export class OrgsService {
       role_id: result.role_id,
       // Token exposed once so local_dev/stub mailer can deliver; production mailer should not log it.
       delivery: {
-        channel: process.env.NODE_ENV === "production" ? "queued" : "local_dev_log",
+        channel: process.env.NODE_ENV === "production" ? "not_configured" : "local_dev_log",
         token_included: process.env.NODE_ENV !== "production",
         ...(process.env.NODE_ENV !== "production" ? { token: result.token } : {}),
       },
@@ -184,9 +184,10 @@ export class OrgsService {
   }
 
   private deliverInviteEmail(email: string, token: string, organisationId: string) {
-    // Real path: enqueue mailer. Phase 0 local_dev stubs by logging (never in production logs with token).
+    // No production mail transport is configured yet. Never claim that an invite
+    // was queued or delivered when no durable outbox/provider exists.
     if (process.env.NODE_ENV === "production") {
-      this.log.log(`invite queued organisation=${organisationId} email=${email}`);
+      this.log.warn(`invite delivery not configured organisation=${organisationId} email=${email}`);
       return;
     }
     this.log.log(

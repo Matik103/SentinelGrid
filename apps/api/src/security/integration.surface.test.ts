@@ -25,7 +25,7 @@ describe("Phase 0 integration surfaces", () => {
     assert.match(connectors, /timingSafeEqual/);
   });
 
-  it("keeps evidence chain + registry zones + outbox", () => {
+  it("keeps evidence chain + registry zones + outbox + facility assignments + email worker", () => {
     const chain = readFileSync(join(root, "apps/api/src/evidence/evidence-chain.service.ts"), "utf8");
     assert.match(chain, /linkEventPayload/);
     assert.match(chain, /createCheckpoint/);
@@ -35,9 +35,15 @@ describe("Phase 0 integration surfaces", () => {
     const registry = readFileSync(join(root, "apps/api/src/registry/registry.service.ts"), "utf8");
     assert.match(registry, /listZones/);
     assert.match(registry, /archiveZone/);
+    assert.match(registry, /assignFacility/);
+    assert.match(registry, /facility_user_assignments/);
 
     const outbox = readFileSync(join(root, "apps/api/src/common/email-outbox.service.ts"), "utf8");
     assert.match(outbox, /email_outbox/);
+
+    const worker = readFileSync(join(root, "apps/api/src/common/email-worker.service.ts"), "utf8");
+    assert.match(worker, /SG_EMAIL_WORKER_ENABLED/);
+    assert.match(worker, /claim_email_outbox/);
   });
 
   it("publishes OpenAPI and acceptance checklist", () => {

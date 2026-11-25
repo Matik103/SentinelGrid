@@ -584,6 +584,92 @@ BEGIN
   PERFORM pg_temp.pass('revoke_organisation_invitation marks pending invite revoked');
   PERFORM pg_temp.clear_auth();
 
+  -- 18) Same-org cross-facility isolation for facility_manager
+  DECLARE
+    u_mgr uuid := gen_random_uuid();
+    role_mgr uuid;
+    fac_a2 uuid;
+    asset_fac_a uuid;
+    asset_fac_a2 uuid;
+  BEGIN
+    SELECT id INTO role_mgr FROM public.roles WHERE key = 'facility_manager';
+    IF role_mgr IS NULL THEN
+      PERFORM pg_temp.fail('facility_manager role missing');
+    END IF;
+
+    INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+    VALUES (
+      u_mgr, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+      'mgr-a@example.test', crypt('x', gen_salt('bf')), now(), now(), now(), '{}', '{}'
+    );
+
+    PERFORM pg_temp.set_auth(u_admin_a);
+    INSERT INTO public.facilities (organisation_id, name, code)
+    VALUES (org_a, 'Plant A2', 'PA2') RETURNING id INTO fac_a2;
+    INSERT INTO public.memberships (organisation_id, user_id, role_id, status)
+    VALUES (org_a, u_mgr, role_mgr, 'active');
+    INSERT INTO public.facility_user_assignments (organisation_id, facility_id, user_id, assigned_by)
+    VALUES (org_a, fac_a, u_mgr, u_admin_a);
+    INSERT INTO public.assets (organisation_id, facility_id, name)
+    VALUES (org_a, fac_a, 'Asset assigned') RETURNING id INTO asset_fac_a;
+    INSERT INTO public.assets (organisation_id, facility_id, name)
+    VALUES (org_a, fac_a2, 'Asset other facility') RETURNING id INTO asset_fac_a2;
+    PERFORM pg_temp.clear_auth();
+
+    PERFORM pg_temp.set_auth(u_mgr);
+    SELECT count(*) INTO tmp_count FROM public.facilities WHERE organisation_id = org_a AND id = fac_a;
+    IF tmp_count <> 1 THEN
+      PERFORM pg_temp.fail('facility manager cannot see assigned facility');
+    END IF;
+    SELECT count(*) INTO tmp_count FROM public.facilities WHERE organisation_id = org_a AND id = fac_a2;
+    IF tmp_count <> 0 THEN
+      PERFORM pg_temp.fail('facility manager can see unassigned same-org facility');
+    END IF;
+    SELECT count(*) INTO tmp_count FROM public.assets WHERE id = asset_fac_a;
+    IF tmp_count <> 1 THEN
+      PERFORM pg_temp.fail('facility manager cannot see asset in assigned facility');
+    END IF;
+    SELECT count(*) INTO tmp_count FROM public.assets WHERE id = asset_fac_a2;
+    IF tmp_count <> 0 THEN
+      PERFORM pg_temp.fail('facility manager can see asset in unassigned facility');
+    END IF;
+    PERFORM pg_temp.pass('same-org cross-facility isolation for facility_manager');
+    PERFORM pg_temp.clear_auth();
+  END;
+
+  -- 19) Email worker claim/finish lease path (service_role)
+  DECLARE
+    outbox_id uuid;
+    claimed public.email_outbox%ROWTYPE;
+    finish_payload jsonb;
+  BEGIN
+    PERFORM pg_temp.clear_auth();
+    PERFORM set_config('request.jwt.claim.role', 'service_role', true);
+    PERFORM set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+    EXECUTE 'SET LOCAL ROLE service_role';
+    INSERT INTO public.email_outbox (
+      organisation_id, template_key, to_email, subject, body_text, status, scheduled_at
+    ) VALUES (
+      org_a, 'phase0_test', 'worker@example.test', 'lease test', 'body', 'pending', now()
+    ) RETURNING id INTO outbox_id;
+
+    SELECT * INTO claimed FROM public.claim_email_outbox(1, 120);
+    IF claimed.id IS DISTINCT FROM outbox_id OR claimed.status <> 'processing' OR claimed.lease_token IS NULL THEN
+      PERFORM pg_temp.fail('claim_email_outbox did not lease pending row');
+    END IF;
+
+    finish_payload := public.finish_email_outbox(
+      claimed.id, claimed.lease_token, true, 'resend_test_msg', NULL, 8
+    );
+    IF coalesce(finish_payload->>'updated','false') <> 'true'
+       OR coalesce(finish_payload->>'status','') <> 'sent' THEN
+      PERFORM pg_temp.fail('finish_email_outbox success path failed');
+    END IF;
+    PERFORM pg_temp.pass('email worker claim/finish lease RPCs');
+    RESET ROLE;
+    PERFORM pg_temp.clear_auth();
+  END;
+
   RAISE NOTICE 'ALL PHASE0 SECURITY TESTS PASSED';
 END;
 $$;

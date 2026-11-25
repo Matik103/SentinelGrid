@@ -2,11 +2,11 @@
   "schema_version": "1.1",
   "project": "SentinelGrid",
   "gate": "engineering-quality-gate",
-  "started_at": "2026-11-25T20:25:50Z",
-  "ended_at": "2026-11-25T20:33:16Z",
+  "started_at": "2026-11-25T20:56:08Z",
+  "ended_at": "2026-11-25T21:01:11Z",
   "git": {
     "branch": "work/phase0-security-hardening",
-    "sha": "cd7d842b9abd07a91eb5a7fac4a58d331e3ef1b4"
+    "sha": "3e2c9f29e57bdda0d4bebaff001506bc22a258a0"
   },
   "summary": {
     "failures": 0,
@@ -75,7 +75,7 @@
     {
       "id": "db.migrations_present",
       "severity": "info",
-      "title": "9 SQL migrations found",
+      "title": "11 SQL migrations found",
       "file": "supabase/migrations",
       "remediation": "",
       "status": "passed"

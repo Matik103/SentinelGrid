@@ -460,7 +460,7 @@ BEGIN
     INSERT INTO public.event_ingestion_dlq (
       organisation_id, connector_id, failure_reason, raw_body
     ) VALUES (org_b, connector_a, 'cross tenant', '{}'::jsonb);
-  EXCEPTION WHEN foreign_key_violation OR others THEN
+  EXCEPTION WHEN foreign_key_violation THEN
     raised := true;
   END;
   IF NOT raised THEN
@@ -472,7 +472,7 @@ BEGIN
   BEGIN
     INSERT INTO public.event_ingestion_dlq (organisation_id, failure_reason)
     VALUES (NULL, 'missing tenant');
-  EXCEPTION WHEN not_null_violation OR others THEN
+  EXCEPTION WHEN not_null_violation THEN
     raised := true;
   END;
   IF NOT raised THEN

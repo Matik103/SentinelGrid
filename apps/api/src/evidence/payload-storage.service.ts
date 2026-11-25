@@ -97,13 +97,13 @@ export class PayloadStorageService {
     }
     const fullPath = path.resolve(this.root, key);
     if (!fullPath.startsWith(this.root + path.sep)) throw new Error("Stored evidence path escaped storage root");
-    await rm(fullPath, { force: true });
     const { error: deleteError } = await this.admin.client
       .from("payload_objects")
       .delete()
       .eq("id", objectId)
       .eq("organisation_id", organisationId);
     if (deleteError) throw new Error(`Payload metadata cleanup failed: ${deleteError.message}`);
+    await rm(fullPath, { force: true });
   }
 
   async readRaw(organisationId: string, objectId: string): Promise<Buffer> {

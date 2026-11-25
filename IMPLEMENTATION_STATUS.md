@@ -11,17 +11,17 @@ Do not mark Phase 0 COMPLETE until `docs/PHASE0_ACCEPTANCE_CHECKLIST.md` rows ar
 | Capability | Status | Evidence |
 |---|---|---|
 | Auth / tenancy (bootstrap, membership, RBAC) | INTEGRATION TESTED (SQL) | `supabase/tests/phase0_tenant_isolation.sql` |
-| Organisation invitations create/accept/revoke | UNIT + SQL | Migration `20261125210000`, RPCs applied remote, API routes, SQL section 17 |
+| Organisation invitations create/accept/revoke | PARTIAL | Tenant-scoped revoke; invitation role guard; `20261125240000` adds separate committed expiry-by-token path; production email transport/worker still absent |
 | Infrastructure registry HTTP API | IMPLEMENTED | `apps/api/src/registry/*` (CRUD subset); SQL RLS exists |
-| Connector register / heartbeat / revoke API | IMPLEMENTED | `apps/api/src/connectors/*` |
-| Edge Go connector durable runtime | UNIT TESTED | `edge/connector` buffer/retry/credentials/adapters |
-| Event ingest + dedup + DLQ | UNIT + SQL | Nest ingest + DLQ migration/tests |
+| Connector register / heartbeat / rotate / revoke API | IMPLEMENTED; ingest integration pending | `apps/api/src/connectors/*`; `/v1/connectors/ingest` derives tenant from connector token; current-tip CI/integration tests pending |
+| Edge Go connector durable runtime | UNIT TESTED; protocol acquisition limited | `edge/connector`; OPC UA/Modbus/MQTT adapters currently probe reachability, not process telemetry |
+| Event ingest + dedup + DLQ | PARTIAL | Replay now rejects missing original payload; failure-path and integration tests pending |
 | Event search/list API | IMPLEMENTED | `GET /v1/events` |
 | Evidence payload storage SHA-256 + S3 | UNIT TESTED | `apps/api/src/evidence/*`, `docs/PAYLOAD_STORAGE.md` |
-| Evidence chain / checkpoints API | NOT IMPLEMENTED | Tables exist; no app wiring |
+| Evidence chain / checkpoints API | PARTIAL | API exists; atomic per-organisation append RPC added in `20261125240000`; migration apply + concurrency tests pending |
 | Rate limiting | UNIT TESTED | Redis or memory; prod fail-closed — `docs/RATE_LIMITING.md` |
 | Audit log read API | IMPLEMENTED | `GET /v1/orgs/:id/audit-logs` |
-| Sentinel Command UI shell | IMPLEMENTED (empty states) | `apps/web` — not data-wired E2E |
+| Sentinel Command UI | PARTIAL (config-gated live API) | `apps/web`; full authentication/onboarding/browser E2E not proven |
 | Backup/recovery drill | DOCUMENTED ONLY | `docs/BACKUP_RECOVERY.md` — drill pending |
 | OpenAPI contract | NOT IMPLEMENTED | — |
 
@@ -33,4 +33,4 @@ Operational table: isolation tests exist; backup drill **not** done; dashboard s
 
 ## Remote migrations (`abaeizgfsskvjklfslrh`)
 
-Applied through `20261125210000_phase0_organisation_invitations.sql` via Management API.
+Previously applied through `20261125230000_phase0_outbox_dlq_creds_role_guard.sql` per prior branch notes. New migration `20261125240000_phase0_atomic_evidence_and_invite_expiry.sql` is committed to the working branch but NOT applied remotely; Cursor/operator must review and apply it to the intended non-production database, then verify the RPCs and tests. No production migration was applied by this work.

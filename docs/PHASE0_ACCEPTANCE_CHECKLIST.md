@@ -59,11 +59,13 @@ Timezone for operator notes: America/Los_Angeles.
 |---|---|---|---|
 | `4061a4b` | success ([45696244525](https://github.com/Matik103/SentinelGrid/actions/runs/45696244525)) | through `20261125240000` local+remote | Dollar-quote fix |
 | `da49bcb` | success ([45697018751](https://github.com/Matik103/SentinelGrid/actions/runs/45697018751)) | through `240000` | Checklist evidence |
-| `3e2c9f2` | success ([45698815441](https://github.com/Matik103/SentinelGrid/actions/runs/45698815441)) | through `20261125260000` local+remote | Facility RLS + email worker leases; tip CI green before follow-up tests |
+| `3e2c9f2` | success ([45698815441](https://github.com/Matik103/SentinelGrid/actions/runs/45698815441)) | through `20261125260000` local+remote | Facility RLS + email worker leases |
+| `647ea0b` | failure ([45701124636](https://github.com/Matik103/SentinelGrid/actions/runs/45701124636)) | through `260000` | Facility tests; TS `never` in assignment test |
+| `07b06ee` | **success** ([45701978909](https://github.com/Matik103/SentinelGrid/actions/runs/45701978909)) | through `20261125260000` local+remote | Facility isolation SQL + email lease tests + 3-level checklist |
 
 **Still OPEN (do not close Phase 0):**
 - Production email delivery without Resend creds (**ops**)
 - Full OT protocol acquisition (**ops** — needs maps/node IDs/topics)
 - Real backup + object-store restore drill (**ops**)
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip CI green on `3e2c9f2`, migrations through `260000` remote — **not COMPLETE**.
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip CI green on `07b06ee`, migrations through `260000` remote — **not COMPLETE**.

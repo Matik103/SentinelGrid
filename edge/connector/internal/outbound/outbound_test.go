@@ -15,7 +15,7 @@ import (
 	"github.com/Matik103/SentinelGrid/edge/connector/internal/credentials"
 )
 
-func TestDryRunAcks(t *testing.T) {
+func TestMissingBaseURLRetainsBufferedEvent(t *testing.T) {
 	dir := t.TempDir()
 	buf, err := buffer.New(filepath.Join(dir, "q"))
 	if err != nil {
@@ -25,12 +25,15 @@ func TestDryRunAcks(t *testing.T) {
 	creds := credentials.New("SG_OUT_TOK")
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	c := New(Config{BaseURL: "", IngestPath: "/v1/events/ingest"}, creds, buf, log)
-	if err := c.EnqueueOrSend(context.Background(), []byte(`{"ok":true}`)); err != nil {
+	if err := c.EnqueueOrSend(context.Background(), []byte(`{"ok":true}`)); err == nil {
+		t.Fatal("expected delivery-disabled error when API URL is missing")
+	}
+	n, err := buf.Len()
+	if err != nil {
 		t.Fatal(err)
 	}
-	n, _ := buf.Len()
-	if n != 0 {
-		t.Fatalf("expected dry-run ack, len=%d", n)
+	if n != 1 {
+		t.Fatalf("event must remain buffered when delivery is disabled, len=%d", n)
 	}
 }
 

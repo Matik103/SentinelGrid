@@ -29,6 +29,17 @@ go build -o bin/connector ./cmd/connector
 SG_CONNECTOR_LIVE_PROBES=1 ./bin/connector -config config.example.yaml
 ```
 
+## Email outbox worker
+
+The API includes an opt-in Resend worker. It is disabled by default and requires these deployment environment variables:
+
+- `SG_EMAIL_WORKER_ENABLED=true`
+- `SG_EMAIL_TRANSPORT=resend`
+- `RESEND_API_KEY` (store as a deployment secret; never commit it)
+- `SG_EMAIL_FROM` (a verified sender identity)
+
+Apply migration `20261125260000_phase0_email_worker_leases.sql` before enabling the worker. The worker claims rows with expiring leases, uses the outbox UUID as the provider idempotency key, retries transient failures with backoff, and marks exhausted messages failed. Verify provider-domain authentication and delivery in the Resend account before enabling production sending.
+
 ## Security notes
 
 - Connector never embeds the Supabase service role.

@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
 import { SupabaseAdminService } from "./supabase-admin.service.js";
 
 type ClaimedEmail = {

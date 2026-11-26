@@ -476,15 +476,12 @@ export function App() {
       <aside className="sidebar">
         <div className="brand">
           <img
-            className="brand-logo"
-            src="/assets/sentinelgrid-logo-mark.png"
+            className="brand-wordmark"
+            src="/assets/sentinelgrid-logo-wordmark.png"
             alt="SentinelGrid"
-            width={40}
-            height={40}
+            width={190}
+            height={60}
           />
-          <div className="brand-text">
-            Sentinel <span>Command</span>
-          </div>
         </div>
         <WorkspaceSwitcher activeOrganisationId={activeOrganisationId} onSelect={selectOrganisation} refreshKey={authRefreshKey} />
         <nav className="nav" aria-label="Primary">

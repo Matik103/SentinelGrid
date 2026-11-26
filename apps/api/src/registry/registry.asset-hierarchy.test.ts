@@ -6,6 +6,7 @@ const organisationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const facilityId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const parentId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const user = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", accessToken: "token" } as never;
+type ParentQuery = { eq: (column?: string, value?: string) => ParentQuery; maybeSingle: () => Promise<{ data: unknown; error: null }> };
 
 describe("RegistryService asset hierarchy", () => {
   it("rejects a parent outside the organisation/facility before inserting", async () => {
@@ -13,8 +14,8 @@ describe("RegistryService asset hierarchy", () => {
     const sb = {
       from: (table: string) => {
         calls.push(`from:${table}`);
-        const parentQuery = {
-          eq: (column: string, value: string) => { calls.push(`eq:${column}:${value}`); return parentQuery; },
+        const parentQuery: ParentQuery = {
+          eq: (column?: string, value?: string) => { calls.push(`eq:${column}:${value}`); return parentQuery; },
           maybeSingle: async () => ({ data: null, error: null }),
         };
         return {
@@ -42,7 +43,7 @@ describe("RegistryService asset hierarchy", () => {
     let inserted: Record<string, unknown> | undefined;
     const sb = {
       from: () => {
-        const parentQuery = { eq: () => parentQuery, maybeSingle: async () => ({ data: { id: parentId }, error: null }) };
+        const parentQuery: ParentQuery = { eq: () => parentQuery, maybeSingle: async () => ({ data: { id: parentId }, error: null }) };
         return {
           select: () => parentQuery,
           insert: (row: Record<string, unknown>) => {

@@ -1,4 +1,4 @@
-import { loadPublicConfig } from "./bootstrap";
+import { loadPublicConfig, PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from "./bootstrap";
 
 let apiBase = "";
 let configReady: Promise<void> | null = null;
@@ -114,4 +114,192 @@ export async function healthCheck(): Promise<string> {
   } catch {
     return "API unreachable";
   }
+}
+
+
+export type AssetMediaRecord = {
+  id: string;
+  organisation_id: string;
+  asset_id: string;
+  storage_path: string | null;
+  external_url: string | null;
+  media_kind: string;
+  provenance: "customer_upload" | "manufacturer_catalogue" | "representative";
+  is_primary: boolean;
+  asset_match_verified: boolean;
+  original_filename: string | null;
+  content_type: string | null;
+  attribution: string | null;
+  caption: string | null;
+  created_at: string;
+  display_url?: string;
+};
+
+export type EnergyMeasurement = {
+  id: string;
+  organisation_id: string;
+  facility_id: string;
+  asset_id: string | null;
+  device_id: string | null;
+  sensor_id: string | null;
+  metric_key: string;
+  value: number;
+  unit: string;
+  measured_at: string;
+  source: string;
+  quality: "good" | "uncertain" | "poor" | "unknown";
+  classification: "real" | "simulated" | "replayed" | "synthetic";
+};
+
+export type EnergyAnomaly = {
+  id: string;
+  facility_id: string;
+  asset_id: string | null;
+  metric_key: string;
+  severity: "info" | "low" | "medium" | "high" | "critical";
+  status: "open" | "acknowledged" | "resolved" | "false_positive";
+  title: string;
+  explanation: string;
+  observed_value: number | null;
+  baseline_value: number | null;
+  deviation_pct: number | null;
+  rule_key: string;
+  detected_at: string;
+};
+
+async function supabaseRest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = authToken();
+  if (!token) throw new Error("Sign in required to access organisation data.");
+  const headers = new Headers(init.headers);
+  headers.set("apikey", PUBLIC_SUPABASE_ANON_KEY);
+  headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Accept", "application/json");
+  if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  const response = await fetch(`${PUBLIC_SUPABASE_URL}${path}`, { ...init, headers });
+  if (!response.ok) {
+    const message = (await response.text()).slice(0, 300);
+    throw new Error(message || `Supabase request failed (${response.status})`);
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+async function signedAssetUrl(storagePath: string): Promise<string> {
+  const path = storagePath.split("/").map(encodeURIComponent).join("/");
+  const result = await supabaseRest<{ signedURL?: string }>(
+    `/storage/v1/object/sign/asset-media/${path}`,
+    { method: "POST", body: JSON.stringify({ expiresIn: 3600 }) },
+  );
+  if (!result.signedURL) throw new Error("Supabase did not return a signed image URL.");
+  if (/^https?:\/\//i.test(result.signedURL)) return result.signedURL;
+  return `${PUBLIC_SUPABASE_URL}/storage/v1${result.signedURL.startsWith("/") ? result.signedURL : `/${result.signedURL}`}`;
+}
+
+export async function listAssetMedia(organisationIdValue: string): Promise<AssetMediaRecord[]> {
+  const query = new URLSearchParams({
+    select: "id,organisation_id,asset_id,storage_path,external_url,media_kind,provenance,is_primary,asset_match_verified,original_filename,content_type,attribution,caption,created_at",
+    organisation_id: `eq.${organisationIdValue}`,
+    order: "is_primary.desc,created_at.desc",
+    limit: "500",
+  });
+  const rows = await supabaseRest<AssetMediaRecord[]>(`/rest/v1/asset_media?${query.toString()}`);
+  return Promise.all(rows.map(async (row) => {
+    if (row.external_url) return { ...row, display_url: row.external_url };
+    if (!row.storage_path) return row;
+    try {
+      return { ...row, display_url: await signedAssetUrl(row.storage_path) };
+    } catch {
+      return row;
+    }
+  }));
+}
+
+export async function uploadAssetImage(
+  organisationIdValue: string,
+  assetId: string,
+  file: File,
+  verifiedMatch: boolean,
+): Promise<AssetMediaRecord> {
+  const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
+  if (!allowed.has(file.type)) throw new Error("Choose a JPEG, PNG, WebP or AVIF image.");
+  if (file.size > 15 * 1024 * 1024) throw new Error("Images must be 15 MB or smaller.");
+  const cleanName = file.name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(-100) || "equipment-image";
+  const storagePath = `${organisationIdValue}/${assetId}/${crypto.randomUUID()}-${cleanName}`;
+  const encodedPath = storagePath.split("/").map(encodeURIComponent).join("/");
+  await supabaseRest<unknown>(`/storage/v1/object/asset-media/${encodedPath}`, {
+    method: "POST",
+    headers: { "Content-Type": file.type, "x-upsert": "false" },
+    body: file,
+  });
+
+  try {
+    const currentQuery = new URLSearchParams({
+      organisation_id: `eq.${organisationIdValue}`,
+      asset_id: `eq.${assetId}`,
+      is_primary: "eq.true",
+    });
+    await supabaseRest<unknown>(`/rest/v1/asset_media?${currentQuery.toString()}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ is_primary: false }),
+    });
+    const inserted = await supabaseRest<AssetMediaRecord[]>("/rest/v1/asset_media", {
+      method: "POST",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify([{
+        organisation_id: organisationIdValue,
+        asset_id: assetId,
+        storage_path: storagePath,
+        media_kind: "primary",
+        provenance: "customer_upload",
+        is_primary: true,
+        asset_match_verified: verifiedMatch,
+        original_filename: file.name,
+        content_type: file.type,
+        byte_length: file.size,
+        caption: "Customer-uploaded equipment photograph",
+      }]),
+    });
+    const row = inserted[0];
+    if (!row) throw new Error("The image uploaded, but its asset record was not returned.");
+    try { return { ...row, display_url: await signedAssetUrl(storagePath) }; }
+    catch { return row; }
+  } catch (error) {
+    // Best-effort cleanup keeps the private bucket free of unreferenced uploads.
+    try {
+      await supabaseRest<unknown>(`/storage/v1/object/asset-media/${encodedPath}`, { method: "DELETE" });
+    } catch { /* The database error is the useful failure to surface. */ }
+    throw error;
+  }
+}
+
+export async function listEnergyMeasurements(
+  organisationIdValue: string,
+  since: string,
+  facilityId?: string,
+): Promise<EnergyMeasurement[]> {
+  const query = new URLSearchParams({
+    select: "id,organisation_id,facility_id,asset_id,device_id,sensor_id,metric_key,value,unit,measured_at,source,quality,classification",
+    organisation_id: `eq.${organisationIdValue}`,
+    measured_at: `gte.${since}`,
+    order: "measured_at.desc",
+    limit: "1000",
+  });
+  if (facilityId) query.set("facility_id", `eq.${facilityId}`);
+  return supabaseRest<EnergyMeasurement[]>(`/rest/v1/energy_measurements?${query.toString()}`);
+}
+
+export async function listEnergyAnomalies(
+  organisationIdValue: string,
+  facilityId?: string,
+): Promise<EnergyAnomaly[]> {
+  const query = new URLSearchParams({
+    select: "id,facility_id,asset_id,metric_key,severity,status,title,explanation,observed_value,baseline_value,deviation_pct,rule_key,detected_at",
+    organisation_id: `eq.${organisationIdValue}`,
+    status: "in.(open,acknowledged)",
+    order: "detected_at.desc",
+    limit: "100",
+  });
+  if (facilityId) query.set("facility_id", `eq.${facilityId}`);
+  return supabaseRest<EnergyAnomaly[]>(`/rest/v1/energy_anomalies?${query.toString()}`);
 }

@@ -4127,3 +4127,185 @@ button:disabled,.btn:disabled { cursor:not-allowed; opacity:.48; transform:none;
   .workspace-branding-panel { grid-template-columns: minmax(0,1fr); }
   .workspace-branding-control { justify-content: flex-start; flex-wrap: wrap; }
 }
+
+
+/* SentinelGrid Motion System v1 — purposeful, quiet, telemetry-aware motion. */
+@keyframes sg-page-arrive {
+  from { opacity: 0; transform: translate3d(0, 9px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes sg-orbit-forward {
+  from { transform: translate(-50%,-50%) rotate(-22deg); }
+  to { transform: translate(-50%,-50%) rotate(338deg); }
+}
+@keyframes sg-orbit-reverse {
+  from { transform: translate(-50%,-50%) rotate(34deg); }
+  to { transform: translate(-50%,-50%) rotate(-326deg); }
+}
+@keyframes sg-core-breathe {
+  0%,100% { box-shadow: 0 0 30px rgba(84,214,197,.14), inset 0 0 18px rgba(84,214,197,.07); filter: saturate(.94); }
+  50% { box-shadow: 0 0 48px rgba(84,214,197,.26), inset 0 0 25px rgba(84,214,197,.13); filter: saturate(1.08); }
+}
+@keyframes sg-node-signal {
+  0%,100% { border-color: rgba(104,191,190,.2); box-shadow: 0 5px 18px rgba(0,0,0,.16); }
+  50% { border-color: rgba(104,220,208,.52); box-shadow: 0 0 16px rgba(84,214,197,.12); }
+}
+@keyframes sg-card-arrive {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sg-signal-breathe {
+  0%,100% { opacity: .72; transform: scale(.92); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+@keyframes sg-dash-flow {
+  to { stroke-dashoffset: -44; }
+}
+@keyframes sg-chart-reveal {
+  from { stroke-dashoffset: 1200; opacity: .35; }
+  to { stroke-dashoffset: 0; opacity: 1; }
+}
+@keyframes sg-surface-glint {
+  0% { transform: translateX(-120%); opacity: 0; }
+  18% { opacity: .42; }
+  55%,100% { transform: translateX(140%); opacity: 0; }
+}
+
+/* A short arrival cue helps orientation after route changes; no perpetual page motion. */
+.main-content > .workspace-page-header,
+.main-content > .workbench-heading,
+.main-content > .command-hero,
+.main-content > .command-section-heading {
+  animation: sg-page-arrive .48s cubic-bezier(.2,.7,.2,1) both;
+}
+.main-content > :nth-child(2) { animation-delay: 45ms; }
+.main-content > :nth-child(3) { animation-delay: 85ms; }
+
+/* The command visualization is the signature motion: slow orbital drift, breathing core,
+   and offset signal nodes. It is a conceptual model, never a live-data indicator. */
+.command-hero-visual .orbital-one {
+  animation: sg-orbit-forward 42s linear infinite;
+  transform-origin: center;
+}
+.command-hero-visual .orbital-two {
+  animation: sg-orbit-reverse 58s linear infinite;
+  transform-origin: center;
+}
+.command-hero-visual .hero-core-logo {
+  animation: sg-core-breathe 5.8s ease-in-out infinite;
+  will-change: filter, box-shadow;
+}
+.command-hero-visual .orbit-node { animation: sg-node-signal 6.8s ease-in-out infinite; }
+.command-hero-visual .node-a { animation-delay: 0s; }
+.command-hero-visual .node-b { animation-delay: 1.7s; }
+.command-hero-visual .node-c { animation-delay: 3.4s; }
+.command-hero-visual .node-d { animation-delay: 5.1s; }
+
+/* Data cards enter once, then respond only to deliberate pointer/focus interaction. */
+.command-stat-card {
+  animation: sg-card-arrive .52s cubic-bezier(.2,.7,.2,1) both;
+  transition: transform .24s cubic-bezier(.2,.7,.2,1), border-color .24s ease, box-shadow .24s ease;
+}
+.command-stat-card:nth-child(1) { animation-delay: 70ms; }
+.command-stat-card:nth-child(2) { animation-delay: 125ms; }
+.command-stat-card:nth-child(3) { animation-delay: 180ms; }
+.command-stat-card:nth-child(4) { animation-delay: 235ms; }
+.command-stat-card:hover,
+.command-stat-card:focus-within {
+  transform: translateY(-3px);
+  border-color: rgba(105,228,209,.34);
+  box-shadow: 0 16px 34px rgba(0,0,0,.2), 0 0 22px rgba(84,214,197,.055);
+}
+.command-stat-card::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 32%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(152,235,226,.075), transparent);
+  transform: translateX(-120%);
+  opacity: 0;
+}
+.command-stat-card:hover::after { animation: sg-surface-glint 1.05s ease-out; }
+.command-stat-icon { transition: transform .24s ease, box-shadow .24s ease; }
+.command-stat-card:hover .command-stat-icon { transform: translateY(-2px) scale(1.06); box-shadow: 0 0 18px rgba(84,214,197,.1); }
+
+.command-panel,
+.energy-panel,
+.asset-create-panel,
+.asset-list-panel,
+.asset-profile-panel,
+.workbench-panel {
+  transition: border-color .22s ease, box-shadow .22s ease, background-color .22s ease;
+}
+.facility-row,
+.activity-row,
+.finding-row,
+.investigation-event,
+.quick-access-grid a,
+.asset-card {
+  transition: background-color .2s ease, border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+.facility-row:hover { transform: translateX(3px); }
+.activity-row:hover { background: rgba(84,214,197,.035); }
+.quick-access-grid a:hover { transform: translateY(-2px); box-shadow: 0 9px 22px rgba(0,0,0,.13); }
+.asset-card:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(0,0,0,.16); }
+.investigation-event:hover { transform: translateX(2px); }
+
+/* Actual measured chart paths draw in; the endpoint gently breathes without implying new samples. */
+.chart-line {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 0;
+  animation: sg-chart-reveal 1.15s cubic-bezier(.2,.7,.2,1) both;
+}
+.chart-last-point { transform-box: fill-box; transform-origin: center; animation: sg-signal-breathe 3.4s ease-in-out infinite; }
+
+/* Relationship lines are a model visualization; slow dash flow suggests connected context. */
+.topology-canvas path[stroke-dasharray] { animation: sg-dash-flow 12s linear infinite; }
+.topology-hub { transition: fill .25s ease, stroke .25s ease, filter .25s ease; }
+.topology-canvas:hover .topology-hub { fill: rgba(84,214,197,.19); filter: drop-shadow(0 0 7px rgba(84,214,197,.22)); }
+
+/* Live-state indicators pulse only where the interface explicitly labels a live state. */
+.workbench-live-state i { animation: sg-signal-breathe 2.8s ease-in-out infinite; }
+.risk-indicator.risk-critical { animation: sg-signal-breathe 3.2s ease-in-out infinite; }
+
+/* Inputs acknowledge focus with a restrained, consistent response. */
+input, select, textarea, button, .btn, a { transition-timing-function: cubic-bezier(.2,.7,.2,1); }
+:where(button,a,.btn,[role="button"],input,select,textarea):focus-visible {
+  transition: outline-offset .16s ease, box-shadow .16s ease;
+}
+
+/* Keep all movement optional and avoid hover transforms on touch-only devices. */
+@media (hover: none) {
+  .command-stat-card:hover,
+  .facility-row:hover,
+  .quick-access-grid a:hover,
+  .asset-card:hover,
+  .investigation-event:hover { transform: none; }
+  .command-stat-card:hover::after { animation: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .main-content > *,
+  .command-hero-visual .orbital-one,
+  .command-hero-visual .orbital-two,
+  .command-hero-visual .hero-core-logo,
+  .command-hero-visual .orbit-node,
+  .command-stat-card,
+  .chart-line,
+  .chart-last-point,
+  .topology-canvas path[stroke-dasharray],
+  .workbench-live-state i,
+  .risk-indicator.risk-critical {
+    animation: none !important;
+  }
+  .command-stat-card,
+  .facility-row,
+  .quick-access-grid a,
+  .asset-card,
+  .investigation-event { transition: none !important; }
+  .command-stat-card:hover,
+  .facility-row:hover,
+  .quick-access-grid a:hover,
+  .asset-card:hover,
+  .investigation-event:hover { transform: none !important; }
+}

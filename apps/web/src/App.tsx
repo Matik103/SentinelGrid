@@ -58,12 +58,12 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
     }
     const org = organisationId();
     if (!org) {
-      setError("Set VITE_DEV_ORGANISATION_ID or localStorage sg_organisation_id.");
+      setError("Select or create a workspace using the workspace switcher above.");
       setLoading(false);
       return;
     }
     if (!authToken()) {
-      setError("Set VITE_DEV_ACCESS_TOKEN or localStorage sg_access_token.");
+      setError("Sign in to load this workspace.");
       setLoading(false);
       return;
     }
@@ -158,7 +158,7 @@ function Overview() {
     const org = organisationId();
     if (!apiConfigured() || !org || !authToken()) {
       setLoading(false);
-      setError("Connect an organisation and authenticated session to populate this command view. No sample telemetry is displayed.");
+      setError("Sign in and select a workspace to populate this command view. No sample telemetry is displayed.");
       return () => { active = false; };
     }
     void Promise.all([
@@ -306,7 +306,7 @@ function OrganisationPanel() {
   const reload = async () => {
     setError(null);
     if (!org || !authToken() || !apiConfigured()) {
-      setError("Configure API base URL, organisation id, and access token.");
+      setError("Sign in and select a workspace above to manage its members and invitations.");
       return;
     }
     const [m, i] = await Promise.all([

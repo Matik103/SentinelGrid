@@ -128,7 +128,7 @@ function formatCell(value: unknown): string {
 
 type OverviewFacility = { id: string; name: string; code?: string | null; status?: string | null };
 type OverviewAsset = { id: string; name: string; category?: string | null; status?: string | null; facility_id?: string | null };
-type OverviewEvent = { id?: string; event_type?: string; source?: string; occurred_at?: string; classification?: string; integrity_status?: string };
+type OverviewEvent = { id?: string; event_type?: string; source?: string; occurred_at?: string; classification?: string; integrity_status?: string; data_quality?: string };
 
 function dashboardTime(value?: string) {
   if (!value) return "Time unavailable";
@@ -175,12 +175,12 @@ function Overview() {
     return () => { active = false; };
   }, []);
 
-  const criticalEvents = events.filter((event) => /critical|high/i.test(String(event.classification ?? ""))).length;
+  const criticalEvents = events.filter((event) => event.integrity_status === "failed" || event.data_quality === "poor" || /critical|failure|fault|alarm|offline|trip|overheat/i.test(String(event.event_type ?? ""))).length;
   const stats = [
     { label: "REGISTERED FACILITIES", value: loading ? "—" : String(facilities.length), detail: "Accessible locations", glyph: "▦", tone: "teal" },
     { label: "TRACKED ASSETS", value: loading ? "—" : String(assets.length), detail: "Equipment registry", glyph: "◫", tone: "blue" },
     { label: "CONNECTED DEVICES", value: loading ? "—" : String(devices.length), detail: "Registered endpoints", glyph: "⌘", tone: "violet" },
-    { label: "RECENT HIGH-PRIORITY", value: loading ? "—" : String(criticalEvents), detail: "Recorded event classifications", glyph: "△", tone: "amber" },
+    { label: "RECENT REVIEW SIGNALS", value: loading ? "—" : String(criticalEvents), detail: "Rule-based event metadata cues", glyph: "△", tone: "amber" },
   ];
 
   return (

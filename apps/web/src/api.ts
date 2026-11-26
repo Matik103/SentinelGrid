@@ -197,6 +197,40 @@ async function signedAssetUrl(storagePath: string): Promise<string> {
   return `${PUBLIC_SUPABASE_URL}/storage/v1${result.signedURL.startsWith("/") ? result.signedURL : `/${result.signedURL}`}`;
 }
 
+export type WorkspaceBranding = { logoUrl: string | null; logoPath: string | null };
+
+export async function getWorkspaceBranding(organisationIdValue: string): Promise<WorkspaceBranding> {
+  const query = new URLSearchParams({ select: "settings", id: `eq.${organisationIdValue}`, limit: "1" });
+  const rows = await supabaseRest<Array<{ settings?: Record<string, unknown> }>>(`/rest/v1/organisations?${query.toString()}`);
+  const path = typeof rows[0]?.settings?.logo_path === "string" ? rows[0].settings.logo_path : null;
+  return { logoPath: path, logoUrl: path ? `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/workspace-branding/${path.split("/").map(encodeURIComponent).join("/")}` : null };
+}
+
+export async function uploadWorkspaceLogo(organisationIdValue: string, file: File): Promise<WorkspaceBranding> {
+  const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
+  if (!allowed.has(file.type)) throw new Error("Choose a JPEG, PNG, WebP or AVIF logo.");
+  if (file.size > 2 * 1024 * 1024) throw new Error("Workspace logos must be 2 MB or smaller.");
+  const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" } as Record<string, string>)[file.type];
+  const storagePath = `${organisationIdValue}/${crypto.randomUUID()}.${extension}`;
+  const encodedPath = storagePath.split("/").map(encodeURIComponent).join("/");
+  await supabaseRest<unknown>(`/storage/v1/object/workspace-branding/${encodedPath}`, { method: "POST", headers: { "Content-Type": file.type, "x-upsert": "false" }, body: file });
+  try {
+    const current = await getWorkspaceBranding(organisationIdValue);
+    const token = authToken();
+    if (!token) throw new Error("Sign in required.");
+    const response = await fetch(`${PUBLIC_SUPABASE_URL}/rest/v1/rpc/set_workspace_logo`, { method: "POST", headers: { apikey: PUBLIC_SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ p_organisation_id: organisationIdValue, p_logo_path: storagePath }) });
+    if (!response.ok) throw new Error((await response.text()).slice(0, 300) || "Could not save the workspace logo.");
+    if (current.logoPath && current.logoPath !== storagePath) {
+      const oldPath = current.logoPath.split("/").map(encodeURIComponent).join("/");
+      try { await supabaseRest<unknown>(`/storage/v1/object/workspace-branding/${oldPath}`, { method: "DELETE" }); } catch { /* Best-effort cleanup. */ }
+    }
+    return { logoPath: storagePath, logoUrl: `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/workspace-branding/${encodedPath}` };
+  } catch (error) {
+    try { await supabaseRest<unknown>(`/storage/v1/object/workspace-branding/${encodedPath}`, { method: "DELETE" }); } catch { /* Preserve original error. */ }
+    throw error;
+  }
+}
+
 export async function listAssetMedia(organisationIdValue: string): Promise<AssetMediaRecord[]> {
   const query = new URLSearchParams({
     select: "id,organisation_id,asset_id,storage_path,external_url,media_kind,provenance,is_primary,asset_match_verified,original_filename,content_type,attribution,caption,created_at",

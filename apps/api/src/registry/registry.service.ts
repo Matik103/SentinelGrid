@@ -15,6 +15,10 @@ const Categories = z.enum([
   "industrial",
   "network",
   "bms",
+  "data_center",
+  "transformers",
+  "ups",
+  "cooling",
   "other",
 ]);
 

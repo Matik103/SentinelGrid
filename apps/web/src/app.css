@@ -1574,3 +1574,35 @@ body {
   opacity: .45;
   cursor: not-allowed;
 }
+
+
+/* Workspace context and interaction polish */
+.topbar-workspace-name {
+  display: inline-block;
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--sg-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-create-toggle:hover:not(:disabled) { color: #a0fff0; }
+.workspace-create-toggle:focus-visible,
+.workspace-create-submit:focus-visible,
+.workspace-retry:focus-visible {
+  outline: 2px solid #68efdb;
+  outline-offset: 3px;
+}
+.workspace-create-toggle:disabled { opacity: .45; cursor: not-allowed; }
+.workspace-retry {
+  align-self: flex-start;
+  padding: .2rem 0;
+  border: 0;
+  background: transparent;
+  color: #8be9dc;
+  font-size: .68rem;
+  text-align: left;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .topbar-workspace-name { max-width: 92px; }
+}

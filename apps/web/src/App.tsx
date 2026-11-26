@@ -1,7 +1,7 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
-import { organisationId, restoreSession, setOrganisationId } from "./auth";
+import { onAuthSession, organisationId, restoreSession, setOrganisationId } from "./auth";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { AuthPanel } from "./AuthPanel";
 import { WorkspaceOnboarding } from "./WorkspaceOnboarding";
@@ -524,6 +524,16 @@ export function App() {
   };
 
   useEffect(() => {
+    const unsubscribe = onAuthSession((session) => {
+      if (!session) {
+        setOrganisationId(null);
+        setActiveOrganisationId(null);
+        setActiveOrganisationName("Workspace");
+        setWorkspaceGate("checking");
+      } else if (authReady) {
+        void refreshWorkspaceState();
+      }
+    });
     let active = true;
     void Promise.all([restoreSession(), ensureConfig()]).then(() => {
       if (!active) return;
@@ -533,7 +543,7 @@ export function App() {
     }).catch(() => {
       if (active) setAuthReady(true);
     });
-    return () => { active = false; };
+    return () => { active = false; unsubscribe(); };
   }, []);
 
   const handleAuthChange = () => {
@@ -554,7 +564,7 @@ export function App() {
   const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
 
   if (!authReady) return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>SECURE COMMAND INITIALISING</span></div>;
-  if (!authToken()) return <AuthPanel onAuthChange={handleAuthChange} />;
+  if (!authToken() || window.location.hash.includes("type=recovery")) return <AuthPanel onAuthChange={handleAuthChange} />;
   if (workspaceGate === "checking") return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>VERIFYING WORKSPACE ACCESS</span></div>;
   if (workspaceGate === "required" || workspaceGate === "error") {
     return <WorkspaceOnboarding

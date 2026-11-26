@@ -37,7 +37,7 @@ export function AuthPanel({ onAuthChange }: Props) {
     finally { setBusy(false); }
   };
 
-  if (authToken()) return (
+  if (authToken() && view !== "reset") return (
     <section className="auth-panel auth-panel-compact" aria-label="Account">
       <div className="auth-status"><strong>Account secured</strong><span className="mono">Supabase identity session active</span></div>
       <button type="button" onClick={() => void signOut().then(() => onAuthChange?.()).catch((err) => setError(String(err)))} disabled={busy}>
@@ -109,7 +109,7 @@ export function AuthPanel({ onAuthChange }: Props) {
           {view === "reset" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
             if (password.length < 8) throw new Error("Password should be at least 8 characters.");
             if (password !== confirmPassword) throw new Error("Your passwords do not match.");
-            await updatePassword(password); setPassword(""); setConfirmPassword(""); setNotice("Your password has been updated. You can now continue."); setView("signin"); window.history.replaceState({}, "", window.location.pathname);
+            await updatePassword(password); setPassword(""); setConfirmPassword(""); setNotice("Your password has been updated. You can now continue."); window.history.replaceState({}, "", window.location.pathname); onAuthChange?.(); setView("signin");
           })}>
             <label>New password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={8} required autoFocus /></label>
             <label>Confirm new password<input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" minLength={8} required /></label>

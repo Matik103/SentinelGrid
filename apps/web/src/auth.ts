@@ -41,16 +41,29 @@ export function setOrganisationId(id: string | null) {
   if (id) localStorage.setItem(ORG_KEY, id);
   else localStorage.removeItem(ORG_KEY);
 }
+async function ensureUserProfile(session: Session): Promise<void> {
+  const user = session.user;
+  const displayName = typeof user.user_metadata?.display_name === "string" ? user.user_metadata.display_name : null;
+  const { error } = await getSupabase().from("profiles").upsert({
+    user_id: user.id, email: user.email ?? null, display_name: displayName,
+  }, { onConflict: "user_id" });
+  if (error) throw new Error(`Account profile could not be initialised: ${error.message}`);
+}
+
 export async function restoreSession(): Promise<Session | null> {
   const { data, error } = await getSupabase().auth.getSession();
   if (error) return null;
-  if (data.session?.access_token) localStorage.setItem(TOKEN_KEY, data.session.access_token);
+  if (data.session?.access_token) {
+    localStorage.setItem(TOKEN_KEY, data.session.access_token);
+    await ensureUserProfile(data.session);
+  }
   return data.session;
 }
 export async function signInWithPassword(email: string, password: string): Promise<Session> {
   const { data, error } = await getSupabase().auth.signInWithPassword({ email, password });
   if (error || !data.session) throw new Error(error?.message ?? "Sign-in failed. Check your credentials and try again.");
   localStorage.setItem(TOKEN_KEY, data.session.access_token);
+  await ensureUserProfile(data.session);
   return data.session;
 }
 export async function signUpWithPassword(email: string, password: string, displayName: string): Promise<{ session: Session | null; email: string }> {
@@ -59,7 +72,10 @@ export async function signUpWithPassword(email: string, password: string, displa
     options: { data: { display_name: displayName.trim() }, emailRedirectTo: authRedirectUrl() },
   });
   if (error) throw new Error(error.message);
-  if (data.session?.access_token) localStorage.setItem(TOKEN_KEY, data.session.access_token);
+  if (data.session?.access_token) {
+    localStorage.setItem(TOKEN_KEY, data.session.access_token);
+    await ensureUserProfile(data.session);
+  }
   return { session: data.session, email: data.user?.email ?? email };
 }
 export async function resendSignupConfirmation(email: string): Promise<void> {

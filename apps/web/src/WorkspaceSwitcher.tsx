@@ -11,7 +11,7 @@ type Organisation = { id: string; name: string; slug: string };
 
 type Props = {
   activeOrganisationId: string | null;
-  onSelect: (organisationId: string) => void;
+  onSelect: (organisationId: string, name: string) => void;
   refreshKey: number;
 };
 
@@ -35,7 +35,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
     [organisations, activeOrganisationId],
   );
 
-  async function loadOrganisations() {
+  async function loadOrganisations(preferredId?: string) {
     if (!authToken()) {
       setOrganisations([]);
       setLoading(false);
@@ -57,8 +57,14 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
           slug: row.organisations!.slug,
         }));
       setOrganisations(rows);
-      if (rows.length && !rows.some((row) => row.id === activeOrganisationId)) {
-        onSelect(rows[0].id);
+      const next = preferredId && rows.some((row) => row.id === preferredId)
+        ? preferredId
+        : rows.some((row) => row.id === activeOrganisationId)
+          ? activeOrganisationId
+          : rows[0]?.id;
+      if (next && next !== activeOrganisationId) {
+        const selected = rows.find((row) => row.id === next);
+        onSelect(next, selected?.name ?? "Workspace");
       }
     }
     setLoading(false);
@@ -89,7 +95,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
     setOrganisations((current) => [...current.filter((item) => item.id !== created.organisation_id), {
       id: created.organisation_id, name: created.name, slug: created.slug,
     }]);
-    onSelect(created.organisation_id);
+    onSelect(created.organisation_id, created.name);
     setName("");
     setSlug("");
     setSlugEdited(false);
@@ -120,18 +126,18 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
       {error && <p className="workspace-picker-error" role="alert">{error}</p>}
       {organisations.length > 1 && <span className="workspace-picker-count">{organisations.length} organisations available</span>}
       <button className="workspace-create-toggle" type="button" disabled={!authToken()} onClick={() => { setCreating((value) => !value); setError(null); }}>
-        <span aria-hidden="true">{creating ? "−" : "+"}</span>{creating ? "Close" : "Create organisation"}
+        <span aria-hidden="true">{creating ? "−" : "+"}</span>{creating ? "Close" : "Create workspace"}
       </button>
       {creating && (
         <form className="workspace-create-form" onSubmit={(event) => void createOrganisation(event)}>
-          <label>Organisation name
+          <label>Workspace name
             <input value={name} onChange={(event) => {
               const value = event.target.value;
               setName(value);
               if (!slugEdited) setSlug(makeSlug(value));
             }} placeholder="e.g. Acme Infrastructure" maxLength={200} required autoFocus />
           </label>
-          <label>Workspace address
+          <label>Workspace URL
             <input value={slug} onChange={(event) => { setSlugEdited(true); setSlug(event.target.value); }}
               placeholder="acme-infrastructure" maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" required />
           </label>
@@ -142,7 +148,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
       )}
       {!authToken() && <p className="workspace-picker-hint">Sign in to see or create your organisations.</p>}
       {!loading && authToken() && organisations.length === 0 && !creating && (
-        <p className="workspace-picker-hint">Create your organisation to set up your first SentinelGrid workspace.</p>
+        <p className="workspace-picker-hint">Create your first workspace to start organising your infrastructure.</p>
       )}
     </section>
   );

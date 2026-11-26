@@ -190,6 +190,13 @@ function Overview() {
     <section className="command-overview">
       <div className="command-hero">
         <div className="command-hero-copy">
+          <img
+            className="overview-wordmark"
+            src="/assets/sentinelgrid-logo-wordmark.png"
+            alt="SentinelGrid"
+            width={280}
+            height={89}
+          />
           <div className="eyebrow"><span className="eyebrow-pulse" /> OPERATIONS / COMMAND OVERVIEW</div>
           <h1 className="command-title">See the whole system.<br /><span>Understand what matters.</span></h1>
           <p className="command-intro">A clear operational picture of your facilities, equipment, energy signals and recorded events — grounded in the data your organisation has connected.</p>
@@ -200,7 +207,13 @@ function Overview() {
         </div>
         <div className="command-hero-visual" aria-label="Infrastructure network illustration">
           <div className="orbital orbital-one" /><div className="orbital orbital-two" />
-          <div className="hero-core"><span className="core-cross">+</span><strong>SG</strong><small>COMMAND</small></div>
+          <img
+            className="hero-core-logo"
+            src="/assets/sentinelgrid-logo-mark.png"
+            alt=""
+            width={128}
+            height={128}
+          />
           <span className="orbit-node node-a">POWER</span><span className="orbit-node node-b">ASSETS</span><span className="orbit-node node-c">SENSORS</span><span className="orbit-node node-d">EVIDENCE</span>
           <div className="visual-caption">CONNECTED INFRASTRUCTURE<br /><span>Operational context layer</span></div>
         </div>
@@ -443,7 +456,7 @@ export function App() {
         <div className="brand">
           <img
             className="brand-logo"
-            src="/assets/sentinelgrid-mark.svg"
+            src="/assets/sentinelgrid-logo-mark.png"
             alt="SentinelGrid"
             width={40}
             height={40}

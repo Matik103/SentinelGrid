@@ -59,6 +59,15 @@ export function AuthPanel() {
 
   return (
     <div className="auth-panel" aria-label="Authentication">
+      <div className="auth-brand">
+        <img
+          className="auth-wordmark"
+          src="/assets/sentinelgrid-logo-wordmark.png"
+          alt="SentinelGrid"
+          width={160}
+          height={51}
+        />
+      </div>
       <div className="auth-status">
         <strong>{status}</strong>
         <span className="mono">{organisationId() ? `org ${organisationId()}` : "no organisation selected"}</span>

@@ -7,8 +7,9 @@
   --sg-electric-cyan: #45b8e8;
   --sg-soft-ice: #eaf2f8;
 
-  --sg-bg: #0b1622;
-  --sg-sidebar: #0b1622;
+  /* Match SentinelGrid logo black edges so marks sit without a box. */
+  --sg-bg: #000000;
+  --sg-sidebar: #000000;
   --sg-surface: #101e30;
   --sg-elevated: #16263a;
   --sg-hover: #1d3046;

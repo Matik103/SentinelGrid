@@ -146,7 +146,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
               if (!slugEdited) setSlug(makeSlug(value));
             }} placeholder="e.g. Acme Infrastructure" maxLength={200} required autoFocus />
           </label>
-          <label>Workspace URL
+          <label>Workspace slug
             <input value={slug} onChange={(event) => { setSlugEdited(true); setSlug(event.target.value); }}
               placeholder="acme-infrastructure" maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" required />
           </label>

@@ -51,7 +51,7 @@ export function WorkspaceOnboarding({ initialError, onComplete, onRetry }: Props
           <div className="onboarding-step">01 / NEW ENVIRONMENT</div><h2>Create a workspace</h2><p>Register your organisation's operational environment. You'll become its first workspace administrator.</p>
           <form className="auth-form auth-form-modern" onSubmit={(event) => void createWorkspace(event)}>
             <label>Organisation / workspace name<input value={name} onChange={(event) => { const value = event.target.value; setName(value); if (!slugEdited) setSlug(slugify(value)); }} placeholder="e.g. Acme Infrastructure" maxLength={200} required /></label>
-            <label>Workspace address<div className="onboarding-slug"><span>sentinelgrid.app/</span><input value={slug} onChange={(event) => { setSlugEdited(true); setSlug(event.target.value); }} placeholder="acme-infrastructure" maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" required /></div></label>
+            <label>Workspace slug<div className="onboarding-slug"><span>SLUG /</span><input value={slug} onChange={(event) => { setSlugEdited(true); setSlug(event.target.value); }} placeholder="acme-infrastructure" maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" required /></div></label>
             <div className="onboarding-admin-note"><span>◆</span><span><b>Workspace administrator</b>Your account receives the administrator role for this workspace. You can invite your operations, engineering and security teams next.</span></div>
             <button className="auth-submit" type="submit" disabled={busy || !name.trim() || slugify(slug).length < 2}>{busy ? "Registering workspace…" : "Create workspace"}<span>↗</span></button>
           </form>

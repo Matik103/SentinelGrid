@@ -12,6 +12,7 @@ Do not mark Phase 0 COMPLETE until checklist rows reach required **ops** evidenc
 | Capability | Status | Evidence |
 |---|---|---|
 | Auth / tenancy (bootstrap, membership, RBAC) | INTEGRATION TESTED (SQL) | `supabase/tests/phase0_tenant_isolation.sql` |
+| Authenticator MFA (TOTP / AAL2) | code / preview | Enrollment UI, API guard, restrictive RLS migration and AAL1/AAL2 SQL regression added; hosted rollout and full API/DB test gate OPEN |
 | Organisation invitations create/accept/revoke | tested | Expiry-by-token + outbox; leased email worker **code** (`SG_EMAIL_WORKER_ENABLED`); Resend **ops OPEN** without key |
 | Infrastructure registry HTTP API | tested | CRUD subset + zones; SQL RLS |
 | Facility-manager scoping + assignments | tested | `20261125250000` RLS + assignment APIs + same-org isolation SQL |

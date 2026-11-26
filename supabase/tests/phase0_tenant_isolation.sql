@@ -20,7 +20,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_temp.set_auth(p_user uuid)
+CREATE OR REPLACE FUNCTION pg_temp.set_auth(p_user uuid, p_aal text DEFAULT 'aal2')
 RETURNS void LANGUAGE plpgsql AS $$
 DECLARE
   v_email text;
@@ -36,6 +36,7 @@ BEGIN
     json_build_object(
       'sub', p_user::text,
       'role', 'authenticated',
+      'aal', p_aal,
       'email', coalesce(v_email, '')
     )::text,
     true
@@ -134,6 +135,25 @@ BEGIN
   INSERT INTO public.memberships (organisation_id, user_id, role_id, status)
   VALUES (org_a, u_member_a, role_viewer, 'active');
   PERFORM pg_temp.clear_auth();
+
+  -- AAL1 must not read tenant data even when the user has a valid role.
+  PERFORM pg_temp.set_auth(u_admin_a, 'aal1');
+  SELECT count(*) INTO tmp_count FROM public.memberships
+  WHERE organisation_id = org_a AND user_id = u_admin_a;
+  IF tmp_count <> 0 THEN
+    PERFORM pg_temp.fail('AAL1 session read tenant membership data');
+  END IF;
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.pass('AAL1 direct RLS read denied');
+
+  PERFORM pg_temp.set_auth(u_admin_a, 'aal2');
+  SELECT count(*) INTO tmp_count FROM public.memberships
+  WHERE organisation_id = org_a AND user_id = u_admin_a;
+  IF tmp_count <> 1 THEN
+    PERFORM pg_temp.fail('AAL2 session could not read its tenant membership');
+  END IF;
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.pass('AAL2 direct RLS read allowed');
 
   PERFORM pg_temp.set_auth(u_member_a);
   raised := false;

@@ -13,18 +13,12 @@ describe("RegistryService asset hierarchy", () => {
     const sb = {
       from: (table: string) => {
         calls.push(`from:${table}`);
+        const parentQuery = {
+          eq: (column: string, value: string) => { calls.push(`eq:${column}:${value}`); return parentQuery; },
+          maybeSingle: async () => ({ data: null, error: null }),
+        };
         return {
-          select: () => ({
-            eq: (column: string, value: string) => {
-              calls.push(`eq:${column}:${value}`);
-              return {
-                eq: (column2: string, value2: string) => {
-                  calls.push(`eq:${column2}:${value2}`);
-                  return { maybeSingle: async () => ({ data: null, error: null }) };
-                },
-              };
-            },
-          }),
+          select: () => parentQuery,
           insert: () => { calls.push("insert"); throw new Error("insert must not run"); },
         };
       },

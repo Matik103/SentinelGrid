@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { apiConfigured, apiGet, apiPost, authToken, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
+import { apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
 import { organisationId, restoreSession, setOrganisationId } from "./auth";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { AuthPanel } from "./AuthPanel";
@@ -325,7 +325,7 @@ function OrganisationPanel() {
     void reload();
     if (org && authToken()) {
       void getWorkspaceBranding(org).then((branding) => setLogoUrl(branding.logoUrl)).catch(() => setLogoUrl(null));
-      void apiPost<{ allowed: boolean }>(`/v1/orgs/${org}/permissions/check`, { permission: "org.admin" }).then((result) => setCanManageBranding(Boolean(result.data?.allowed)));
+      void canManageWorkspaceBranding(org).then(setCanManageBranding).catch(() => setCanManageBranding(false));
     } else {
       setLogoUrl(null);
       setCanManageBranding(false);

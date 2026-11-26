@@ -1,0 +1,385 @@
+{
+  "schema_version": "1.1",
+  "project": "SentinelGrid",
+  "gate": "engineering-quality-gate",
+  "started_at": "2026-11-25T20:56:08Z",
+  "ended_at": "2026-11-25T21:01:11Z",
+  "git": {
+    "branch": "work/phase0-security-hardening",
+    "sha": "3e2c9f29e57bdda0d4bebaff001506bc22a258a0"
+  },
+  "summary": {
+    "failures": 0,
+    "passed": 45,
+    "failed": 0,
+    "not_applicable": 0,
+    "result": "passed"
+  },
+  "findings": [
+    {
+      "id": "env.python3",
+      "severity": "info",
+      "title": "python3 available",
+      "file": "scripts/audit.sh",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "env.git",
+      "severity": "info",
+      "title": "git available",
+      "file": "scripts/audit.sh",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "env.supabase",
+      "severity": "info",
+      "title": "supabase available",
+      "file": "scripts/audit.sh",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "env.docker",
+      "severity": "info",
+      "title": "docker available",
+      "file": "scripts/audit.sh",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "env.database",
+      "severity": "info",
+      "title": "Docker and local Supabase are ready",
+      "file": "supabase/config.toml",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "repo.env_ignored",
+      "severity": "info",
+      "title": ".env files are ignored",
+      "file": ".gitignore",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "repo.secret_paths",
+      "severity": "info",
+      "title": "No obvious secret-bearing paths tracked (safe .env.example template excluded)",
+      "file": ".gitignore",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "db.migrations_present",
+      "severity": "info",
+      "title": "11 SQL migrations found",
+      "file": "supabase/migrations",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "db.migration_naming",
+      "severity": "info",
+      "title": "Migration filenames follow timestamp format",
+      "file": "supabase/migrations",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "db.migration_unique",
+      "severity": "info",
+      "title": "Migration filenames are unique",
+      "file": "supabase/migrations",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.20261125160000_phase0_foundation.sql",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "supabase/migrations/20261125160000_phase0_foundation.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.20261125170000_phase0_security_hardening.sql",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "supabase/migrations/20261125170000_phase0_security_hardening.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.20261125180000_phase0_security_grants_and_platform_boundary.sql",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "supabase/migrations/20261125180000_phase0_security_grants_and_platform_boundary.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.20261125190000_phase0_ingestion_dlq_and_payload_objects.sql",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "supabase/migrations/20261125190000_phase0_ingestion_dlq_and_payload_objects.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.20261125200000_phase0_ingestion_replay_and_tenant_integrity.sql",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "supabase/migrations/20261125200000_phase0_ingestion_replay_and_tenant_integrity.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.phase0_demo.sql",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "supabase/seed/phase0_demo.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.phase0_tenant_isolation.sql",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "supabase/tests/phase0_tenant_isolation.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.main.ts",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "apps/api/src/main.ts",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.orgs.controller.ts",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "apps/api/src/orgs/orgs.controller.ts",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.ingestion.service.ts",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "apps/api/src/events/ingestion.service.ts",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.payload-storage.service.ts",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "apps/api/src/evidence/payload-storage.service.ts",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "files.main.go",
+      "severity": "info",
+      "title": "Required Phase 0 file exists",
+      "file": "edge/connector/cmd/connector/main.go",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "seed.path",
+      "severity": "info",
+      "title": "Supabase seed path is valid",
+      "file": "supabase/config.toml",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "db.lint",
+      "severity": "info",
+      "title": "Supabase local database lint passed",
+      "file": "supabase/migrations",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "db.upgrade_path",
+      "severity": "info",
+      "title": "Foundation-only then forward migrations succeeded",
+      "file": "scripts/run-phase0-upgrade-path.sh",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "db.reset_after_upgrade",
+      "severity": "info",
+      "title": "Local DB reset after upgrade-path test",
+      "file": "supabase/migrations",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "security.tenant_isolation",
+      "severity": "info",
+      "title": "Tenant isolation and RBAC SQL tests passed",
+      "file": "supabase/tests/phase0_tenant_isolation.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "seed.demo_orgs",
+      "severity": "info",
+      "title": "Both demo organisations are marked simulated",
+      "file": "supabase/seed/phase0_demo.sql",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "deps.npm_install",
+      "severity": "info",
+      "title": "npm lockfile install is reproducible",
+      "file": "package-lock.json",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "deps.npm_build",
+      "severity": "info",
+      "title": "Workspace TypeScript build succeeded",
+      "file": "package.json",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "deps.npm_test",
+      "severity": "info",
+      "title": "API/shared unit tests passed",
+      "file": "apps/api",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "deps.npm_audit",
+      "severity": "info",
+      "title": "No high/critical npm advisories",
+      "file": "package-lock.json",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "deps.go",
+      "severity": "info",
+      "title": "Go connector modules verified, tested, and built",
+      "file": "edge/connector/go.mod",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "product.ingestion_api",
+      "severity": "info",
+      "title": "Event ingestion API with dedup and DLQ hooks present",
+      "file": "apps/api/src/events/ingestion.service.ts",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "product.payload_storage",
+      "severity": "info",
+      "title": "S3-compatible payload storage with SHA-256 integrity and production fail-closed local_dev ban",
+      "file": "apps/api/src/evidence",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "product.connector_runtime",
+      "severity": "info",
+      "title": "Durable Go connector: buffer, retry, sealed credentials, read-only OT protocol adapters",
+      "file": "edge/connector",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "product.org_api",
+      "severity": "info",
+      "title": "Org provisioning/membership/RBAC API surface present",
+      "file": "apps/api/src/orgs",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "product.org_invites",
+      "severity": "info",
+      "title": "Organisation invitation create/accept/revoke path with membership RPCs",
+      "file": "apps/api/src/orgs",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "product.rate_limit",
+      "severity": "info",
+      "title": "Distributed-ready rate limiting with production memory fail-closed",
+      "file": "apps/api/src/common/rate-limit.middleware.ts",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "product.registry_connectors_audit",
+      "severity": "info",
+      "title": "Registry, connector management, and audit read APIs present",
+      "file": "apps/api/src",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "docs.ops_status",
+      "severity": "info",
+      "title": "Backup/recovery, OpenAPI, acceptance checklist, restore drill present",
+      "file": "docs/BACKUP_RECOVERY.md",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "product.evidence_chain",
+      "severity": "info",
+      "title": "Evidence event-payload linkage, checkpoints, verify/export",
+      "file": "apps/api/src/evidence",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "product.registry_zones",
+      "severity": "info",
+      "title": "Registry lifecycle includes zones",
+      "file": "apps/api/src/registry",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "security.no_service_role_frontend",
+      "severity": "info",
+      "title": "No service-role credential reference detected in client code",
+      "file": "apps/web and packages",
+      "remediation": "",
+      "status": "passed"
+    },
+    {
+      "id": "product.command_ui",
+      "severity": "info",
+      "title": "Sentinel Command UI wired to Phase 0 API workflows",
+      "file": "apps/web",
+      "remediation": "",
+      "status": "passed"
+    }
+  ],
+  "notes": [
+    "A green gate proves only checks that actually executed.",
+    "CI requires database lint and tenant-isolation tests; unavailable checks fail CI.",
+    "Remote/production database changes are never performed by this workflow."
+  ]
+}

@@ -1,0 +1,63 @@
+:root {
+  /* Sentinel Command — dark primary (design-system-sentinel-command) */
+  --sg-midnight: #091321;
+  --sg-deep-navy: #101e30;
+  --sg-panel-navy: #16263a;
+  --sg-signal-teal: #54d6c5;
+  --sg-electric-cyan: #45b8e8;
+  --sg-soft-ice: #eaf2f8;
+
+  --sg-bg: #0b1622;
+  --sg-sidebar: #0b1622;
+  --sg-surface: #101e30;
+  --sg-elevated: #16263a;
+  --sg-hover: #1d3046;
+  --sg-text: #f4f8fc;
+  --sg-text-secondary: #a9bacb;
+  --sg-text-muted: #8294a8;
+  --sg-border: #293b50;
+  --sg-action: #54d6c5;
+
+  --sg-success: #37c991;
+  --sg-warning: #f2b85b;
+  --sg-critical: #f06b70;
+  --sg-info: #5ba9e8;
+
+  --sg-font-heading: "Manrope", "Segoe UI", sans-serif;
+  --sg-font-body: "Inter", "Segoe UI", sans-serif;
+  --sg-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+[data-theme="light"] {
+  --sg-bg: #f4f7fa;
+  --sg-sidebar: #ffffff;
+  --sg-surface: #ffffff;
+  --sg-elevated: #f8fafc;
+  --sg-hover: #edf3f7;
+  --sg-text: #152438;
+  --sg-text-secondary: #526579;
+  --sg-text-muted: #7c8da0;
+  --sg-border: #dfe7ef;
+  --sg-action: #087f78;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(84, 214, 197, 0.08), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(69, 184, 232, 0.07), transparent 50%),
+    var(--sg-bg);
+  color: var(--sg-text);
+  font-family: var(--sg-font-body);
+  font-size: 14px;
+}

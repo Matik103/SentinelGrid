@@ -1,0 +1,31 @@
+connector_id: ""
+mode: poll
+api:
+  base_url: "" # set to http://127.0.0.1:8080 when API is running
+  ingest_path: /v1/connectors/ingest
+  auth_token_env: SENTINELGRID_CONNECTOR_TOKEN
+ot:
+  access: read_only # Phase 0 hard default; non-read_only rejected at load
+buffer:
+  dir: ./.connector-buffer
+credentials:
+  store_dir: ./.connector-credentials
+  seal_key_env: SENTINELGRID_CONNECTOR_SEAL_KEY
+  require_seal: false # forced true when SG_CONNECTOR_ENV=production
+retry:
+  max_attempts: 8
+  base_delay_ms: 500
+  max_delay_ms: 30000
+sources:
+  - name: scaffold-file
+    protocol: file
+    endpoint: ./samples/empty.json
+  - name: opcua-placeholder
+    protocol: opcua
+    endpoint: opc.tcp://plc.example.invalid:4840
+  - name: modbus-placeholder
+    protocol: modbus
+    endpoint: tcp://plc.example.invalid:502
+  - name: mqtt-placeholder
+    protocol: mqtt
+    endpoint: mqtts://broker.example.invalid:8883

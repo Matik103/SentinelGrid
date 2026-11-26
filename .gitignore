@@ -1,29 +1,24 @@
-# Env / secrets
+# Local secrets and environment
 .env
 .env.*
 !.env.example
-*.pem
-*.key
 
-# OS / editor
+# Local Supabase and tool state
+.supabase/
 .DS_Store
-.idea/
-.vscode/
-*.swp
 
-# Dependencies / build
+# Node / build artifacts
 node_modules/
 dist/
-build/
-.next/
-out/
 coverage/
-*.tsbuildinfo
+.payload-store/
+edge/connector/bin/
+*.exe
 
-# Supabase local
+# Generated audit output (uploaded by CI as an artifact)
+reports/audit-report.json
+.audit/
+
 supabase/.branches
 supabase/.temp
-
-# Logs
-*.log
-npm-debug.log*
+reports/restore-drill.json

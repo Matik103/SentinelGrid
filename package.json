@@ -1,0 +1,16 @@
+{
+  "name": "sentinelgrid",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @sentinelgrid/shared && npm run build -w @sentinelgrid/api && npm run build -w @sentinelgrid/web",
+    "test": "npm run test -w @sentinelgrid/api",
+    "audit:gate": "./scripts/audit.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

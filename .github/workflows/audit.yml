@@ -1,0 +1,83 @@
+name: Engineering Quality Gate
+
+on:
+  push:
+    branches: [work/phase0-security-hardening, main]
+  pull_request:
+    branches: [work/phase0-security-hardening, main]
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sentinelgrid-quality-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Database, security and repository audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      REQUIRE_DB_CHECKS: "1"
+      AUDIT_REPORT_PATH: reports/audit-report.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache-dependency-path: edge/connector/go.sum
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.75.0
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+      - name: Lint shell scripts
+        run: |
+          chmod +x scripts/*.sh
+          shellcheck scripts/*.sh
+      - name: Start disposable local Supabase
+        run: |
+          set -euo pipefail
+          docker info
+          supabase --version
+          # Exclude only names valid for pinned CLI 2.75.0 (see `supabase start -h`).
+          # Do not use --ignore-health-check: startup failure must fail the job.
+          # Exclude only names valid for pinned CLI 2.75.0 (see `supabase start -h`).
+          # Inbucket/mailpit uses config.toml port 54327 to avoid host 54324 conflicts.
+          supabase start \
+            -x storage-api,realtime,studio,imgproxy,edge-runtime,vector,logflare,supavisor
+          supabase status
+          supabase db reset --local --yes
+      - name: Run engineering quality gate
+        # Includes upgrade-path (foundation → forward), npm build/test, Go connector, then tenant isolation.
+        run: ./scripts/audit.sh
+      - name: Scan repository for secrets
+        if: always()
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinelgrid-audit-${{ github.run_id }}
+          path: reports/audit-report.json
+          if-no-files-found: warn
+          retention-days: 30

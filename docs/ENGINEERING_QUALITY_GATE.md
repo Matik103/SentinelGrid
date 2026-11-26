@@ -1,0 +1,52 @@
+# SentinelGrid Engineering Quality Gate
+
+Run locally:
+
+    supabase start -x storage,realtime,studio,imgproxy,edge-runtime,analytics
+    supabase db reset --local --yes
+    ./scripts/audit.sh
+
+The security test runner targets the local Supabase database only. It never links, pushes or applies migrations to a remote project.
+
+## CI behavior
+
+- Runs on pushes and pull requests to main and the working branch, daily at 06:00 UTC, and manually.
+- Uses a pinned Supabase CLI version.
+- Uses the runner's Docker endpoint; scripts do not hard-code a Colima socket.
+- Startup and reset failures stop the workflow.
+- CI sets REQUIRE_DB_CHECKS=1. Database readiness, SQL lint and tenant-isolation failures fail CI.
+- ShellCheck validates shell scripts.
+- Gitleaks scans repository content for secrets.
+- Audit JSON is uploaded as a workflow artifact and ignored by Git.
+
+## Checks
+
+- Toolchain and Docker availability.
+- Environment-file ignore rules and obvious tracked secret paths.
+- Migration presence, naming and uniqueness.
+- Supabase seed path.
+- Local database lint.
+- Tenant isolation, RBAC, membership and append-only SQL regression tests.
+- Demo seed presence and simulated classification.
+- npm lockfile reproducibility and high/critical vulnerability audit when a Node project exists.
+- Go module verification and tests when a Go module exists.
+- Explicit reporting of product capabilities not implemented yet.
+
+## Finding semantics
+
+- passed: check executed and passed.
+- failed: check failed, or a required CI check could not execute.
+- not_applicable: capability does not exist yet, or an optional local check was unavailable.
+
+A CI run must not be green if required database checks did not execute.
+
+## Current product gaps (not Phase 0 acceptance)
+
+- Auth UI and end-to-end invitations.
+- Sentinel Command frontend.
+- Go edge connector runtime and credential lifecycle.
+- Event ingestion API, schema validation, deduplication, replay protection and dead-letter processing.
+- Raw payload object storage, byte-level verification and evidence export.
+- Backup/restore and recovery drill.
+
+A green quality gate is not proof that these capabilities exist or that Phase 0 is complete.

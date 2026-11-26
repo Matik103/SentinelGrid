@@ -26,6 +26,20 @@ ALTER TABLE public.devices
     CHECK (rated_capacity_kva IS NULL OR rated_capacity_kva >= 0),
   ADD COLUMN IF NOT EXISTS specifications jsonb NOT NULL DEFAULT '{}'::jsonb;
 
+-- Expand equipment taxonomy for critical energy and data-centre infrastructure.
+ALTER TABLE public.assets DROP CONSTRAINT IF EXISTS assets_category_check;
+ALTER TABLE public.assets ADD CONSTRAINT assets_category_check CHECK (category IN (
+  'electrical', 'generators', 'solar', 'battery', 'hvac', 'refrigeration',
+  'pumps_motors', 'industrial', 'network', 'bms', 'data_center',
+  'transformers', 'ups', 'cooling', 'other'
+));
+ALTER TABLE public.devices DROP CONSTRAINT IF EXISTS devices_category_check;
+ALTER TABLE public.devices ADD CONSTRAINT devices_category_check CHECK (category IN (
+  'electrical', 'generators', 'solar', 'battery', 'hvac', 'refrigeration',
+  'pumps_motors', 'industrial', 'network', 'bms', 'data_center',
+  'transformers', 'ups', 'cooling', 'other'
+));
+
 COMMENT ON COLUMN public.assets.specifications IS
   'Category-specific, non-secret equipment specifications. Keep canonical manufacturer/model/year and rated values in dedicated columns.';
 COMMENT ON COLUMN public.devices.specifications IS

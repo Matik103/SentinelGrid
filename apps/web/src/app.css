@@ -1221,7 +1221,7 @@ body {
 .scenario-branch > p { color:#8098a9; font-size:10px; }
 [data-theme="light"] .workbench-heading h1 { color:#152b3e; }
 [data-theme="light"] .workbench-heading p { color:#526b7d; }
-[data-theme="light"] .workbench-metrics article,.[data-theme="light"] .workbench-toolbar,[data-theme="light"] .workbench-panel { background:#fff; border-color:#e1e9ef; }
+[data-theme="light"]  .workbench-metrics article,[data-theme="light"] .workbench-toolbar,[data-theme="light"] .workbench-panel { background:#fff; border-color:#e1e9ef; }
 [data-theme="light"] .workbench-metrics article strong,[data-theme="light"] .workbench-toolbar h2,[data-theme="light"] .workbench-panel h2 { color:#1d3348; }
 [data-theme="light"] .topology-board { background:#f2f7f8; border-color:#e0e9ee; }
 [data-theme="light"] .topology-asset-node { background:#fff; border-color:#dce7ec; }
@@ -1232,7 +1232,7 @@ body {
 [data-theme="light"] .investigation-facts strong,[data-theme="light"] .replay-event-facts strong { color:#2b4357; }
 [data-theme="light"] .replay-event-name { color:#20384c; }
 [data-theme="light"] .replay-timeline { background:#f1f6f8; }
-[data-theme="light"] .scenario-builder select,.[data-theme="light"] .workbench-toolbar select { background:#fff; color:#253d50; }
+[data-theme="light"] .scenario-builder select,[data-theme="light"] .workbench-toolbar select { background:#fff; color:#253d50; }
 @media(max-width:1100px) {
  .topology-node-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
  .topology-connectors { display:none; }

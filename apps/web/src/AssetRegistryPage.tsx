@@ -337,7 +337,7 @@ export function AssetRegistryPage() {
             </div> : <div className="profile-empty">No additional specifications recorded. Add verified nameplate details to improve energy analysis.</div>}
           </div>
           <div className="asset-subsection">
-            <div className="subsection-heading"><h3>Energy observations</h3><Link to={`/energy?asset=${selected.id}`}>Open energy view ↗</Link></div>
+            <div className="subsection-heading"><h3>Energy observations</h3><Link to={`/energy/assets/${selected.id}`}>Open asset energy profile ↗</Link></div>
             {selectedMeasurements.length ? <div className="asset-mini-metrics">
               {selectedMeasurements.slice(0, 3).map((item) => <div key={item.id}><strong>{Number(item.value).toLocaleString(undefined, { maximumFractionDigits: 2 })} <small>{item.unit}</small></strong><span>{item.metric_key.replaceAll("_", " ")}</span></div>)}
             </div> : <div className="profile-empty">No real energy readings linked to this asset yet. Measurements will appear here when an approved meter or connector sends telemetry.</div>}
@@ -360,7 +360,23 @@ export function AssetRegistryPage() {
               <button className="btn secondary" type="submit" disabled={uploading}>{uploading ? "Saving…" : "Save image reference"}</button>
             </form>
             <div className="media-provenance-note">Manufacturer catalogue and representative images keep their provenance. Only mark an image as an exact match after checking the same model/reference. The customer’s actual equipment photo remains the preferred source.</div>
-            {selectedMedia.length > 0 && <div className="asset-media-strip">{selectedMedia.map((item) => <div key={item.id} title={`${item.provenance} · ${item.asset_match_verified ? "match verified" : "match unverified"}`}>{item.display_url ? <img src={item.display_url} alt={item.caption ?? "Asset reference"} /> : <span>Image unavailable</span>}<small>{item.is_primary ? "PRIMARY" : item.media_kind.toUpperCase()}</small></div>)}</div>}
+            {selectedMedia.length > 0 && <div className="asset-media-gallery" role="list">
+              {(["primary", "detail", "nameplate", "manual", "diagram"] as const).map((kind) => {
+                const group = selectedMedia.filter((item) => item.media_kind === kind);
+                if (!group.length) return null;
+                return <div key={kind} className="media-kind-group" role="listitem">
+                  <h4>{kind.toUpperCase()}</h4>
+                  <div className="asset-media-strip">{group.map((item) => <figure key={item.id} title={`${item.provenance} · ${item.asset_match_verified ? "exact match verified" : "not an exact-match claim"}`}>
+                    {item.display_url ? <img src={item.display_url} alt={item.caption ?? `${kind} image`} /> : <span>Image unavailable</span>}
+                    <figcaption>
+                      <small>{item.is_primary ? "PRIMARY · " : ""}{item.provenance.replaceAll("_", " ")}</small>
+                      {item.provenance === "representative" && <strong className="media-warn">Representative — not the customer asset</strong>}
+                      {item.asset_match_verified ? <strong className="media-ok">Exact match verified</strong> : <span>Match unverified</span>}
+                    </figcaption>
+                  </figure>)}</div>
+                </div>;
+              })}
+            </div>}
           </div>
           <div className="asset-profile-footer"><span>Asset ID</span><code>{selected.id}</code><span>Added {fmtDate(selected.created_at)}</span></div>
         </> : <div className="empty">Select an asset to inspect its profile.</div>}

@@ -5,6 +5,7 @@ import { restoreSession } from "./auth";
 import { AuthPanel } from "./AuthPanel";
 import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
+import { AssetEnergyProfile } from "./AssetEnergyProfile";
 
 const NAV = [
   { to: "/", label: "Overview" },
@@ -457,6 +458,7 @@ export function App() {
           />
           <Route path="/assets" element={<AssetRegistryPage />} />
           <Route path="/energy" element={<EnergyDashboard />} />
+          <Route path="/energy/assets/:assetId" element={<AssetEnergyProfile />} />
           <Route
             path="/devices"
             element={

@@ -485,7 +485,14 @@ export function App() {
             </NavLink>)}
           </div>)}
         </nav>
-        <AuthPanel onAuthChange={() => setAuthRefreshKey((value) => value + 1)} />
+        <AuthPanel onAuthChange={() => {
+          if (!authToken()) {
+            setOrganisationId(null);
+            setActiveOrganisationId(null);
+            setActiveOrganisationName("Workspace");
+          }
+          setAuthRefreshKey((value) => value + 1);
+        }} />
         <div className="toolbar">
           <button
             type="button"

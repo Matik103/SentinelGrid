@@ -437,12 +437,14 @@ function ResourcePage({
 
 export function App() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const location = useLocation();
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
   }, [theme]);
   useEffect(() => {
     void restoreSession();
   }, []);
+  const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
 
   return (
     <div className="shell">
@@ -459,17 +461,14 @@ export function App() {
             Sentinel <span>Command</span>
           </div>
         </div>
+        <div className="workspace-switcher"><span className="workspace-avatar">SG</span><div><strong>Operations workspace</strong><small>Organisation environment</small></div><span className="workspace-chevron">⌄</span></div>
         <nav className="nav" aria-label="Primary">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) => (isActive ? "active" : undefined)}
-            >
-              {item.label}
-            </NavLink>
-          ))}
+          {NAV_GROUPS.map((group) => <div className="nav-group" key={group.section}>
+            <div className="nav-section-label">{group.section}</div>
+            {group.items.map((item) => <NavLink key={item.to} to={item.to} end={item.to === "/"} className={({ isActive }) => isActive ? "active" : undefined}>
+              <span className="nav-glyph" aria-hidden="true">{item.glyph}</span><span>{item.label}</span>
+            </NavLink>)}
+          </div>)}
         </nav>
         <AuthPanel />
         <div className="toolbar">
@@ -483,6 +482,8 @@ export function App() {
         </div>
       </aside>
       <main className="main">
+        <header className="topbar"><div className="topbar-context"><span>WORKSPACE</span><b>/</b><strong>{currentPage}</strong></div><div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
+        <div className="main-content">
         <Routes>
           <Route path="/" element={<Overview />} />
           <Route path="/organisation" element={<OrganisationPanel />} />
@@ -647,6 +648,7 @@ export function App() {
           />
           <Route path="/users" element={<OrganisationPanel />} />
         </Routes>
+        </div>
       </main>
     </div>
   );

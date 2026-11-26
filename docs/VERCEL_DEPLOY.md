@@ -1,53 +1,61 @@
-# Vercel deploy (Sentinel Command)
+# Sentinel Command deployment and API configuration
 
-## Why `/` was `NOT_FOUND`
+## Vercel frontend
 
-`main` only contains docs/supabase scaffolding — **no `apps/web`**. The Vercel project `sentinelgrid-delta` returns `x-vercel-error: NOT_FOUND` when it deploys an empty tree or a branch without a built SPA.
+The Vercel project `sentinelgrid` is connected to repository `Matik103/SentinelGrid`. The verified preview deployment was built from `work/sentinel-command-release-v2`; keep this as the shared deployment branch unless the project settings are deliberately changed.
 
-## Two different fields (do not mix them up)
+The repository-root `vercel.json` builds the Vite workspace app:
+- Install: `npm ci`
+- Build: `npm run build -w @sentinelgrid/web`
+- Output: `apps/web/dist`
 
-| Setting | What it is | Correct value | Wrong value |
-| --- | --- | --- | --- |
-| **Production Branch** | Git **branch** name | `work/phase0-security-hardening` | anything else if you want Command UI without merging to `main` |
-| **Root Directory** | Folder **inside the repo** for the build | **leave blank** (preferred) **or** `apps/web` | **never** put a branch name here |
+Do not set Root Directory to a Git branch name. Leave it blank for the root config, or use the actual folder `apps/web` with its matching nested Vercel config.
 
-### Common mistake (screenshot failure)
+## API URL configuration
 
-> Root Directory "`work/phase0-security-hardening`" does not exist.
+The browser needs the public HTTPS origin of the separately deployed NestJS API. It calls endpoints under `/v1`, including `/v1/health`.
 
-That string is the **branch**, not a folder. There is no `work/phase0-security-hardening/` directory in the repo. Clear Root Directory (or set it to `apps/web` only).
+Configuration precedence:
+1. Vercel project environment variable `VITE_API_BASE_URL` (build-time override).
+2. Supabase `public.app_public_config`, row `key = 'api_base_url'`, JSON value `{"url":"https://YOUR-API-HOST"}`.
 
-## Preferred: blank Root Directory + root `vercel.json`
+The Vercel project was inspected on 2026-11-26 and had no configured environment variables. The Supabase migration seeds `api_base_url` with an empty URL. This explains the visible configuration error. Neither source contains a valid deployed API origin yet.
 
-Leave **Root Directory empty**. Root [`vercel.json`](../vercel.json) already forces the monorepo SPA build:
+Once the API is deployed, choose one configuration source. Recommended for this deployment: set the Supabase row to the real API origin. Example SQL (replace the placeholder; never run it unchanged):
 
-- `installCommand`: `npm ci` (repo root workspaces)
-- `buildCommand`: `npm run build -w @sentinelgrid/web`
-- `outputDirectory`: `apps/web/dist`
-- SPA rewrite → `/index.html`
+```sql
+UPDATE public.app_public_config
+SET value = jsonb_build_object('url', 'https://YOUR-REAL-API-HOST'),
+    updated_at = now()
+WHERE key = 'api_base_url';
+```
 
-No dashboard Root Directory override is required.
+If the row does not exist, insert it rather than assuming the migration will update it. The migration uses `ON CONFLICT DO NOTHING`, so reapplying it does not fill an existing empty value.
 
-## Alternate: Root Directory = `apps/web`
+Alternatively set `VITE_API_BASE_URL` in Vercel for Preview and Production as appropriate, then trigger a new deployment. It is a public build-time value. Never put `SUPABASE_SERVICE_ROLE_KEY`, database passwords, or other server secrets in any `VITE_` variable.
 
-Only if you insist on a non-empty Root Directory, set it to the path **`apps/web`** (folder), never the branch name. That path uses [`apps/web/vercel.json`](../apps/web/vercel.json), which `cd`s up to the repo root for `npm ci` / workspace build, then emits `dist`.
+## Backend deployment requirements / Cursor handoff
 
-## Other dashboard settings
+The API is a separate NestJS service in `apps/api`; Vercel's current build only builds the web workspace. Deploy the API to the chosen backend host and provide a stable HTTPS origin before configuring the frontend.
 
-1. **Production Branch:** `work/phase0-security-hardening` (do **not** require a main merge for Command UI).
-2. **Framework:** Vite (from `vercel.json`).
-3. No Vercel **backend** env vars are required for the SPA. Do not put `SUPABASE_SERVICE_ROLE_KEY` in Vercel.
+Required API environment:
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server-side only)
+- `PORT` (host-provided port)
+- `NODE_ENV=production`
 
-## Config loading (DB-backed)
+Optional features have additional environment requirements documented in their service implementations (Redis rate limiting, object storage, email transport). Do not mark the backend ready until each required feature has either valid configuration or an explicitly accepted disabled/degraded mode.
 
-1. **Irreducible public bootstrap** (baked into `apps/web/src/bootstrap.ts`):
-   - `PUBLIC_SUPABASE_URL` = `https://abaeizgfsskvjklfslrh.supabase.co`
-   - `PUBLIC_SUPABASE_ANON_KEY` = project anon JWT (public-by-design; RLS enforces access)
-2. SPA then `GET /rest/v1/app_public_config` and reads non-secret keys (`api_base_url`, `command_title`).
-3. Optional local override only: `VITE_API_BASE_URL`.
+Deployment acceptance:
+1. Build with `npm run build -w @sentinelgrid/api`.
+2. Run tests with `npm test -w @sentinelgrid/api`.
+3. Start the service with `npm run start -w @sentinelgrid/api`.
+4. Verify public `GET /v1/health` returns HTTP 200 and the expected build SHA.
+5. Verify CORS permits the SentinelGrid Vercel origin.
+6. Verify authenticated API calls, AAL2 enforcement, tenant scoping and RLS against the hosted Supabase project.
+7. Configure the frontend API URL only after the health check passes.
 
-## Redeploy
+## Frontend diagnostics
 
-1. Clear Root Directory (or set `apps/web`).
-2. Set Production Branch to `work/phase0-security-hardening`.
-3. Push to that branch, or Vercel → Deployments → Redeploy from that branch.
+The shared browser bootstrap validates the URL and preserves the actual reason configuration could not be loaded. Pages using `apiGet`, `apiPost`, or `apiPatch` share this diagnostic, so the same missing URL is not reported as a separate page-specific failure.

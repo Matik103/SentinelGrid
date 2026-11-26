@@ -257,7 +257,7 @@ export class RegistryService {
         .select("id, parent_asset_id")
         .eq("organisation_id", organisationId);
       if (graphError) throw new BadRequestException(graphError.message);
-      const parentById = new Map((rows ?? []).map((row: { id: string; parent_asset_id: string | null }) => [row.id, row.parent_asset_id]));
+      const parentById = new Map((rows ?? []).map((row: { id: string; parent_asset_id: string | null }) => [row.id, row.parent_asset_id] as const));
       let cursor: string | null | undefined = input.parent_asset_id;
       const visited = new Set<string>();
       while (cursor && !visited.has(cursor)) {

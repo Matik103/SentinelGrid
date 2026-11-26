@@ -497,7 +497,7 @@ export function App() {
       <main className="main">
         <header className="topbar"><div className="topbar-context"><span>WORKSPACE</span><b>/</b><strong>{currentPage}</strong></div><div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
         <div className="main-content">
-        <Routes>
+        <Routes key={activeOrganisationId ?? "no-workspace"}>
           <Route path="/" element={<Overview />} />
           <Route path="/topology" element={<TopologyPage />} />
           <Route path="/incidents" element={<IncidentWorkbenchPage />} />

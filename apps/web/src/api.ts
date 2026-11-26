@@ -4,12 +4,14 @@ import { authToken, organisationId } from "./auth";
 export { authToken, organisationId };
 
 let apiBase = "";
+let apiConfigError: string | null = null;
 let configReady: Promise<void> | null = null;
 
 export function ensureConfig(): Promise<void> {
   if (!configReady) {
     configReady = loadPublicConfig().then((cfg) => {
-      apiBase = (cfg.api_base_url || "").replace(/\/$/, "");
+      apiBase = cfg.api_base_url.replace(/\\/$/, "");
+      apiConfigError = cfg.api_config_error;
     });
   }
   return configReady;
@@ -19,6 +21,10 @@ const base = () => apiBase;
 
 export function apiConfigured(): boolean {
   return Boolean(base());
+}
+
+export function apiConfigurationError(): string {
+  return apiConfigError ?? "The API base URL is not configured.";
 }
 
 export type ApiError = { status: number; message: string };

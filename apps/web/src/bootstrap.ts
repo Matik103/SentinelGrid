@@ -10,7 +10,7 @@
  */
 export const PUBLIC_SUPABASE_URL = "https://abaeizgfsskvjklfslrh.supabase.co";
 export const PUBLIC_SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdWIiLCJyZWYiOiJhYmFldXp nZ3Nza3Zqa2xmc2xy aCIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzk1NjA5MTI5LCJleHAiOjIxMTExODUxMjl9.DGiWBwwYFgBwR-8xGghs-vlSC1_giAr546zKCktRYZ0".replace(/\s/g, "");
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFiYWVpemdmc3NrdmprbGZzbHJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2MDkxMjksImV4cCI6MjExMTE4NTEyOX0.DGiWBwwYFgBwR-8xGghs-vlSC1_giAr546zKCktRYZ0".replace(/\s/g, "");
 
 export type ApiConfigSource = "vercel_environment" | "supabase" | "missing";
 

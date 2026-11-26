@@ -38,6 +38,8 @@ const ZoneSchema = z.object({
 const AssetSchema = z.object({
   facility_id: z.string().uuid(),
   zone_id: z.string().uuid().optional().nullable(),
+  parent_asset_id: z.string().uuid().optional().nullable(),
+  criticality: z.enum(["low", "medium", "high", "critical"]).optional(),
   name: z.string().min(1).max(200),
   category: Categories.optional(),
   status: z.enum(["active", "commissioning", "maintenance", "archived"]).optional(),
@@ -58,6 +60,8 @@ const AssetSchema = z.object({
 const AssetUpdateSchema = AssetSchema.partial().extend({
   facility_id: z.string().uuid().optional(),
 });
+
+const AssetParentSchema = z.object({ parent_asset_id: z.string().uuid().nullable() });
 
 const DeviceSchema = z.object({
   facility_id: z.string().uuid(),
@@ -184,7 +188,7 @@ export class RegistryService {
     const sb = this.users.create(user.accessToken);
     const { data, error } = await sb
       .from("assets")
-      .select("id, facility_id, zone_id, name, category, status, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
+      .select("id, facility_id, zone_id, parent_asset_id, name, category, status, criticality, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
       .eq("organisation_id", organisationId)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -196,12 +200,25 @@ export class RegistryService {
     const input = AssetSchema.parse(body);
     await this.orgs.requirePermission(user, organisationId, "asset.write");
     const sb = this.users.create(user.accessToken);
+    if (input.parent_asset_id) {
+      const { data: parent, error: parentError } = await sb
+        .from("assets")
+        .select("id")
+        .eq("id", input.parent_asset_id)
+        .eq("organisation_id", organisationId)
+        .eq("facility_id", input.facility_id)
+        .maybeSingle();
+      if (parentError) throw new BadRequestException(parentError.message);
+      if (!parent) throw new BadRequestException("Parent asset must belong to the same organisation and facility.");
+    }
     const { data, error } = await sb
       .from("assets")
       .insert({
         organisation_id: organisationId,
         facility_id: input.facility_id,
         zone_id: input.zone_id ?? null,
+        parent_asset_id: input.parent_asset_id ?? null,
+        criticality: input.criticality ?? "medium",
         name: input.name,
         category: input.category ?? "industrial",
         status: input.status ?? "active",
@@ -213,7 +230,7 @@ export class RegistryService {
         rated_capacity_kva: input.rated_capacity_kva ?? null,
         specifications: input.specifications ?? {},
       })
-      .select("id, facility_id, zone_id, name, category, status, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
+      .select("id, facility_id, zone_id, parent_asset_id, name, category, status, criticality, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
       .single();
     if (error) throw new BadRequestException(error.message);
     return data;
@@ -250,6 +267,58 @@ export class RegistryService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new BadRequestException("Asset not found");
+    return data;
+  }
+
+  async setAssetParent(user: AuthUser, organisationId: string, assetId: string, body: unknown) {
+    const input = AssetParentSchema.parse(body);
+    await this.orgs.requirePermission(user, organisationId, "asset.write");
+    const sb = this.users.create(user.accessToken);
+    const { data: asset, error: assetError } = await sb
+      .from("assets")
+      .select("id, facility_id")
+      .eq("id", assetId)
+      .eq("organisation_id", organisationId)
+      .maybeSingle();
+    if (assetError) throw new BadRequestException(assetError.message);
+    if (!asset) throw new BadRequestException("Asset not found in this organisation.");
+
+    if (input.parent_asset_id) {
+      if (input.parent_asset_id === assetId) throw new BadRequestException("An asset cannot be its own parent.");
+      const { data: parent, error: parentError } = await sb
+        .from("assets")
+        .select("id")
+        .eq("id", input.parent_asset_id)
+        .eq("organisation_id", organisationId)
+        .eq("facility_id", asset.facility_id)
+        .maybeSingle();
+      if (parentError) throw new BadRequestException(parentError.message);
+      if (!parent) throw new BadRequestException("Parent asset must belong to the same organisation and facility.");
+
+      const { data: rows, error: graphError } = await sb
+        .from("assets")
+        .select("id, parent_asset_id")
+        .eq("organisation_id", organisationId);
+      if (graphError) throw new BadRequestException(graphError.message);
+      const parentById = new Map((rows ?? []).map((row: { id: string; parent_asset_id: string | null }) => [row.id, row.parent_asset_id] as const));
+      let cursor: string | null | undefined = input.parent_asset_id;
+      const visited = new Set<string>();
+      while (cursor && !visited.has(cursor)) {
+        if (cursor === assetId) throw new BadRequestException("This relationship would create a circular asset dependency.");
+        visited.add(cursor);
+        cursor = parentById.get(cursor);
+      }
+    }
+
+    const { data, error } = await sb
+      .from("assets")
+      .update({ parent_asset_id: input.parent_asset_id, updated_at: new Date().toISOString() })
+      .eq("id", assetId)
+      .eq("organisation_id", organisationId)
+      .select("id, facility_id, parent_asset_id, name, criticality")
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new BadRequestException("Asset relationship could not be updated.");
     return data;
   }
 

@@ -1,0 +1,27 @@
+---
+description: Keep all SentinelGrid agents synchronized on the canonical shared branch.
+alwaysApply: true
+---
+
+# SentinelGrid shared branch rule
+
+The canonical shared working branch is `work/sentinel-command-release-v2`. Treat the remote branch as the single source of truth.
+
+Before every task, inspect the working tree, then run:
+
+```bash
+git status --short --branch
+git fetch origin --prune
+git switch work/sentinel-command-release-v2
+git pull --ff-only origin work/sentinel-command-release-v2
+git rev-parse HEAD
+git rev-parse origin/work/sentinel-command-release-v2
+```
+
+Do not edit until local HEAD matches the remote branch head. Preserve all uncommitted work. If the tree is dirty, the branch cannot fast-forward, or another agent has pushed newer commits, stop and reconcile without resetting, discarding, force-pushing, or overwriting work.
+
+Commit directly to `work/sentinel-command-release-v2`; do not create parallel feature branches or switch to `main` unless the user explicitly changes the workflow. Before pushing, fetch again and reconcile any remote advancement. Never force-push.
+
+After each push, verify the new commit has a matching Vercel deployment on the branch-bound live domain. A successful local build or GitHub push alone does not prove the app is live.
+
+Read and follow the repository-root `AGENTS.md` for the complete workflow, validation, security, and release rules.

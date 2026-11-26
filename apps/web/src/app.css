@@ -1255,3 +1255,7 @@ body {
  .workbench-metrics article { padding:.75rem; }
  .investigation-tag { max-width:90px; overflow:hidden; text-overflow:ellipsis; }
 }
+
+.relationship-field { display:flex; max-width:100%; flex-direction:column; gap:.4rem; color:#8198aa; font:8px var(--sg-font-mono); letter-spacing:.08em; }
+.relationship-field select { width:100%; min-height:38px; padding:.5rem .65rem; border:1px solid rgba(143,174,199,.15); border-radius:7px; background:#0a1928; color:#dce8f0; font:11px var(--sg-font-body); }
+[data-theme="light"] .relationship-field select { background:#fff; color:#253d50; border-color:#dce6ec; }

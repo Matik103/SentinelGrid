@@ -259,10 +259,14 @@ function Overview() {
         <section className="command-panel quick-access-panel">
           <div className="command-panel-heading"><div><span className="eyebrow">WORKSPACES</span><h2>Go deeper</h2></div></div>
           <div className="quick-access-grid">
+            <NavLink to="/topology"><span>⌗</span><strong>Infrastructure topology</strong><small>Registered assets and relationships</small><b>↗</b></NavLink>
+            <NavLink to="/incidents"><span>⌁</span><strong>Incident investigation</strong><small>Recorded signals and event context</small><b>↗</b></NavLink>
             <NavLink to="/energy"><span>ϟ</span><strong>Energy intelligence</strong><small>Measured demand and findings</small><b>↗</b></NavLink>
             <NavLink to="/assets"><span>◫</span><strong>Asset explorer</strong><small>Equipment profiles and media</small><b>↗</b></NavLink>
             <NavLink to="/connectors"><span>⌘</span><strong>Data connections</strong><small>Connector status and access</small><b>↗</b></NavLink>
             <NavLink to="/evidence"><span>⟡</span><strong>Evidence explorer</strong><small>Integrity and event provenance</small><b>↗</b></NavLink>
+            <NavLink to="/replay"><span>↶</span><strong>Event replay</strong><small>Historical event timeline</small><b>↗</b></NavLink>
+            <NavLink to="/scenarios"><span>△</span><strong>Failure scenario lab</strong><small>Non-actuating registry analysis</small><b>↗</b></NavLink>
           </div>
         </section>
       </div>

@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { apiConfigured, apiGet, apiPost, authToken, healthCheck } from "./api";
+import { apiConfigured, apiGet, apiPost, authToken, ensureConfig, healthCheck } from "./api";
 import { organisationId, restoreSession, setOrganisationId } from "./auth";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { AuthPanel } from "./AuthPanel";
@@ -452,7 +452,9 @@ export function App() {
     document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
   }, [theme]);
   useEffect(() => {
-    void restoreSession().then(() => setAuthRefreshKey((value) => value + 1));
+    void Promise.all([restoreSession(), ensureConfig()]).finally(() => {
+      setAuthRefreshKey((value) => value + 1);
+    });
   }, []);
   const selectOrganisation = (id: string, name: string) => {
     if (id !== activeOrganisationId) setOrganisationId(id);

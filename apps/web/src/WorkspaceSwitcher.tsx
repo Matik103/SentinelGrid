@@ -11,7 +11,7 @@ type Organisation = { id: string; name: string; slug: string };
 
 type Props = {
   activeOrganisationId: string | null;
-  onSelect: (organisationId: string, name: string) => void;
+  onSelect: (organisationId: string | null, name: string) => void;
   refreshKey: number;
 };
 
@@ -65,6 +65,8 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
       if (next) {
         const selected = rows.find((row) => row.id === next);
         onSelect(next, selected?.name ?? "Workspace");
+      } else {
+        onSelect(null, "No workspace selected");
       }
     }
     setLoading(false);

@@ -57,6 +57,7 @@ export function EnergyDashboard() {
   const [measurements, setMeasurements] = useState<EnergyMeasurement[]>([]);
   const [anomalies, setAnomalies] = useState<EnergyAnomaly[]>([]);
   const [selectedFacility, setSelectedFacility] = useState(searchParams.get("facility") ?? "");
+  const [selectedAsset, setSelectedAsset] = useState(searchParams.get("asset") ?? "");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [telemetryAvailable, setTelemetryAvailable] = useState(true);
@@ -88,13 +89,15 @@ export function EnergyDashboard() {
 
   useEffect(() => { void load(selectedFacility); }, [org, selectedFacility]);
 
-  const real = useMemo(() => measurements.filter((item) => item.classification === "real"), [measurements]);
+  const scopedMeasurements = useMemo(() => measurements.filter((item) => !selectedAsset || item.asset_id === selectedAsset), [measurements, selectedAsset]);
+  const scopedAnomalies = useMemo(() => anomalies.filter((item) => !selectedAsset || item.asset_id === selectedAsset), [anomalies, selectedAsset]);
+  const real = useMemo(() => scopedMeasurements.filter((item) => item.classification === "real"), [scopedMeasurements]);
   const good = useMemo(() => real.filter((item) => item.quality === "good"), [real]);
   const latestPower = useMemo(() => good.filter((item) => item.metric_key === "active_power_kw")
     .sort((a, b) => new Date(b.measured_at).getTime() - new Date(a.measured_at).getTime())[0], [good]);
   const latestEnergy = useMemo(() => good.filter((item) => item.metric_key === "energy_kwh")
     .sort((a, b) => new Date(b.measured_at).getTime() - new Date(a.measured_at).getTime())[0], [good]);
-  const affectedAssets = new Set(anomalies.filter((item) => item.asset_id).map((item) => item.asset_id)).size;
+  const affectedAssets = new Set(scopedAnomalies.filter((item) => item.asset_id).map((item) => item.asset_id)).size;
   const assetName = (id: string | null) => id ? assets.find((asset) => asset.id === id)?.name ?? "Unmapped asset" : "Facility-level finding";
   const facilityName = (id: string) => facilities.find((facility) => facility.id === id)?.name ?? "Facility";
 
@@ -115,6 +118,12 @@ export function EnergyDashboard() {
           {facilities.map((facility) => <option key={facility.id} value={facility.id}>{facility.name}</option>)}
         </select>
       </label>
+      <label>Asset scope
+        <select value={selectedAsset} onChange={(event) => { setSelectedAsset(event.target.value); const next = new URLSearchParams(searchParams); if (event.target.value) next.set("asset", event.target.value); else next.delete("asset"); setSearchParams(next); }}>
+          <option value="">All assets</option>
+          {assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+        </select>
+      </label>
       <span className="data-integrity-note">REAL TELEMETRY ONLY · SIMULATED AND REPLAYED DATA EXCLUDED</span>
     </div>
 
@@ -124,21 +133,21 @@ export function EnergyDashboard() {
       <MetricCard label="LATEST ACTIVE POWER" value={latestPower ? fmt(Number(latestPower.value)) : "—"} unit={latestPower?.unit ?? "kW"} detail={latestPower ? `Measured ${dateTime(latestPower.measured_at)}` : "No live power reading"} />
       <MetricCard label="LATEST ENERGY READING" value={latestEnergy ? fmt(Number(latestEnergy.value)) : "—"} unit={latestEnergy?.unit ?? "kWh"} detail={latestEnergy ? `Measured ${dateTime(latestEnergy.measured_at)}` : "No energy register reading"} />
       <MetricCard label="QUALITY-CHECKED SAMPLES" value={fmt(good.length, 0)} detail="Real readings with good data quality" />
-      <MetricCard label="OPEN FINDINGS" value={fmt(anomalies.length, 0)} detail={`${affectedAssets} linked assets require review`} />
+      <MetricCard label="OPEN FINDINGS" value={fmt(scopedAnomalies.length, 0)} detail={`${affectedAssets} linked assets require review`} />
     </div>
 
     <div className="energy-main-grid">
       <section className="energy-panel">
         <div className="panel-heading"><div><span className="eyebrow">DEMAND PROFILE</span><h2>Active power trend</h2></div><span className="unit-chip">kW</span></div>
-        {loading ? <div className="chart-empty">Loading measured demand…</div> : <PowerTrend data={measurements} />}
+        {loading ? <div className="chart-empty">Loading measured demand…</div> : <PowerTrend data={scopedMeasurements} />}
         <div className="panel-footnote">Trend uses recorded active-power measurements with good quality. The graph remains empty until real telemetry is received.</div>
       </section>
       <section className="energy-panel energy-findings-panel">
-        <div className="panel-heading"><div><span className="eyebrow">DETECTION & REVIEW</span><h2>Energy findings</h2></div><span className="finding-count">{anomalies.length}</span></div>
-        {loading ? <div className="profile-empty">Loading findings…</div> : anomalies.length === 0 ? <div className="chart-empty compact">
+        <div className="panel-heading"><div><span className="eyebrow">DETECTION & REVIEW</span><h2>Energy findings</h2></div><span className="finding-count">{scopedAnomalies.length}</span></div>
+        {loading ? <div className="profile-empty">Loading findings…</div> : scopedAnomalies.length === 0 ? <div className="chart-empty compact">
           <span className="chart-empty-mark">✓</span><strong>No open findings</strong><span>{telemetryAvailable ? "No active anomaly records for this scope." : "Findings will appear after the energy migration and detection pipeline are connected."}</span>
         </div> : <div className="finding-list">
-          {anomalies.slice(0, 8).map((item) => <article className="finding-row" key={item.id}>
+          {scopedAnomalies.slice(0, 8).map((item) => <article className="finding-row" key={item.id}>
             <span className={`finding-severity ${severityClass(item.severity)}`}>{item.severity}</span>
             <div><strong>{item.title}</strong><p>{item.explanation}</p><small>{assetName(item.asset_id)} · {dateTime(item.detected_at)}</small></div>
           </article>)}

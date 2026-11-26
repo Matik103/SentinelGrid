@@ -145,7 +145,8 @@ export function AssetRegistryPage() {
   async function createAsset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!org) return;
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const name = String(form.get("name") ?? "").trim();
     const facilityId = String(form.get("facility_id") ?? "");
     if (!name || !facilityId) { setMessage("Asset name and facility are required."); return; }
@@ -169,7 +170,7 @@ export function AssetRegistryPage() {
     setShowCreate(false);
     await load();
     if (result.data?.id) setSelectedId(result.data.id);
-    event.currentTarget.reset();
+    formElement.reset();
   }
 
   async function onPhotoSelected(event: ChangeEvent<HTMLInputElement>) {

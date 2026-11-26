@@ -6,6 +6,8 @@ type Asset = {
   id: string;
   facility_id: string;
   zone_id: string | null;
+  parent_asset_id?: string | null;
+  criticality?: string;
   name: string;
   category: string;
   status: string;
@@ -158,6 +160,8 @@ export function AssetRegistryPage() {
     const body = {
       facility_id: facilityId,
       zone_id: String(form.get("zone_id") ?? "") || null,
+      parent_asset_id: String(form.get("parent_asset_id") ?? "") || null,
+      criticality: String(form.get("criticality") ?? "medium"),
       name,
       category: String(form.get("category") ?? "industrial"),
       manufacturer: String(form.get("manufacturer") ?? "").trim() || null,
@@ -227,11 +231,13 @@ export function AssetRegistryPage() {
     </div>
 
     {showCreate && <form className="asset-create-panel" onSubmit={createAsset}>
-      <div className="section-heading"><div><h2>Register equipment</h2><p>Capture the identity first. Category-specific specifications can be expanded later.</p></div></div>
+      <div className="section-heading"><div><h2>Register equipment</h2><p>Capture identity, operational criticality and an optional same-facility parent relationship. Parent links are validated by the API.</p></div></div>
       <div className="asset-form-grid">
         <label>Asset name<input name="name" required placeholder="e.g. Main standby generator" /></label>
         <label>Facility<select name="facility_id" required defaultValue=""><option value="" disabled>Select facility</option>{facilities.map((facility) => <option key={facility.id} value={facility.id}>{facility.name}</option>)}</select></label>
         <label>Category<select name="category" defaultValue="generators">{CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+        <label>Criticality<select name="criticality" defaultValue="medium"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></label>
+        <label>Parent asset (optional)<select name="parent_asset_id" defaultValue=""><option value="">No parent / standalone</option>{assets.filter((asset) => asset.status !== "archived").map((asset) => <option key={asset.id} value={asset.id}>{asset.name} · {facilityName(asset.facility_id)}</option>)}</select></label>
         <label>Manufacturer<input name="manufacturer" placeholder="Manufacturer" /></label>
         <label>Model<input name="model" placeholder="Model / product number" /></label>
         <label>Serial number<input name="serial_number" placeholder="Equipment serial" /></label>
@@ -284,6 +290,8 @@ export function AssetRegistryPage() {
             <span className={`asset-status ${selected.status === "active" ? "active" : "muted"}`}>{selected.status}</span>
           </div>
           <div className="asset-spec-grid">
+            <SpecValue label="Criticality" value={selected.criticality ?? "Not recorded"} />
+            <SpecValue label="Parent asset" value={assets.find((asset) => asset.id === selected.parent_asset_id)?.name ?? "Standalone"} />
             <SpecValue label="Manufacturer" value={selected.manufacturer} />
             <SpecValue label="Model" value={selected.model} />
             <SpecValue label="Manufactured" value={selected.manufactured_year} />

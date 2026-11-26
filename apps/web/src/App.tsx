@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { apiConfigured, apiGet, apiPost, authToken, ensureConfig, healthCheck } from "./api";
+import { apiConfigured, apiGet, apiPost, authToken, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
 import { organisationId, restoreSession, setOrganisationId } from "./auth";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { AuthPanel } from "./AuthPanel";
@@ -149,11 +149,17 @@ function Overview() {
   const [events, setEvents] = useState<OverviewEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [workspaceLogoUrl, setWorkspaceLogoUrl] = useState<string | null>(null);
   const org = organisationId();
   const configured = apiConfigured() && Boolean(org) && Boolean(authToken());
 
   useEffect(() => {
     let active = true;
+    if (org && authToken()) {
+      void getWorkspaceBranding(org).then((branding) => { if (active) setWorkspaceLogoUrl(branding.logoUrl); }).catch(() => { if (active) setWorkspaceLogoUrl(null); });
+    } else {
+      setWorkspaceLogoUrl(null);
+    }
     void healthCheck().then((value) => { if (active) setHealth(value); }).catch(() => { if (active) setHealth("Unavailable"); });
     const org = organisationId();
     if (!apiConfigured() || !org || !authToken()) {
@@ -193,13 +199,6 @@ function Overview() {
     <section className="command-overview">
       <div className="command-hero">
         <div className="command-hero-copy">
-          <img
-            className="overview-wordmark"
-            src="/assets/sentinelgrid-logo-wordmark.png"
-            alt="SentinelGrid"
-            width={280}
-            height={89}
-          />
           <div className="eyebrow"><span className="eyebrow-pulse" /> OPERATIONS / COMMAND OVERVIEW</div>
           <h1 className="command-title">See the whole system.<br /><span>Understand what matters.</span></h1>
           <p className="command-intro">A clear operational picture of your facilities, equipment, energy signals and recorded events — grounded in the data your organisation has connected.</p>
@@ -212,8 +211,8 @@ function Overview() {
           <div className="orbital orbital-one" /><div className="orbital orbital-two" />
           <img
             className="hero-core-logo"
-            src="/assets/sentinelgrid-logo-mark.png"
-            alt=""
+            src={workspaceLogoUrl || "/assets/sentinelgrid-logo-mark.png"}
+            alt={workspaceLogoUrl ? "Workspace logo" : "SentinelGrid"}
             width={128}
             height={128}
           />
@@ -301,6 +300,10 @@ function OrganisationPanel() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("read_only_viewer");
   const [msg, setMsg] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [canManageBranding, setCanManageBranding] = useState(false);
+  const [logoMessage, setLogoMessage] = useState<string | null>(null);
   const org = organisationId();
 
   const reload = async () => {
@@ -321,7 +324,31 @@ function OrganisationPanel() {
 
   useEffect(() => {
     void reload();
+    if (org && authToken()) {
+      void getWorkspaceBranding(org).then((branding) => setLogoUrl(branding.logoUrl)).catch(() => setLogoUrl(null));
+      void apiPost<{ allowed: boolean }>(`/v1/orgs/${org}/permissions/check`, { permission: "org.admin" }).then((result) => setCanManageBranding(Boolean(result.data?.allowed)));
+    } else {
+      setLogoUrl(null);
+      setCanManageBranding(false);
+    }
   }, [org]);
+
+  async function onWorkspaceLogoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file || !org) return;
+    setLogoBusy(true);
+    setLogoMessage(null);
+    try {
+      const branding = await uploadWorkspaceLogo(org, file);
+      setLogoUrl(branding.logoUrl);
+      setLogoMessage("Workspace logo saved. The command centre now uses your organisation’s identity.");
+    } catch (cause) {
+      setLogoMessage(cause instanceof Error ? cause.message : "Could not upload the workspace logo.");
+    } finally {
+      setLogoBusy(false);
+    }
+  }
 
   async function onInvite(e: FormEvent) {
     e.preventDefault();
@@ -344,6 +371,14 @@ function OrganisationPanel() {
   return (
     <Page title="Workspace settings" lead="Manage this workspace’s membership and invitations.">
       <StatusBanner error={error} />
+      <section className="workspace-branding-panel">
+        <div className="workspace-branding-copy"><span className="eyebrow">COMMAND IDENTITY</span><h2>Workspace logo</h2><p>Personalise the centre of your command overview with your organisation’s logo. Until one is uploaded, SentinelGrid’s default emblem remains in place.</p></div>
+        <div className="workspace-branding-control">
+          <div className="workspace-branding-preview">{logoUrl ? <img src={logoUrl} alt="Current workspace logo" /> : <img src="/assets/sentinelgrid-logo-mark.png" alt="Default SentinelGrid emblem" />}</div>
+          {canManageBranding ? <label className="btn workspace-logo-upload">{logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload workspace logo"}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={logoBusy} onChange={onWorkspaceLogoChange} /></label> : <span className="workspace-branding-hint">Workspace administrator access required</span>}
+        </div>
+        {logoMessage && <p className="workspace-branding-message" role="status">{logoMessage}</p>}
+      </section>
       <h2 className="section-title">Members</h2>
       <DataTable
         columns={[

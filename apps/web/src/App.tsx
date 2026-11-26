@@ -164,11 +164,7 @@ function Overview() {
     void healthCheck().then((value) => { if (active) setHealth(value); }).catch(() => { if (active) setHealth("Unavailable"); });
     if (!apiConfigured() || !org || !authToken()) {
       setLoading(false);
-<<<<<<< HEAD
-      setError("Sign in and select a workspace to populate this command view. No sample telemetry is displayed.");
-=======
-      setError(!apiConfigured() ? apiConfigurationError() : "Connect a workspace and authenticated session to populate this command view. No sample telemetry is displayed.");
->>>>>>> eedf173 (Show shared API configuration error in command views)
+      setError(!apiConfigured() ? apiConfigurationError() : "Sign in and select a workspace to populate this command view. No sample telemetry is displayed.");
       return () => { active = false; };
     }
     void Promise.all([

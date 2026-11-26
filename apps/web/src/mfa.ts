@@ -13,7 +13,7 @@ export type MfaFactor = { id: string; friendlyName: string };
 export async function currentAssuranceLevel(): Promise<"aal1" | "aal2" | string> {
   const { data, error } = await getSupabase().auth.mfa.getAuthenticatorAssuranceLevel();
   if (error) throw error;
-  return data.currentLevel;
+  return data.currentLevel ?? "aal1";
 }
 
 export async function listVerifiedTotpFactors(): Promise<MfaFactor[]> {

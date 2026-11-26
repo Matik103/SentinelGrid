@@ -456,7 +456,7 @@ export function App() {
       setAuthRefreshKey((value) => value + 1);
     });
   }, []);
-  const selectOrganisation = (id: string, name: string) => {
+  const selectOrganisation = (id: string | null, name: string) => {
     if (id !== activeOrganisationId) setOrganisationId(id);
     setActiveOrganisationId(id);
     setActiveOrganisationName(name);

@@ -41,23 +41,20 @@ describe("RegistryService asset hierarchy", () => {
   it("persists a verified same-facility parent and criticality", async () => {
     let inserted: Record<string, unknown> | undefined;
     const sb = {
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            eq: () => ({
-              maybeSingle: async () => ({ data: { id: parentId }, error: null }),
-            }),
-          }),
-        }),
-        insert: (row: Record<string, unknown>) => {
-          inserted = row;
-          return {
-            select: () => ({
-              single: async () => ({ data: { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", ...row }, error: null }),
-            }),
-          };
-        },
-      }),
+      from: () => {
+        const parentQuery = { eq: () => parentQuery, maybeSingle: async () => ({ data: { id: parentId }, error: null }) };
+        return {
+          select: () => parentQuery,
+          insert: (row: Record<string, unknown>) => {
+            inserted = row;
+            return {
+              select: () => ({
+                single: async () => ({ data: { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", ...row }, error: null }),
+              }),
+            };
+          },
+        };
+      },
     };
     const service = new RegistryService(
       { requirePermission: async () => undefined } as never,

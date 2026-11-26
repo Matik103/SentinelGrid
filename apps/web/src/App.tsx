@@ -1,6 +1,8 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigured, apiGet, apiPost, authToken, healthCheck, organisationId } from "./api";
+import { AssetRegistryPage } from "./AssetRegistryPage";
+import { EnergyDashboard } from "./EnergyDashboard";
 
 const NAV = [
   { to: "/", label: "Overview" },
@@ -8,6 +10,7 @@ const NAV = [
   { to: "/facilities", label: "Facilities" },
   { to: "/zones", label: "Zones" },
   { to: "/assets", label: "Assets" },
+  { to: "/energy", label: "Energy" },
   { to: "/devices", label: "Devices" },
   { to: "/connectors", label: "Connectors" },
   { to: "/events", label: "Event ledger" },
@@ -446,23 +449,8 @@ export function App() {
               />
             }
           />
-          <Route
-            path="/assets"
-            element={
-              <ResourcePage
-                title="Asset registry"
-                lead="Assets linked to facilities and zones."
-                path={(org) => `/v1/orgs/${org}/assets`}
-                columns={[
-                  { key: "name", label: "Name" },
-                  { key: "facility_id", label: "Facility" },
-                  { key: "zone_id", label: "Zone" },
-                  { key: "category", label: "Category" },
-                  { key: "status", label: "Status" },
-                ]}
-              />
-            }
-          />
+          <Route path="/assets" element={<AssetRegistryPage />} />
+          <Route path="/energy" element={<EnergyDashboard />} />
           <Route
             path="/devices"
             element={

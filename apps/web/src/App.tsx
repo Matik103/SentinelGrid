@@ -1,7 +1,8 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigured, apiGet, apiPost, authToken, healthCheck, organisationId } from "./api";
-import { restoreSession } from "./auth";
+import { organisationId, restoreSession, setOrganisationId } from "./auth";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { AuthPanel } from "./AuthPanel";
 import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
@@ -45,6 +46,7 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
   const [rows, setRows] = useState<T[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const orgId = organisationId();
 
   const reload = async () => {
     setLoading(true);
@@ -77,9 +79,9 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
 
   useEffect(() => {
     void reload();
-  }, []);
+  }, [orgId]);
 
-  return { rows, error, loading, reload, orgId: organisationId() };
+  return { rows, error, loading, reload, orgId };
 }
 
 function DataTable({
@@ -147,7 +149,8 @@ function Overview() {
   const [events, setEvents] = useState<OverviewEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const configured = apiConfigured() && Boolean(organisationId()) && Boolean(authToken());
+  const org = organisationId();
+  const configured = apiConfigured() && Boolean(org) && Boolean(authToken());
 
   useEffect(() => {
     let active = true;
@@ -176,7 +179,7 @@ function Overview() {
       if (active) { setError("The command view could not retrieve workspace data."); setLoading(false); }
     });
     return () => { active = false; };
-  }, []);
+  }, [org]);
 
   const criticalEvents = events.filter((event) => event.integrity_status === "failed" || event.data_quality === "poor" || /critical|failure|fault|alarm|offline|trip|overheat/i.test(String(event.event_type ?? ""))).length;
   const stats = [
@@ -441,13 +444,19 @@ function ResourcePage({
 
 export function App() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [activeOrganisationId, setActiveOrganisationId] = useState<string | null>(() => organisationId());
+  const [authRefreshKey, setAuthRefreshKey] = useState(0);
   const location = useLocation();
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
   }, [theme]);
   useEffect(() => {
-    void restoreSession();
+    void restoreSession().then(() => setAuthRefreshKey((value) => value + 1));
   }, []);
+  const selectOrganisation = (id: string) => {
+    setOrganisationId(id);
+    setActiveOrganisationId(id);
+  };
   const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
 
   return (
@@ -465,7 +474,7 @@ export function App() {
             Sentinel <span>Command</span>
           </div>
         </div>
-        <div className="workspace-switcher"><span className="workspace-avatar">SG</span><div><strong>Operations workspace</strong><small>Organisation environment</small></div><span className="workspace-chevron">⌄</span></div>
+        <WorkspaceSwitcher activeOrganisationId={activeOrganisationId} onSelect={selectOrganisation} refreshKey={authRefreshKey} />
         <nav className="nav" aria-label="Primary">
           {NAV_GROUPS.map((group) => <div className="nav-group" key={group.section}>
             <div className="nav-section-label">{group.section}</div>
@@ -474,7 +483,7 @@ export function App() {
             </NavLink>)}
           </div>)}
         </nav>
-        <AuthPanel />
+        <AuthPanel onAuthChange={() => setAuthRefreshKey((value) => value + 1)} />
         <div className="toolbar">
           <button
             type="button"

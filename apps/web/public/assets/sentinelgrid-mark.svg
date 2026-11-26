@@ -1,55 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
-<title id="title">SentinelGrid shield</title><desc id="desc">A luminous cyan shield containing an industrial skyline, an ECG pulse and a globe, with an orbiting ring. Transparent background.</desc>
-<defs>
- <linearGradient id="rim" x1="150" y1="80" x2="850" y2="940" gradientUnits="userSpaceOnUse"><stop stop-color="#9CFFF4"/><stop offset=".22" stop-color="#19F5E3"/><stop offset=".62" stop-color="#00BFEA"/><stop offset="1" stop-color="#0877D5"/></linearGradient>
- <linearGradient id="inner" x1="220" y1="180" x2="780" y2="900" gradientUnits="userSpaceOnUse"><stop stop-color="#073D59"/><stop offset=".55" stop-color="#031D32"/><stop offset="1" stop-color="#04172D"/></linearGradient>
- <linearGradient id="city" x1="300" y1="240" x2="720" y2="590" gradientUnits="userSpaceOnUse"><stop stop-color="#22F8E4"/><stop offset=".55" stop-color="#079CCB"/><stop offset="1" stop-color="#075B9B"/></linearGradient>
- <radialGradient id="ocean" cx="50%" cy="28%" r="75%"><stop stop-color="#16DDF0"/><stop offset=".5" stop-color="#087DAF"/><stop offset="1" stop-color="#031F3D"/></radialGradient>
- <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="13" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
- <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5"/></filter>
- <clipPath id="shieldClip"><path d="M512 92 830 225v260c0 207-126 347-318 449C320 832 194 692 194 485V225L512 92Z"/></clipPath>
- <clipPath id="globeClip"><path d="M260 738C320 646 414 605 514 605s194 41 254 133c-25 145-125 250-256 315-130-65-230-170-252-315Z"/></clipPath>
-</defs>
-<!-- orbit behind shield -->
-<path d="M110 640C205 748 393 785 600 718c129-42 236-123 310-232" fill="none" stroke="#00CDEB" stroke-width="30" stroke-linecap="round" opacity=".18" filter="url(#soft)"/>
-<path d="M110 640C205 748 393 785 600 718c129-42 236-123 310-232" fill="none" stroke="url(#rim)" stroke-width="15" stroke-linecap="round" filter="url(#glow)"/>
-<path d="M110 640C205 748 393 785 600 718c129-42 236-123 310-232" fill="none" stroke="#B8FFF8" stroke-width="4" stroke-linecap="round"/>
-<!-- shield -->
-<path d="M512 92 830 225v260c0 207-126 347-318 449C320 832 194 692 194 485V225L512 92Z" fill="url(#inner)" stroke="url(#rim)" stroke-width="24" stroke-linejoin="round" filter="url(#glow)"/>
-<path d="M512 126 796 246v239c0 185-112 312-284 407-172-95-284-222-284-407V246l284-120Z" fill="none" stroke="#65F8F1" stroke-opacity=".62" stroke-width="7"/>
-<g clip-path="url(#shieldClip)">
- <!-- subtle inner grid -->
- <path d="M200 300H824M200 380H824M200 460H824M200 540H824M200 620H824M280 170V770M360 150V820M440 130V860M520 120V880M600 140V860M680 160V820M760 190V770" stroke="#1CA6C8" stroke-opacity=".12" stroke-width="2"/>
- <!-- industrial skyline -->
- <g fill="url(#city)" stroke="#23E8F1" stroke-width="5" stroke-linejoin="round" filter="url(#glow)">
-  <path d="M250 500V420h52v-34h35v114Z"/>
-  <path d="M330 500V330h52v-38h42v208Z"/>
-  <path d="M405 500V245l110-66 108 66v255Z"/>
-  <path d="M628 500V345h54v-26h35v181Z"/>
-  <path d="M700 500V390h48v-30h30v140Z"/>
-  <path d="M285 420v-82h18v-35h15v117M352 292v-46h15v-28h13v74M435 245v-38h16v-25h16v63M560 245v-38h16v-25h16v63"/>
- </g>
- <g fill="#052D4A" stroke="#51F6F0" stroke-width="3" opacity=".92">
-  <path d="M435 270h16v18h-16zm32 0h16v18h-16zm32 0h16v18h-16zm32 0h16v18h-16zM435 310h16v18h-16zm32 0h16v18h-16zm32 0h16v18h-16zm32 0h16v18h-16zM435 350h16v18h-16zm32 0h16v18h-16zm32 0h16v18h-16zm32 0h16v18h-16zM435 390h16v18h-16zm32 0h16v18h-16zm32 0h16v18h-16zm32 0h16v18h-16z"/>
-  <path d="M345 360h16v18h-16zm28 0h16v18h-16zm-28 35h16v18h-16zm28 0h16v18h-16zM645 372h15v18h-15zm28 0h15v18h-15zm-28 35h15v18h-15zm28 0h15v18h-15z"/>
- </g>
- <!-- ECG -->
- <path d="M205 515H390l40-1 42-70 38 120 55-218 53 248 42-80 36 1h148" fill="none" stroke="#00EFFF" stroke-width="15" stroke-linejoin="round" filter="url(#glow)"/>
- <path d="M205 515H390l40-1 42-70 38 120 55-218 53 248 42-80 36 1h148" fill="none" stroke="#BFFFFB" stroke-width="5" stroke-linejoin="round"/>
- <!-- globe -->
- <path d="M260 738C320 646 414 605 514 605s194 41 254 133c-25 145-125 250-256 315-130-65-230-170-252-315Z" fill="url(#ocean)" stroke="#19EAF1" stroke-width="9" filter="url(#glow)"/>
- <g clip-path="url(#globeClip)" fill="#19E7D8" stroke="#6BFFF3" stroke-width="3">
-  <path d="m355 670 34-20 33 8 18 26-16 18-5 28-28 13-15 34-25 7-19-29-28-9 8-36 26-18z"/>
-  <path d="m420 777 31-19 33 14 22 35-15 39-21 18-5 50-21 40-20-27 4-43-21-32 6-39z"/>
-  <path d="m545 653 32-20 45 9 31 25 39 2 31 28-16 26-42 5-20 30-29-9-16-30-31-8-13-26-34-3z"/>
-  <path d="m615 758 33-16 34 17 12 36-22 24-6 45-27 28-17-38-27-16 6-37z"/>
-  <path d="m500 705 22-13 20 13-9 21-26 3z"/>
- </g>
- <g stroke="#7DFCF3" stroke-opacity=".45" stroke-width="2" fill="none" clip-path="url(#globeClip)">
-  <ellipse cx="514" cy="758" rx="220" ry="80"/><ellipse cx="514" cy="758" rx="120" ry="180"/><path d="M280 758h470M514 600v360"/>
- </g>
-</g>
-<!-- shield corner nodes -->
-<g fill="#12DCCF" stroke="#9CFFF5" stroke-width="8" filter="url(#glow)"><circle cx="512" cy="92" r="25"/><circle cx="830" cy="225" r="22"/><circle cx="194" cy="225" r="22"/><circle cx="512" cy="934" r="25"/></g>
-<g fill="#D4FFFA"><circle cx="504" cy="83" r="7"/><circle cx="823" cy="216" r="6"/><circle cx="187" cy="216" r="6"/><circle cx="504" cy="925" r="7"/></g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">SentinelGrid</title>
+  <defs>
+    <linearGradient id="shield" x1="9" y1="5" x2="53" y2="59" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#65F5E4"/>
+      <stop offset="1" stop-color="#08A9D5"/>
+    </linearGradient>
+  </defs>
+  <path d="M32 3.5 55 13v17.2c0 14.7-8.8 24.4-23 30.3C17.8 54.6 9 44.9 9 30.2V13L32 3.5Z"
+        fill="#08283A" stroke="url(#shield)" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M17 39V27h8v12m3 0V18h8v21m3 0V24h8v15"
+        fill="none" stroke="#55EBDD" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M15 43h34" fill="none" stroke="#B5FFF4" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M22 33h3m3-5h8m3 2h8" fill="none" stroke="#D9FFFA" stroke-width="2" stroke-linecap="round"/>
 </svg>

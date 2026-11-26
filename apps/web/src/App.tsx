@@ -445,6 +445,7 @@ function ResourcePage({
 export function App() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [activeOrganisationId, setActiveOrganisationId] = useState<string | null>(() => organisationId());
+  const [activeOrganisationName, setActiveOrganisationName] = useState("Workspace");
   const [authRefreshKey, setAuthRefreshKey] = useState(0);
   const location = useLocation();
   useEffect(() => {
@@ -453,9 +454,10 @@ export function App() {
   useEffect(() => {
     void restoreSession().then(() => setAuthRefreshKey((value) => value + 1));
   }, []);
-  const selectOrganisation = (id: string) => {
-    setOrganisationId(id);
+  const selectOrganisation = (id: string, name: string) => {
+    if (id !== activeOrganisationId) setOrganisationId(id);
     setActiveOrganisationId(id);
+    setActiveOrganisationName(name);
   };
   const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
 
@@ -495,7 +497,7 @@ export function App() {
         </div>
       </aside>
       <main className="main">
-        <header className="topbar"><div className="topbar-context"><span>WORKSPACE</span><b>/</b><strong>{currentPage}</strong></div><div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
+        <header className="topbar"><div className="topbar-context"><span>WORKSPACE</span><b>/</b><span className="topbar-workspace-name">{activeOrganisationName}</span><b>/</b><strong>{currentPage}</strong></div><div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
         <div className="main-content">
         <Routes key={activeOrganisationId ?? "no-workspace"}>
           <Route path="/" element={<Overview />} />

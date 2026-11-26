@@ -18,7 +18,8 @@ Branch: `work/phase0-security-hardening`
 Apply `supabase/migrations/20261126090000_energy_intelligence_asset_media.sql` after the existing Phase 0 migrations.
 
 It adds:
-- Rich asset/device specifications.
+- Rich asset/device specifications and first-class categories for data centres, transformers, UPS and cooling plant.
+
 - `asset_media` metadata with image provenance, primary image, asset-match verification and attribution.
 - Private `asset-media` Storage bucket with organisation/facility-scoped Storage RLS.
 - `energy_measurements` normalized telemetry table and time-series indexes.

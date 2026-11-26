@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
+import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
 import { onAuthSession, organisationId, restoreSession, setOrganisationId } from "./auth";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { AuthPanel } from "./AuthPanel";
@@ -53,7 +53,7 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
     setLoading(true);
     setError(null);
     if (!apiConfigured()) {
-      setError("API base URL missing in Supabase app_public_config (or VITE_API_BASE_URL for local).");
+      setError(apiConfigurationError());
       setLoading(false);
       return;
     }
@@ -164,7 +164,11 @@ function Overview() {
     void healthCheck().then((value) => { if (active) setHealth(value); }).catch(() => { if (active) setHealth("Unavailable"); });
     if (!apiConfigured() || !org || !authToken()) {
       setLoading(false);
+<<<<<<< HEAD
       setError("Sign in and select a workspace to populate this command view. No sample telemetry is displayed.");
+=======
+      setError(!apiConfigured() ? apiConfigurationError() : "Connect a workspace and authenticated session to populate this command view. No sample telemetry is displayed.");
+>>>>>>> eedf173 (Show shared API configuration error in command views)
       return () => { active = false; };
     }
     void Promise.all([

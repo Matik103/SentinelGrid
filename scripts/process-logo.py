@@ -21,3 +21,5 @@ rgba[:, :, 3] = alpha
 out = Path("apps/web/public/assets/sentinelgrid-logo.png")
 cv2.imwrite(str(out), rgba)
 print(f"Wrote {out} ({w}x{h}), transparent pixels: {int((alpha == 0).sum())}")
+
+# Re-run trigger after adding the workflow.

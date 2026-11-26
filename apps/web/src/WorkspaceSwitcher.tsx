@@ -87,7 +87,10 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
       { name: cleanName, slug: cleanSlug },
     );
     if (result.error || !result.data?.organisation_id) {
-      setError(result.error?.message ?? "The organisation could not be created.");
+      const message = result.error?.message ?? "The workspace could not be created.";
+      setError(/duplicate key|unique constraint|already exists/i.test(message)
+        ? "That workspace URL is already in use. Choose a different URL."
+        : message);
       setSaving(false);
       return;
     }
@@ -127,6 +130,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
         <span className="workspace-chevron" aria-hidden="true">⌄</span>
       </label>
       {error && <p className="workspace-picker-error" role="alert">{error}</p>}
+      {error && authToken() && !creating && <button className="workspace-retry" type="button" onClick={() => void loadOrganisations()}>Retry workspace list</button>}
       {organisations.length > 1 && <span className="workspace-picker-count">{organisations.length} workspaces available</span>}
       <button className="workspace-create-toggle" type="button" disabled={!authToken()} onClick={() => { setCreating((value) => !value); setError(null); }}>
         <span aria-hidden="true">{creating ? "−" : "+"}</span>{creating ? "Close" : "Create workspace"}

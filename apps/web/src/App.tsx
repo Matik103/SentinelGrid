@@ -13,7 +13,7 @@ const NAV_GROUPS = [
   { section: "COMMAND", items: [{ to: "/", label: "Overview", glyph: "◈" }, { to: "/incidents", label: "Incident investigation", glyph: "⌁" }, { to: "/replay", label: "Event replay", glyph: "↶" }] },
   { section: "INFRASTRUCTURE", items: [{ to: "/topology", label: "Infrastructure topology", glyph: "⌗" }, { to: "/facilities", label: "Facilities", glyph: "▦" }, { to: "/zones", label: "Zones", glyph: "⌖" }, { to: "/assets", label: "Assets & equipment", glyph: "◫" }, { to: "/devices", label: "Devices", glyph: "⌘" }, { to: "/sensors", label: "Sensors", glyph: "◉" }, { to: "/energy", label: "Energy intelligence", glyph: "ϟ" }, { to: "/scenarios", label: "Failure scenario lab", glyph: "△" }] },
   { section: "SECURITY & EVIDENCE", items: [{ to: "/connectors", label: "Connectors", glyph: "⌘" }, { to: "/evidence", label: "Evidence chain", glyph: "⟡" }, { to: "/audit", label: "Audit trail", glyph: "≋" }] },
-  { section: "WORKSPACE", items: [{ to: "/organisation", label: "Organisation", glyph: "⌂" }, { to: "/users", label: "People & access", glyph: "◎" }] },
+  { section: "WORKSPACE", items: [{ to: "/organisation", label: "Workspace settings", glyph: "⌂" }, { to: "/users", label: "People & access", glyph: "◎" }] },
 ] as const;
 
 function Page({
@@ -342,7 +342,7 @@ function OrganisationPanel() {
   }
 
   return (
-    <Page title="Organisation settings" lead="Tenant membership and invitation workflows.">
+    <Page title="Workspace settings" lead="Manage this workspace’s membership and invitations.">
       <StatusBanner error={error} />
       <h2 className="section-title">Members</h2>
       <DataTable
@@ -372,11 +372,11 @@ function OrganisationPanel() {
           onChange={(e) => setInviteEmail(e.target.value)}
         />
         <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
-          <option value="read_only_viewer">read_only_viewer</option>
-          <option value="operations_manager">operations_manager</option>
-          <option value="security_analyst">security_analyst</option>
-          <option value="facility_manager">facility_manager</option>
-          <option value="organisation_administrator">organisation_administrator</option>
+          <option value="read_only_viewer">Read-only viewer</option>
+          <option value="operations_manager">Operations manager</option>
+          <option value="security_analyst">Security analyst</option>
+          <option value="facility_manager">Facility manager</option>
+          <option value="organisation_administrator">Workspace administrator</option>
         </select>
         <button type="submit" className="btn">
           Send invite

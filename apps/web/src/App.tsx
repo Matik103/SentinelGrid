@@ -419,7 +419,7 @@ export function App() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const location = useLocation();
   useEffect(() => { document.documentElement.setAttribute("data-theme", theme); }, [theme]);
-  const currentPage = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.to === location.pathname)?.label ?? "Command workspace";
+  const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
 
   return (
     <div className="shell">

@@ -96,6 +96,8 @@ export function AssetRegistryPage() {
   const [externalAttribution, setExternalAttribution] = useState("");
   const [manufacturerReference, setManufacturerReference] = useState("");
   const [verifiedExternal, setVerifiedExternal] = useState(false);
+  const [parentAssetId, setParentAssetId] = useState("");
+  const [savingRelationship, setSavingRelationship] = useState(false);
 
   const load = async () => {
     if (!org) { setError("Select an organisation to load its asset registry."); setLoading(false); return; }
@@ -144,6 +146,7 @@ export function AssetRegistryPage() {
     return matchCategory && matchText && asset.status !== "archived";
   }), [assets, category, query]);
   const selected = assets.find((asset) => asset.id === selectedId) ?? filtered[0] ?? null;
+  useEffect(() => { setParentAssetId(selected?.parent_asset_id ?? ""); }, [selected?.id, selected?.parent_asset_id]);
   const selectedMedia = selected ? media.filter((item) => item.asset_id === selected.id) : [];
   const selectedMeasurements = selected ? measurements.filter((item) => item.asset_id === selected.id && item.classification === "real") : [];
   const facilityName = (id: string) => facilities.find((item) => item.id === id)?.name ?? "Facility not loaded";
@@ -179,6 +182,19 @@ export function AssetRegistryPage() {
     await load();
     if (result.data?.id) setSelectedId(result.data.id);
     formElement.reset();
+  }
+
+  async function saveParentRelationship() {
+    if (!org || !selected) return;
+    setSavingRelationship(true); setMessage(null);
+    try {
+      const result = await apiPost(`/v1/orgs/${org}/assets/${selected.id}/parent`, { parent_asset_id: parentAssetId || null });
+      if (result.error) throw new Error(result.error.message);
+      setMessage("Asset relationship updated. Topology and scenario views now use this explicit link.");
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    } finally { setSavingRelationship(false); }
   }
 
   async function onPhotoSelected(event: ChangeEvent<HTMLInputElement>) {
@@ -298,6 +314,17 @@ export function AssetRegistryPage() {
             <SpecValue label="Serial number" value={selected.serial_number} />
             <SpecValue label="Rated power" value={selected.rated_power_kw} suffix=" kW" />
             <SpecValue label="Rated capacity" value={selected.rated_capacity_kva} suffix=" kVA" />
+          </div>
+          <div className="asset-subsection">
+            <div className="subsection-heading"><h3>Infrastructure relationship</h3><span>HIERARCHY / TOPOLOGY</span></div>
+            <label className="relationship-field">Parent asset
+              <select value={parentAssetId} onChange={(event) => setParentAssetId(event.target.value)}>
+                <option value="">No parent / standalone asset</option>
+                {assets.filter((asset) => asset.id !== selected.id && asset.facility_id === selected.facility_id && asset.status !== "archived").map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+              </select>
+            </label>
+            <p className="profile-empty">Parent relationships are limited to assets in the same facility. Circular relationships are rejected by the API.</p>
+            <button className="btn secondary" type="button" disabled={savingRelationship || parentAssetId === (selected.parent_asset_id ?? "")} onClick={saveParentRelationship}>{savingRelationship ? "Saving relationship…" : "Save relationship"}</button>
           </div>
           <div className="asset-subsection">
             <div className="subsection-heading"><h3>Category specifications</h3><span>NAMEPLATE / TECHNICAL DATA</span></div>

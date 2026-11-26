@@ -261,6 +261,14 @@ CREATE POLICY asset_media_storage_delete ON storage.objects
     )
   );
 
+-- Composite uniqueness lets telemetry enforce both tenant and facility identity.
+ALTER TABLE public.assets
+  ADD CONSTRAINT assets_org_facility_id_key UNIQUE (organisation_id, facility_id, id);
+ALTER TABLE public.devices
+  ADD CONSTRAINT devices_org_facility_id_key UNIQUE (organisation_id, facility_id, id);
+ALTER TABLE public.sensors
+  ADD CONSTRAINT sensors_org_facility_id_key UNIQUE (organisation_id, facility_id, id);
+
 -- ---------------------------------------------------------------------------
 -- Normalised energy telemetry. Source units are explicit; no inferred readings.
 -- ---------------------------------------------------------------------------
@@ -324,18 +332,19 @@ CREATE TABLE IF NOT EXISTS public.energy_measurements (
     FOREIGN KEY (organisation_id, facility_id)
     REFERENCES public.facilities (organisation_id, id) ON DELETE CASCADE,
   CONSTRAINT energy_measurements_asset_same_org_fk
-    FOREIGN KEY (organisation_id, asset_id)
-    REFERENCES public.assets (organisation_id, id),
+    FOREIGN KEY (organisation_id, facility_id, asset_id)
+    REFERENCES public.assets (organisation_id, facility_id, id),
   CONSTRAINT energy_measurements_device_same_org_fk
-    FOREIGN KEY (organisation_id, device_id)
-    REFERENCES public.devices (organisation_id, id),
+    FOREIGN KEY (organisation_id, facility_id, device_id)
+    REFERENCES public.devices (organisation_id, facility_id, id),
   CONSTRAINT energy_measurements_sensor_same_org_fk
-    FOREIGN KEY (organisation_id, sensor_id)
-    REFERENCES public.sensors (organisation_id, id),
+    FOREIGN KEY (organisation_id, facility_id, sensor_id)
+    REFERENCES public.sensors (organisation_id, facility_id, id),
   CONSTRAINT energy_measurements_event_same_org_fk
     FOREIGN KEY (organisation_id, event_id)
     REFERENCES public.events (organisation_id, id),
   UNIQUE (organisation_id, id),
+  UNIQUE (organisation_id, facility_id, id),
   UNIQUE (organisation_id, source, source_event_id, metric_key)
 );
 
@@ -420,11 +429,11 @@ CREATE TABLE IF NOT EXISTS public.energy_anomalies (
     FOREIGN KEY (organisation_id, facility_id)
     REFERENCES public.facilities (organisation_id, id) ON DELETE CASCADE,
   CONSTRAINT energy_anomalies_asset_same_org_fk
-    FOREIGN KEY (organisation_id, asset_id)
-    REFERENCES public.assets (organisation_id, id),
+    FOREIGN KEY (organisation_id, facility_id, asset_id)
+    REFERENCES public.assets (organisation_id, facility_id, id),
   CONSTRAINT energy_anomalies_measurement_same_org_fk
-    FOREIGN KEY (organisation_id, measurement_id)
-    REFERENCES public.energy_measurements (organisation_id, id),
+    FOREIGN KEY (organisation_id, facility_id, measurement_id)
+    REFERENCES public.energy_measurements (organisation_id, facility_id, id),
   CONSTRAINT energy_anomalies_event_same_org_fk
     FOREIGN KEY (organisation_id, event_id)
     REFERENCES public.events (organisation_id, id)

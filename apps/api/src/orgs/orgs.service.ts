@@ -234,7 +234,7 @@ export class OrgsService {
         toEmail: email,
         subject: "SentinelGrid organisation invitation",
         bodyText,
-        payload: { organisation_id: organisationId, accept_path: acceptPath },
+        payload: { organisation_id: organisationId, accept_url: inviteUrl },
       });
       const channel =
         process.env.NODE_ENV === "production" && (process.env.SG_EMAIL_TRANSPORT ?? "none") === "none"

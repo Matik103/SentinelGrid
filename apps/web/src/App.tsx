@@ -486,6 +486,10 @@ export function App() {
         <div className="main-content">
         <Routes>
           <Route path="/" element={<Overview />} />
+          <Route path="/topology" element={<TopologyPage />} />
+          <Route path="/incidents" element={<IncidentWorkbenchPage />} />
+          <Route path="/replay" element={<EventReplayPage />} />
+          <Route path="/scenarios" element={<ScenarioWorkbenchPage />} />
           <Route path="/organisation" element={<OrganisationPanel />} />
           <Route
             path="/facilities"
@@ -568,6 +572,30 @@ export function App() {
                   { key: "asset_id", label: "Asset" },
                   { key: "status", label: "Status" },
                 ]}
+                create={{
+                  label: "Register device",
+                  fields: <><input name="facility_id" required placeholder="Facility UUID" /><input name="asset_id" placeholder="Asset UUID (optional)" /><input name="name" required placeholder="Device name" /><select name="category" defaultValue="network"><option value="electrical">Electrical</option><option value="generators">Generator</option><option value="solar">Solar</option><option value="battery">Battery</option><option value="hvac">HVAC</option><option value="refrigeration">Refrigeration</option><option value="pumps_motors">Pumps & motors</option><option value="industrial">Industrial</option><option value="network">Network</option><option value="bms">Building systems</option><option value="data_center">Data centre</option><option value="transformers">Transformers</option><option value="ups">UPS</option><option value="cooling">Cooling plant</option><option value="other">Other</option></select></>,
+                  build: (org, form) => ({ path: `/v1/orgs/${org}/devices`, body: { facility_id: String(form.get("facility_id") ?? ""), asset_id: String(form.get("asset_id") ?? "") || null, name: String(form.get("name") ?? ""), category: String(form.get("category") ?? "network") } }),
+                }}
+              />
+            }
+          />
+          <Route
+            path="/sensors"
+            element={
+              <ResourcePage
+                title="Sensor registry"
+                lead="Registered sensors and their equipment, device and facility associations."
+                path={(org) => `/v1/orgs/${org}/sensors`}
+                columns={[
+                  { key: "name", label: "Sensor" }, { key: "sensor_type", label: "Type" }, { key: "unit", label: "Unit" },
+                  { key: "facility_id", label: "Facility" }, { key: "asset_id", label: "Asset" }, { key: "device_id", label: "Device" }, { key: "status", label: "Status" },
+                ]}
+                create={{
+                  label: "Register sensor",
+                  fields: <><input name="facility_id" required placeholder="Facility UUID" /><input name="asset_id" placeholder="Asset UUID (optional)" /><input name="device_id" placeholder="Device UUID (optional)" /><input name="name" required placeholder="Sensor name" /><input name="sensor_type" required placeholder="Sensor type (e.g. temperature)" /><input name="unit" placeholder="Unit (e.g. °C, kWh)" /></>,
+                  build: (org, form) => ({ path: `/v1/orgs/${org}/sensors`, body: { facility_id: String(form.get("facility_id") ?? ""), asset_id: String(form.get("asset_id") ?? "") || null, device_id: String(form.get("device_id") ?? "") || null, name: String(form.get("name") ?? ""), sensor_type: String(form.get("sensor_type") ?? ""), unit: String(form.get("unit") ?? "") || undefined } }),
+                }}
               />
             }
           />

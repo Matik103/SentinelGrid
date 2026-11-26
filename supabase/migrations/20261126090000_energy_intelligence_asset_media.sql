@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS public.asset_media (
   CONSTRAINT asset_media_storage_path_safe CHECK (
     storage_path IS NULL OR (
       storage_path !~ '^/'
-      AND storage_path !~ '\\.\\.'
+      AND position('..' in storage_path) = 0
       AND split_part(storage_path, '/', 1) = organisation_id::text
       AND split_part(storage_path, '/', 2) = asset_id::text
     )
@@ -116,13 +116,40 @@ CREATE POLICY asset_media_insert ON public.asset_media
 DROP POLICY IF EXISTS asset_media_update ON public.asset_media;
 CREATE POLICY asset_media_update ON public.asset_media
   FOR UPDATE TO authenticated
-  USING (public.has_org_permission(organisation_id, 'asset.write'))
-  WITH CHECK (public.has_org_permission(organisation_id, 'asset.write'));
+  USING (
+    public.has_org_permission(organisation_id, 'asset.write')
+    AND EXISTS (
+      SELECT 1 FROM public.assets a
+      WHERE a.organisation_id = asset_media.organisation_id
+        AND a.id = asset_media.asset_id
+        AND (NOT public.is_facility_manager(organisation_id)
+          OR public.has_facility_access(organisation_id, a.facility_id))
+    )
+  )
+  WITH CHECK (
+    public.has_org_permission(organisation_id, 'asset.write')
+    AND EXISTS (
+      SELECT 1 FROM public.assets a
+      WHERE a.organisation_id = asset_media.organisation_id
+        AND a.id = asset_media.asset_id
+        AND (NOT public.is_facility_manager(organisation_id)
+          OR public.has_facility_access(organisation_id, a.facility_id))
+    )
+  );
 
 DROP POLICY IF EXISTS asset_media_delete ON public.asset_media;
 CREATE POLICY asset_media_delete ON public.asset_media
   FOR DELETE TO authenticated
-  USING (public.has_org_permission(organisation_id, 'asset.write'));
+  USING (
+    public.has_org_permission(organisation_id, 'asset.write')
+    AND EXISTS (
+      SELECT 1 FROM public.assets a
+      WHERE a.organisation_id = asset_media.organisation_id
+        AND a.id = asset_media.asset_id
+        AND (NOT public.is_facility_manager(organisation_id)
+          OR public.has_facility_access(organisation_id, a.facility_id))
+    )
+  );
 
 REVOKE ALL ON TABLE public.asset_media FROM PUBLIC, anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.asset_media TO authenticated;
@@ -259,16 +286,17 @@ CREATE TABLE IF NOT EXISTS public.energy_measurements (
     REFERENCES public.facilities (organisation_id, id) ON DELETE CASCADE,
   CONSTRAINT energy_measurements_asset_same_org_fk
     FOREIGN KEY (organisation_id, asset_id)
-    REFERENCES public.assets (organisation_id, id) ON DELETE SET NULL,
+    REFERENCES public.assets (organisation_id, id),
   CONSTRAINT energy_measurements_device_same_org_fk
     FOREIGN KEY (organisation_id, device_id)
-    REFERENCES public.devices (organisation_id, id) ON DELETE SET NULL,
+    REFERENCES public.devices (organisation_id, id),
   CONSTRAINT energy_measurements_sensor_same_org_fk
     FOREIGN KEY (organisation_id, sensor_id)
-    REFERENCES public.sensors (organisation_id, id) ON DELETE SET NULL,
+    REFERENCES public.sensors (organisation_id, id),
   CONSTRAINT energy_measurements_event_same_org_fk
     FOREIGN KEY (organisation_id, event_id)
-    REFERENCES public.events (organisation_id, id) ON DELETE SET NULL,
+    REFERENCES public.events (organisation_id, id),
+  UNIQUE (organisation_id, id),
   UNIQUE (organisation_id, source, source_event_id, metric_key)
 );
 
@@ -347,13 +375,13 @@ CREATE TABLE IF NOT EXISTS public.energy_anomalies (
     REFERENCES public.facilities (organisation_id, id) ON DELETE CASCADE,
   CONSTRAINT energy_anomalies_asset_same_org_fk
     FOREIGN KEY (organisation_id, asset_id)
-    REFERENCES public.assets (organisation_id, id) ON DELETE SET NULL,
+    REFERENCES public.assets (organisation_id, id),
   CONSTRAINT energy_anomalies_measurement_same_org_fk
-    FOREIGN KEY (measurement_id)
-    REFERENCES public.energy_measurements (id) ON DELETE SET NULL,
+    FOREIGN KEY (organisation_id, measurement_id)
+    REFERENCES public.energy_measurements (organisation_id, id),
   CONSTRAINT energy_anomalies_event_same_org_fk
     FOREIGN KEY (organisation_id, event_id)
-    REFERENCES public.events (organisation_id, id) ON DELETE SET NULL
+    REFERENCES public.events (organisation_id, id)
 );
 
 CREATE INDEX IF NOT EXISTS energy_anomalies_org_detected_idx

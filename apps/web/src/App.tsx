@@ -138,16 +138,6 @@ function dashboardTime(value?: string) {
   return Number.isNaN(date.getTime()) ? "Time unavailable" : date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-type OverviewFacility = { id: string; name: string; code?: string | null; status?: string | null };
-type OverviewAsset = { id: string; name: string; category?: string | null; status?: string | null; facility_id?: string | null };
-type OverviewEvent = { id?: string; event_type?: string; source?: string; occurred_at?: string; classification?: string; integrity_status?: string; data_quality?: string };
-
-function dashboardTime(value?: string) {
-  if (!value) return "Time unavailable";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Time unavailable" : date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
 function Overview() {
   const [health, setHealth] = useState("Checking");
   const [facilities, setFacilities] = useState<OverviewFacility[]>([]);

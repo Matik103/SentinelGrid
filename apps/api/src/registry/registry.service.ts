@@ -175,7 +175,7 @@ export class RegistryService {
     const sb = this.users.create(user.accessToken);
     const { data, error } = await sb
       .from("assets")
-      .select("id, facility_id, zone_id, name, category, status, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
+      .select("id, facility_id, zone_id, parent_asset_id, name, category, status, criticality, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
       .eq("organisation_id", organisationId)
       .order("created_at", { ascending: false })
       .limit(200);

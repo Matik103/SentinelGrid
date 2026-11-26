@@ -31,3 +31,5 @@ This code change is not, by itself, proof that the hosted project is configured 
 5. Confirm the GitHub quality gate and Vercel preview deployment before any production release.
 
 Do not mark MFA rollout complete until hosted configuration, migration application, recovery operations, and live verification have evidence.
+
+New public tables added after this migration must receive the same restrictive AAL2 policy in their own migration whenever RLS is enabled. Do not assume this migration automatically covers future tables.

@@ -90,6 +90,16 @@ export class RegistryController {
     return this.registry.createAsset(user, this.uuid(orgId), body);
   }
 
+  @Post("assets/:assetId/parent")
+  setAssetParent(
+    @CurrentUser() user: AuthUser,
+    @Param("organisationId") orgId: string,
+    @Param("assetId") assetId: string,
+    @Body() body: unknown,
+  ) {
+    return this.registry.setAssetParent(user, this.uuid(orgId), this.uuid(assetId), body);
+  }
+
   @Get("devices")
   listDevices(@CurrentUser() user: AuthUser, @Param("organisationId") orgId: string) {
     return this.registry.listDevices(user, this.uuid(orgId));

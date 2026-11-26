@@ -36,7 +36,7 @@ export async function apiGet<T>(path: string): Promise<{ data?: T; error?: ApiEr
     return {
       error: {
         status: 0,
-        message: "API base URL not set in app_public_config (and no VITE_API_BASE_URL override)",
+        message: apiConfigurationError(),
       },
     };
   }
@@ -86,7 +86,7 @@ async function apiMutate<T>(
     return {
       error: {
         status: 0,
-        message: "API base URL not set in app_public_config (and no VITE_API_BASE_URL override)",
+        message: apiConfigurationError(),
       },
     };
   }
@@ -115,7 +115,7 @@ async function apiMutate<T>(
 export async function healthCheck(): Promise<string> {
   await ensureConfig();
   const root = base();
-  if (!root) return "API base URL not configured (DB app_public_config)";
+  if (!root) return apiConfigurationError();
   try {
     const res = await fetch(`${root}/v1/health`);
     return res.ok ? "API reachable" : `API HTTP ${res.status}`;

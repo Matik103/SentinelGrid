@@ -1,0 +1,295 @@
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { Link } from "react-router-dom";
+import { apiGet, apiPost, listAssetMedia, listEnergyMeasurements, uploadAssetImage, type AssetMediaRecord, type EnergyMeasurement } from "./api";
+import { organisationId } from "./api";
+
+type Asset = {
+  id: string;
+  facility_id: string;
+  zone_id: string | null;
+  name: string;
+  category: string;
+  status: string;
+  manufacturer?: string | null;
+  model?: string | null;
+  serial_number?: string | null;
+  manufactured_year?: number | null;
+  rated_power_kw?: number | null;
+  rated_capacity_kva?: number | null;
+  specifications?: Record<string, unknown> | null;
+  created_at?: string;
+};
+
+type Facility = { id: string; name: string; code?: string | null };
+type CategoryKey = "all" | "electrical" | "generators" | "solar" | "battery" | "hvac" | "refrigeration" | "pumps_motors" | "industrial" | "network" | "bms" | "other";
+
+const CATEGORIES: { value: Exclude<CategoryKey, "all">; label: string; icon: string; hint: string }[] = [
+  { value: "electrical", label: "Electrical", icon: "⚡", hint: "Voltage class, phase, protection or panel reference" },
+  { value: "generators", label: "Generator", icon: "▤", hint: "Fuel type, engine family or runtime details" },
+  { value: "solar", label: "Solar", icon: "☼", hint: "Panel type, inverter model or array details" },
+  { value: "battery", label: "Battery", icon: "▰", hint: "Chemistry, nominal voltage or storage capacity" },
+  { value: "hvac", label: "HVAC", icon: "❄", hint: "Cooling type, refrigerant or rated capacity" },
+  { value: "refrigeration", label: "Refrigeration", icon: "❄", hint: "Refrigerant, temperature range or cooling capacity" },
+  { value: "pumps_motors", label: "Pumps & motors", icon: "◉", hint: "Flow, head, motor type or duty details" },
+  { value: "industrial", label: "Industrial", icon: "▦", hint: "Equipment function or production line" },
+  { value: "network", label: "Network", icon: "⌘", hint: "Network role, ports or rack position" },
+  { value: "bms", label: "Building systems", icon: "⌂", hint: "System type or building-control reference" },
+  { value: "other", label: "Other", icon: "◇", hint: "Additional equipment details" },
+];
+
+function categoryMeta(category: string) {
+  return CATEGORIES.find((item) => item.value === category) ?? CATEGORIES[CATEGORIES.length - 1];
+}
+function display(value: unknown, suffix = "") {
+  if (value === null || value === undefined || value === "") return "Not recorded";
+  return `${String(value)}${suffix}`;
+}
+function fmtDate(value?: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
+}
+
+function EquipmentVisual({ asset, media, large = false }: { asset: Asset; media?: AssetMediaRecord; large?: boolean }) {
+  const meta = categoryMeta(asset.category);
+  if (media?.display_url) {
+    return <div className={`equipment-visual ${large ? "large" : ""}`}>
+      <img src={media.display_url} alt={`${asset.name} equipment photograph`} loading="lazy" />
+      <span className="visual-source">{media.provenance === "customer_upload" ? "Customer photo" : media.provenance === "manufacturer_catalogue" ? "Manufacturer image" : "Representative image"}</span>
+    </div>;
+  }
+  return <div className={`equipment-visual equipment-fallback ${large ? "large" : ""}`}>
+    <span className="equipment-glyph">{meta.icon}</span>
+    <span className="equipment-type">{meta.label}</span>
+    <span className="equipment-fallback-note">Photograph not added</span>
+  </div>;
+}
+
+function SpecValue({ label, value, suffix = "" }: { label: string; value: unknown; suffix?: string }) {
+  return <div className="spec-value"><span>{label}</span><strong>{display(value, suffix)}</strong></div>;
+}
+
+export function AssetRegistryPage() {
+  const org = organisationId();
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [media, setMedia] = useState<AssetMediaRecord[]>([]);
+  const [measurements, setMeasurements] = useState<EnergyMeasurement[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<CategoryKey>("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [mediaWarning, setMediaWarning] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [verifiedPhoto, setVerifiedPhoto] = useState(false);
+
+  const load = async () => {
+    if (!org) { setError("Select an organisation to load its asset registry."); setLoading(false); return; }
+    setLoading(true); setError(null); setMediaWarning(null);
+    const [assetResult, facilityResult] = await Promise.all([
+      apiGet<Asset[]>(`/v1/orgs/${org}/assets`),
+      apiGet<Facility[]>(`/v1/orgs/${org}/facilities`),
+    ]);
+    if (assetResult.error) setError(assetResult.error.message);
+    else {
+      const next = assetResult.data ?? [];
+      setAssets(next);
+      setSelectedId((current) => current && next.some((a) => a.id === current) ? current : next[0]?.id ?? "");
+    }
+    if (facilityResult.data) setFacilities(facilityResult.data);
+    if (facilityResult.error) setMediaWarning(`Facility list: ${facilityResult.error.message}`);
+    try {
+      const images = await listAssetMedia(org);
+      setMedia(images);
+    } catch (err) {
+      setMedia([]);
+      setMediaWarning(err instanceof Error ? err.message : String(err));
+    }
+    try {
+      setMeasurements(await listEnergyMeasurements(org, new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()));
+    } catch { setMeasurements([]); }
+    setLoading(false);
+  };
+
+  useEffect(() => { void load(); }, [org]);
+
+  const mediaByAsset = useMemo(() => {
+    const result = new Map<string, AssetMediaRecord>();
+    for (const item of media) {
+      if (!result.has(item.asset_id) || item.is_primary) result.set(item.asset_id, item);
+    }
+    return result;
+  }, [media]);
+
+  const filtered = useMemo(() => assets.filter((asset) => {
+    const matchCategory = category === "all" || asset.category === category;
+    const search = query.trim().toLowerCase();
+    const matchText = !search || [asset.name, asset.manufacturer, asset.model, asset.serial_number, asset.category]
+      .some((value) => String(value ?? "").toLowerCase().includes(search));
+    return matchCategory && matchText && asset.status !== "archived";
+  }), [assets, category, query]);
+  const selected = assets.find((asset) => asset.id === selectedId) ?? filtered[0] ?? null;
+  const selectedMedia = selected ? media.filter((item) => item.asset_id === selected.id) : [];
+  const selectedMeasurements = selected ? measurements.filter((item) => item.asset_id === selected.id && item.classification === "real") : [];
+  const facilityName = (id: string) => facilities.find((item) => item.id === id)?.name ?? "Facility not loaded";
+
+  async function createAsset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!org) return;
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get("name") ?? "").trim();
+    const facilityId = String(form.get("facility_id") ?? "");
+    if (!name || !facilityId) { setMessage("Asset name and facility are required."); return; }
+    const detail = String(form.get("category_detail") ?? "").trim();
+    const body = {
+      facility_id: facilityId,
+      zone_id: String(form.get("zone_id") ?? "") || null,
+      name,
+      category: String(form.get("category") ?? "industrial"),
+      manufacturer: String(form.get("manufacturer") ?? "").trim() || null,
+      model: String(form.get("model") ?? "").trim() || null,
+      serial_number: String(form.get("serial_number") ?? "").trim() || null,
+      manufactured_year: String(form.get("manufactured_year") ?? "") ? Number(form.get("manufactured_year")) : null,
+      rated_power_kw: String(form.get("rated_power_kw") ?? "") ? Number(form.get("rated_power_kw")) : null,
+      rated_capacity_kva: String(form.get("rated_capacity_kva") ?? "") ? Number(form.get("rated_capacity_kva")) : null,
+      specifications: detail ? { category_detail: detail } : {},
+    };
+    const result = await apiPost<Asset>(`/v1/orgs/${org}/assets`, body);
+    if (result.error) { setMessage(result.error.message); return; }
+    setMessage("Asset registered. Add a real equipment photo to complete its visual profile.");
+    setShowCreate(false);
+    await load();
+    if (result.data?.id) setSelectedId(result.data.id);
+    event.currentTarget.reset();
+  }
+
+  async function onPhotoSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !org || !selected) return;
+    setUploading(true); setMessage(null);
+    try {
+      await uploadAssetImage(org, selected.id, file, verifiedPhoto);
+      setMessage("Equipment photograph uploaded and linked to this asset.");
+      setVerifiedPhoto(false);
+      const updated = await listAssetMedia(org);
+      setMedia(updated);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    } finally { setUploading(false); }
+  }
+
+  return <section className="asset-experience">
+    <div className="page-heading-row">
+      <div>
+        <div className="eyebrow">INFRASTRUCTURE REGISTRY / VISUAL INVENTORY</div>
+        <h1 className="page-title">Asset intelligence</h1>
+        <p className="page-lead">A visual record of the equipment your organisation operates, monitors and protects.</p>
+      </div>
+      <button className="btn" type="button" onClick={() => { setShowCreate((value) => !value); setMessage(null); }}>
+        {showCreate ? "Close form" : "+ Register asset"}
+      </button>
+    </div>
+
+    <div className="registry-summary">
+      <div><span>REGISTERED ASSETS</span><strong>{assets.filter((asset) => asset.status !== "archived").length}</strong></div>
+      <div><span>WITH PHOTOGRAPHS</span><strong>{mediaByAsset.size}</strong></div>
+      <div><span>ENERGY-LINKED ASSETS</span><strong>{new Set(measurements.filter((item) => item.asset_id && item.classification === "real").map((item) => item.asset_id)).size}</strong></div>
+      <div><span>FACILITIES</span><strong>{facilities.length || "—"}</strong></div>
+    </div>
+
+    {showCreate && <form className="asset-create-panel" onSubmit={createAsset}>
+      <div className="section-heading"><div><h2>Register equipment</h2><p>Capture the identity first. Category-specific specifications can be expanded later.</p></div></div>
+      <div className="asset-form-grid">
+        <label>Asset name<input name="name" required placeholder="e.g. Main standby generator" /></label>
+        <label>Facility<select name="facility_id" required defaultValue=""><option value="" disabled>Select facility</option>{facilities.map((facility) => <option key={facility.id} value={facility.id}>{facility.name}</option>)}</select></label>
+        <label>Category<select name="category" defaultValue="generators">{CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+        <label>Manufacturer<input name="manufacturer" placeholder="Manufacturer" /></label>
+        <label>Model<input name="model" placeholder="Model / product number" /></label>
+        <label>Serial number<input name="serial_number" placeholder="Equipment serial" /></label>
+        <label>Manufactured year<input name="manufactured_year" type="number" min="1900" max="2100" placeholder="YYYY" /></label>
+        <label>Rated power (kW)<input name="rated_power_kw" type="number" min="0" step="0.001" placeholder="Nameplate rating" /></label>
+        <label>Rated capacity (kVA)<input name="rated_capacity_kva" type="number" min="0" step="0.001" placeholder="Nameplate rating" /></label>
+        <label className="wide">Additional category details<input name="category_detail" placeholder="Fuel type, refrigerant, voltage, battery chemistry, rack position…" /></label>
+      </div>
+      <div className="form-footer"><span>Only supplied values are saved. Unknown specifications stay blank.</span><button className="btn" type="submit">Save asset</button></div>
+    </form>}
+
+    {message && <div className="inline-notice">{message}</div>}
+    {error && <div className="inline-notice error">{error}</div>}
+    {mediaWarning && <div className="inline-notice warning">Visual media is not available yet: {mediaWarning}. Apply the new Supabase migration and sign in again to enable private photo storage.</div>}
+
+    <div className="asset-workspace">
+      <div className="asset-list-panel">
+        <div className="asset-filter-row">
+          <input aria-label="Search equipment" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search equipment, model or serial…" />
+          <select aria-label="Filter category" value={category} onChange={(event) => setCategory(event.target.value as CategoryKey)}>
+            <option value="all">All categories</option>{CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+        </div>
+        <div className="asset-list-heading"><span>EQUIPMENT ({filtered.length})</span><span>SELECT AN ASSET</span></div>
+        {loading ? <div className="empty">Loading asset inventory…</div> : filtered.length === 0 ? <div className="empty">
+          {assets.length === 0 ? "No assets registered for this organisation yet." : "No equipment matches these filters."}
+          {assets.length === 0 && <p>Register the first generator, meter, cooling unit, server rack or other critical asset.</p>}
+        </div> : <div className="asset-card-grid">
+          {filtered.map((asset) => {
+            const image = mediaByAsset.get(asset.id);
+            const meta = categoryMeta(asset.category);
+            return <button type="button" key={asset.id} onClick={() => setSelectedId(asset.id)} className={`asset-card ${selected?.id === asset.id ? "selected" : ""}`}>
+              <EquipmentVisual asset={asset} media={image} />
+              <div className="asset-card-content">
+                <div className="asset-card-top"><span className="asset-category">{meta.label}</span><span className={`asset-status ${asset.status === "active" ? "active" : "muted"}`}>{asset.status}</span></div>
+                <strong>{asset.name}</strong>
+                <span className="asset-maker">{[asset.manufacturer, asset.model].filter(Boolean).join(" · ") || "Make and model not recorded"}</span>
+                <span className="asset-location">{facilityName(asset.facility_id)}</span>
+              </div>
+            </button>;
+          })}
+        </div>}
+      </div>
+
+      <aside className="asset-profile-panel">
+        {selected ? <>
+          <div className="asset-profile-visual"><EquipmentVisual asset={selected} media={mediaByAsset.get(selected.id)} large /></div>
+          <div className="asset-profile-head">
+            <div><span className="eyebrow">{categoryMeta(selected.category).label.toUpperCase()} / ASSET PROFILE</span><h2>{selected.name}</h2><p>{facilityName(selected.facility_id)}{selected.zone_id ? " · Zone assigned" : ""}</p></div>
+            <span className={`asset-status ${selected.status === "active" ? "active" : "muted"}`}>{selected.status}</span>
+          </div>
+          <div className="asset-spec-grid">
+            <SpecValue label="Manufacturer" value={selected.manufacturer} />
+            <SpecValue label="Model" value={selected.model} />
+            <SpecValue label="Manufactured" value={selected.manufactured_year} />
+            <SpecValue label="Serial number" value={selected.serial_number} />
+            <SpecValue label="Rated power" value={selected.rated_power_kw} suffix=" kW" />
+            <SpecValue label="Rated capacity" value={selected.rated_capacity_kva} suffix=" kVA" />
+          </div>
+          <div className="asset-subsection">
+            <div className="subsection-heading"><h3>Category specifications</h3><span>NAMEPLATE / TECHNICAL DATA</span></div>
+            {Object.entries(selected.specifications ?? {}).length ? <div className="spec-list">
+              {Object.entries(selected.specifications ?? {}).map(([key, value]) => <SpecValue key={key} label={key.replaceAll("_", " ")} value={typeof value === "object" ? JSON.stringify(value) : value} />)}
+            </div> : <div className="profile-empty">No additional specifications recorded. Add verified nameplate details to improve energy analysis.</div>}
+          </div>
+          <div className="asset-subsection">
+            <div className="subsection-heading"><h3>Energy observations</h3><Link to={`/energy?asset=${selected.id}`}>Open energy view ↗</Link></div>
+            {selectedMeasurements.length ? <div className="asset-mini-metrics">
+              {selectedMeasurements.slice(0, 3).map((item) => <div key={item.id}><strong>{Number(item.value).toLocaleString(undefined, { maximumFractionDigits: 2 })} <small>{item.unit}</small></strong><span>{item.metric_key.replaceAll("_", " ")}</span></div>)}
+            </div> : <div className="profile-empty">No real energy readings linked to this asset yet. Measurements will appear here when an approved meter or connector sends telemetry.</div>}
+          </div>
+          <div className="asset-subsection">
+            <div className="subsection-heading"><h3>Equipment photographs</h3><span>{selectedMedia.length} FILES</span></div>
+            <label className="upload-photo-control">
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={onPhotoSelected} disabled={uploading} />
+              <span>{uploading ? "Uploading image…" : "＋ Add equipment photograph"}</span>
+            </label>
+            <label className="verification-check"><input type="checkbox" checked={verifiedPhoto} onChange={(event) => setVerifiedPhoto(event.target.checked)} /> I confirm this photograph shows this exact asset.</label>
+            <div className="media-provenance-note">Uploads are stored in a private, organisation-scoped bucket. Manufacturer or catalogue imagery must be recorded separately and must not be mistaken for an actual site photograph.</div>
+          </div>
+          <div className="asset-profile-footer"><span>Asset ID</span><code>{selected.id}</code><span>Added {fmtDate(selected.created_at)}</span></div>
+        </> : <div className="empty">Select an asset to inspect its profile.</div>}
+      </aside>
+    </div>
+  </section>;
+}

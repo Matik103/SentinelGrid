@@ -46,8 +46,8 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
     setError(null);
     const result = await apiGet<OrganisationMembership[]>("/v1/orgs/mine");
     if (result.error) {
+      // Keep the last known membership list and selected workspace on transient failures.
       setError(result.error.message);
-      setOrganisations([]);
     } else {
       const rows = (result.data ?? [])
         .filter((row) => row.status === "active" && row.organisations?.id)
@@ -79,7 +79,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
     const cleanName = name.trim();
     const cleanSlug = makeSlug(slug);
     if (!cleanName || cleanSlug.length < 2) {
-      setError("Enter an organisation name and a valid workspace address (at least 2 characters).");
+      setError("Enter a workspace name and a valid workspace URL (at least 2 characters).");
       return;
     }
     setSaving(true);
@@ -155,7 +155,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
           </button>
         </form>
       )}
-      {!authToken() && <p className="workspace-picker-hint">Sign in to see or create your organisations.</p>}
+      {!authToken() && <p className="workspace-picker-hint">Sign in to see or create your workspaces.</p>}
       {!loading && authToken() && organisations.length === 0 && !creating && (
         <p className="workspace-picker-hint">Create your first workspace to start organising your infrastructure.</p>
       )}

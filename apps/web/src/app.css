@@ -64,6 +64,66 @@
   line-height: 1.35;
 }
 
+.auth-mfa {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.auth-mfa-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  color: var(--sg-muted, #9db0c3);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.auth-mfa-setup p {
+  margin: 0;
+}
+
+.auth-mfa-qr {
+  display: block;
+  width: min(100%, 176px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  padding: 0.45rem;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.auth-mfa-secret {
+  overflow-wrap: anywhere;
+}
+
+.auth-mfa-secret code {
+  display: block;
+  margin-top: 0.25rem;
+  padding: 0.45rem;
+  border: 1px solid var(--sg-border);
+  border-radius: 6px;
+  color: var(--sg-text);
+  font-size: 0.7rem;
+  user-select: all;
+}
+
+.auth-mfa-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--sg-muted, #9db0c3);
+  font-size: 0.75rem;
+}
+
+.auth-mfa-label select {
+  border: 1px solid var(--sg-border);
+  border-radius: 6px;
+  background: #0a121b;
+  color: var(--sg-text);
+  padding: 0.4rem 0.5rem;
+}
+
 .asset-profile-actions {
   display: flex;
   flex-direction: column;

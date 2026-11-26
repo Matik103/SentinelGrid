@@ -1,0 +1,110 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { RegistryService } from "./registry.service.js";
+
+const organisationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const facilityId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const parentId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const user = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", accessToken: "token" } as never;
+type ParentQuery = { eq: (column?: string, value?: string) => ParentQuery; maybeSingle: () => Promise<{ data: unknown; error: null }> };
+
+describe("RegistryService asset hierarchy", () => {
+  it("rejects a parent outside the organisation/facility before inserting", async () => {
+    const calls: string[] = [];
+    const sb = {
+      from: (table: string) => {
+        calls.push(`from:${table}`);
+        const parentQuery: ParentQuery = {
+          eq: (column?: string, value?: string) => { calls.push(`eq:${column}:${value}`); return parentQuery; },
+          maybeSingle: async () => ({ data: null, error: null }),
+        };
+        return {
+          select: () => parentQuery,
+          insert: () => { calls.push("insert"); throw new Error("insert must not run"); },
+        };
+      },
+    };
+    const service = new RegistryService(
+      { requirePermission: async () => undefined } as never,
+      { create: () => sb } as never,
+    );
+    await assert.rejects(
+      service.createAsset(user, organisationId, {
+        facility_id: facilityId, parent_asset_id: parentId, name: "Chiller", criticality: "high",
+      }),
+      /same organisation and facility/i,
+    );
+    assert.equal(calls.includes("insert"), false);
+    assert.ok(calls.includes(`eq:organisation_id:${organisationId}`));
+    assert.ok(calls.includes(`eq:facility_id:${facilityId}`));
+  });
+
+  it("persists a verified same-facility parent and criticality", async () => {
+    let inserted: Record<string, unknown> | undefined;
+    const sb = {
+      from: () => {
+        const parentQuery: ParentQuery = { eq: () => parentQuery, maybeSingle: async () => ({ data: { id: parentId }, error: null }) };
+        return {
+          select: () => parentQuery,
+          insert: (row: Record<string, unknown>) => {
+            inserted = row;
+            return {
+              select: () => ({
+                single: async () => ({ data: { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", ...row }, error: null }),
+              }),
+            };
+          },
+        };
+      },
+    };
+    const service = new RegistryService(
+      { requirePermission: async () => undefined } as never,
+      { create: () => sb } as never,
+    );
+    const result = await service.createAsset(user, organisationId, {
+      facility_id: facilityId, parent_asset_id: parentId, name: "Cooling pump", criticality: "critical",
+    });
+    assert.equal(inserted?.parent_asset_id, parentId);
+    assert.equal(inserted?.criticality, "critical");
+    assert.equal(inserted?.organisation_id, organisationId);
+    assert.equal(result.parent_asset_id, parentId);
+  });
+
+  it("rejects a circular parent chain before updating the asset", async () => {
+    const assetId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    let selectCount = 0;
+    let updateCalled = false;
+    const query = (data: unknown) => {
+      const builder: any = {
+        eq: () => builder,
+        maybeSingle: async () => ({ data, error: null }),
+        then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+          Promise.resolve({ data, error: null }).then(resolve, reject),
+      };
+      return builder;
+    };
+    const sb = {
+      from: () => ({
+        select: () => {
+          selectCount += 1;
+          if (selectCount === 1) return query({ id: assetId, facility_id: facilityId });
+          if (selectCount === 2) return query({ id: parentId });
+          return query([
+            { id: parentId, parent_asset_id: assetId },
+            { id: assetId, parent_asset_id: null },
+          ]);
+        },
+        update: () => { updateCalled = true; return query({}); },
+      }),
+    };
+    const service = new RegistryService(
+      { requirePermission: async () => undefined } as never,
+      { create: () => sb } as never,
+    );
+    await assert.rejects(
+      service.setAssetParent(user, organisationId, assetId, { parent_asset_id: parentId }),
+      /circular asset dependency/i,
+    );
+    assert.equal(updateCalled, false);
+  });
+});

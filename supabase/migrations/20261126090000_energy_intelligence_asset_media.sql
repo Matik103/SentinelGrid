@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS public.asset_media (
   created_by uuid REFERENCES auth.users (id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT asset_media_external_https CHECK (external_url IS NULL OR external_url ~ '^https://'),
+  CONSTRAINT asset_media_verified_source CHECK (NOT asset_match_verified OR provenance IN ('customer_upload', 'manufacturer_catalogue')),
   CONSTRAINT asset_media_has_source CHECK (
     (storage_path IS NOT NULL AND external_url IS NULL)
     OR (storage_path IS NULL AND external_url IS NOT NULL)
@@ -86,6 +87,7 @@ DROP POLICY IF EXISTS asset_media_select ON public.asset_media;
 CREATE POLICY asset_media_select ON public.asset_media
   FOR SELECT TO authenticated
   USING (
+    public.is_platform_admin() OR (
     public.has_org_permission(organisation_id, 'asset.read')
     AND EXISTS (
       SELECT 1 FROM public.assets a
@@ -96,12 +98,14 @@ CREATE POLICY asset_media_select ON public.asset_media
           OR public.has_facility_access(organisation_id, a.facility_id)
         )
     )
+    )
   );
 
 DROP POLICY IF EXISTS asset_media_insert ON public.asset_media;
 CREATE POLICY asset_media_insert ON public.asset_media
   FOR INSERT TO authenticated
   WITH CHECK (
+    public.is_platform_admin() OR (
     public.has_org_permission(organisation_id, 'asset.write')
     AND EXISTS (
       SELECT 1 FROM public.assets a
@@ -112,12 +116,14 @@ CREATE POLICY asset_media_insert ON public.asset_media
           OR public.has_facility_access(organisation_id, a.facility_id)
         )
     )
+    )
   );
 
 DROP POLICY IF EXISTS asset_media_update ON public.asset_media;
 CREATE POLICY asset_media_update ON public.asset_media
   FOR UPDATE TO authenticated
   USING (
+    public.is_platform_admin() OR (
     public.has_org_permission(organisation_id, 'asset.write')
     AND EXISTS (
       SELECT 1 FROM public.assets a
@@ -126,8 +132,10 @@ CREATE POLICY asset_media_update ON public.asset_media
         AND (NOT public.is_facility_manager(organisation_id)
           OR public.has_facility_access(organisation_id, a.facility_id))
     )
+    )
   )
   WITH CHECK (
+    public.is_platform_admin() OR (
     public.has_org_permission(organisation_id, 'asset.write')
     AND EXISTS (
       SELECT 1 FROM public.assets a
@@ -135,6 +143,7 @@ CREATE POLICY asset_media_update ON public.asset_media
         AND a.id = asset_media.asset_id
         AND (NOT public.is_facility_manager(organisation_id)
           OR public.has_facility_access(organisation_id, a.facility_id))
+    )
     )
   );
 
@@ -142,6 +151,7 @@ DROP POLICY IF EXISTS asset_media_delete ON public.asset_media;
 CREATE POLICY asset_media_delete ON public.asset_media
   FOR DELETE TO authenticated
   USING (
+    public.is_platform_admin() OR (
     public.has_org_permission(organisation_id, 'asset.write')
     AND EXISTS (
       SELECT 1 FROM public.assets a
@@ -149,6 +159,7 @@ CREATE POLICY asset_media_delete ON public.asset_media
         AND a.id = asset_media.asset_id
         AND (NOT public.is_facility_manager(organisation_id)
           OR public.has_facility_access(organisation_id, a.facility_id))
+    )
     )
   );
 
@@ -174,6 +185,7 @@ DROP POLICY IF EXISTS asset_media_storage_select ON storage.objects;
 CREATE POLICY asset_media_storage_select ON storage.objects
   FOR SELECT TO authenticated
   USING (
+    public.is_platform_admin() OR (
     bucket_id = 'asset-media'
     AND EXISTS (
       SELECT 1 FROM public.assets a
@@ -185,12 +197,14 @@ CREATE POLICY asset_media_storage_select ON storage.objects
           OR public.has_facility_access(a.organisation_id, a.facility_id)
         )
     )
+    )
   );
 
 DROP POLICY IF EXISTS asset_media_storage_insert ON storage.objects;
 CREATE POLICY asset_media_storage_insert ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (
+    public.is_platform_admin() OR (
     bucket_id = 'asset-media'
     AND EXISTS (
       SELECT 1 FROM public.assets a
@@ -202,12 +216,14 @@ CREATE POLICY asset_media_storage_insert ON storage.objects
           OR public.has_facility_access(a.organisation_id, a.facility_id)
         )
     )
+    )
   );
 
 DROP POLICY IF EXISTS asset_media_storage_update ON storage.objects;
 CREATE POLICY asset_media_storage_update ON storage.objects
   FOR UPDATE TO authenticated
   USING (
+    public.is_platform_admin() OR (
     bucket_id = 'asset-media'
     AND EXISTS (
       SELECT 1 FROM public.assets a
@@ -217,8 +233,10 @@ CREATE POLICY asset_media_storage_update ON storage.objects
         AND (NOT public.is_facility_manager(a.organisation_id)
           OR public.has_facility_access(a.organisation_id, a.facility_id))
     )
+    )
   )
   WITH CHECK (
+    public.is_platform_admin() OR (
     bucket_id = 'asset-media'
     AND EXISTS (
       SELECT 1 FROM public.assets a
@@ -227,6 +245,7 @@ CREATE POLICY asset_media_storage_update ON storage.objects
         AND public.has_org_permission(a.organisation_id, 'asset.write')
         AND (NOT public.is_facility_manager(a.organisation_id)
           OR public.has_facility_access(a.organisation_id, a.facility_id))
+    )
     )
   );
 
@@ -234,6 +253,7 @@ DROP POLICY IF EXISTS asset_media_storage_delete ON storage.objects;
 CREATE POLICY asset_media_storage_delete ON storage.objects
   FOR DELETE TO authenticated
   USING (
+    public.is_platform_admin() OR (
     bucket_id = 'asset-media'
     AND EXISTS (
       SELECT 1 FROM public.assets a
@@ -242,6 +262,7 @@ CREATE POLICY asset_media_storage_delete ON storage.objects
         AND public.has_org_permission(a.organisation_id, 'asset.write')
         AND (NOT public.is_facility_manager(a.organisation_id)
           OR public.has_facility_access(a.organisation_id, a.facility_id))
+    )
     )
   );
 
@@ -340,10 +361,12 @@ DROP POLICY IF EXISTS energy_measurements_select ON public.energy_measurements;
 CREATE POLICY energy_measurements_select ON public.energy_measurements
   FOR SELECT TO authenticated
   USING (
+    public.is_platform_admin() OR (
     public.has_org_permission(organisation_id, 'energy.read')
     AND (
       NOT public.is_facility_manager(organisation_id)
       OR public.has_facility_access(organisation_id, facility_id)
+    )
     )
   );
 
@@ -402,10 +425,12 @@ DROP POLICY IF EXISTS energy_anomalies_select ON public.energy_anomalies;
 CREATE POLICY energy_anomalies_select ON public.energy_anomalies
   FOR SELECT TO authenticated
   USING (
+    public.is_platform_admin() OR (
     public.has_org_permission(organisation_id, 'energy.read')
     AND (
       NOT public.is_facility_manager(organisation_id)
       OR public.has_facility_access(organisation_id, facility_id)
+    )
     )
   );
 

@@ -4042,3 +4042,27 @@ button:disabled,.btn:disabled { cursor:not-allowed; opacity:.48; transform:none;
 @media (prefers-reduced-motion:reduce) {
   *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }
 }
+
+
+/* Sidebar uses the combined icon + wordmark asset as one brand lockup. */
+.sidebar .brand {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 0;
+  padding-inline: 0.15rem;
+}
+
+.sidebar .brand-wordmark {
+  display: block;
+  width: min(190px, 100%);
+  height: auto;
+  max-height: 58px;
+  object-fit: contain;
+  object-position: left center;
+  flex: 0 1 auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}

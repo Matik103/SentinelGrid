@@ -21,9 +21,12 @@ function Page({
   children?: ReactNode;
 }) {
   return (
-    <section>
-      <h1 className="page-title">{title}</h1>
-      <p className="page-lead">{lead}</p>
+    <section className="workspace-page">
+      <header className="workspace-page-header">
+        <div className="eyebrow">SENTINEL COMMAND / WORKSPACE</div>
+        <h1 className="page-title">{title}</h1>
+        <p className="page-lead">{lead}</p>
+      </header>
       {children}
     </section>
   );
@@ -31,7 +34,7 @@ function Page({
 
 function StatusBanner({ error }: { error?: string | null }) {
   if (!error) return null;
-  return <div className="empty">{error}</div>;
+  return <div className="inline-notice warning">{error}</div>;
 }
 
 function useOrgResource<T>(pathBuilder: (orgId: string) => string) {

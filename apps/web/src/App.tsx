@@ -4,19 +4,11 @@ import { apiConfigured, apiGet, apiPost, authToken, healthCheck, organisationId 
 import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
 
-const NAV = [
-  { to: "/", label: "Overview" },
-  { to: "/organisation", label: "Organisation" },
-  { to: "/facilities", label: "Facilities" },
-  { to: "/zones", label: "Zones" },
-  { to: "/assets", label: "Assets" },
-  { to: "/energy", label: "Energy" },
-  { to: "/devices", label: "Devices" },
-  { to: "/connectors", label: "Connectors" },
-  { to: "/events", label: "Event ledger" },
-  { to: "/evidence", label: "Evidence" },
-  { to: "/audit", label: "Audit logs" },
-  { to: "/users", label: "Users" },
+const NAV_GROUPS = [
+  { section: "COMMAND", items: [{ to: "/", label: "Overview", glyph: "◈" }, { to: "/events", label: "Event intelligence", glyph: "⌁" }] },
+  { section: "INFRASTRUCTURE", items: [{ to: "/facilities", label: "Facilities", glyph: "▦" }, { to: "/zones", label: "Zones", glyph: "⌗" }, { to: "/assets", label: "Assets & equipment", glyph: "◫" }, { to: "/devices", label: "Devices & sensors", glyph: "⌘" }, { to: "/energy", label: "Energy intelligence", glyph: "ϟ" }] },
+  { section: "SECURITY & EVIDENCE", items: [{ to: "/connectors", label: "Connectors", glyph: "⌘" }, { to: "/evidence", label: "Evidence chain", glyph: "⟡" }, { to: "/audit", label: "Audit trail", glyph: "≋" }] },
+  { section: "WORKSPACE", items: [{ to: "/organisation", label: "Organisation", glyph: "⌂" }, { to: "/users", label: "People & access", glyph: "◎" }] },
 ] as const;
 
 function Page({

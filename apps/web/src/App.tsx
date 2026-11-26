@@ -4,6 +4,7 @@ import { apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, 
 import { organisationId, restoreSession, setOrganisationId } from "./auth";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { AuthPanel } from "./AuthPanel";
+import { WorkspaceOnboarding } from "./WorkspaceOnboarding";
 import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
 import { AssetEnergyProfile } from "./AssetEnergyProfile";
@@ -481,41 +482,93 @@ export function App() {
   const [activeOrganisationId, setActiveOrganisationId] = useState<string | null>(() => organisationId());
   const [activeOrganisationName, setActiveOrganisationName] = useState("Workspace");
   const [authRefreshKey, setAuthRefreshKey] = useState(0);
+  const [authReady, setAuthReady] = useState(false);
+  const [workspaceGate, setWorkspaceGate] = useState<"checking" | "required" | "ready" | "error">("checking");
+  const [gateMessage, setGateMessage] = useState<string | null>(null);
   const location = useLocation();
+
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
   }, [theme]);
+
+  const refreshWorkspaceState = async () => {
+    if (!authToken()) {
+      setOrganisationId(null);
+      setActiveOrganisationId(null);
+      setActiveOrganisationName("Workspace");
+      setWorkspaceGate("checking");
+      return;
+    }
+    setWorkspaceGate("checking");
+    const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>("/v1/orgs/mine");
+    if (result.error) {
+      setGateMessage(result.error.message);
+      setWorkspaceGate("error");
+      return;
+    }
+    const memberships = (result.data ?? []).filter((row) => row.status === "active" && row.organisations?.id);
+    if (!memberships.length) {
+      setOrganisationId(null);
+      setActiveOrganisationId(null);
+      setActiveOrganisationName("Workspace");
+      setWorkspaceGate("required");
+      return;
+    }
+    const selected = memberships.find((row) => row.organisation_id === organisationId()) ?? memberships[0];
+    setOrganisationId(selected.organisation_id);
+    setActiveOrganisationId(selected.organisation_id);
+    setActiveOrganisationName(selected.organisations?.name ?? "Workspace");
+    setWorkspaceGate("ready");
+    setGateMessage(null);
+    setAuthRefreshKey((value) => value + 1);
+  };
+
   useEffect(() => {
-    void Promise.all([restoreSession(), ensureConfig()]).finally(() => {
-      setAuthRefreshKey((value) => value + 1);
+    let active = true;
+    void Promise.all([restoreSession(), ensureConfig()]).then(() => {
+      if (!active) return;
+      setAuthReady(true);
+      if (authToken()) void refreshWorkspaceState();
+      else setWorkspaceGate("checking");
+    }).catch(() => {
+      if (active) setAuthReady(true);
     });
+    return () => { active = false; };
   }, []);
+
+  const handleAuthChange = () => {
+    if (!authToken()) {
+      setOrganisationId(null);
+      setActiveOrganisationId(null);
+      setActiveOrganisationName("Workspace");
+      setWorkspaceGate("checking");
+    }
+    void refreshWorkspaceState();
+  };
+
   const selectOrganisation = (id: string | null, name: string) => {
     if (id !== activeOrganisationId) setOrganisationId(id);
     setActiveOrganisationId(id);
     setActiveOrganisationName(name);
   };
-  const handleAuthChange = () => {
-    if (!authToken()) {
-      setOrganisationId(null);
-      setActiveOrganisationId(null);
-      setActiveOrganisationName("No workspace selected");
-    }
-    setAuthRefreshKey((value) => value + 1);
-  };
   const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
+
+  if (!authReady) return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>SECURE COMMAND INITIALISING</span></div>;
+  if (!authToken()) return <AuthPanel onAuthChange={handleAuthChange} />;
+  if (workspaceGate === "checking") return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>VERIFYING WORKSPACE ACCESS</span></div>;
+  if (workspaceGate === "required" || workspaceGate === "error") {
+    return <WorkspaceOnboarding
+      initialError={gateMessage}
+      onComplete={() => { void refreshWorkspaceState(); }}
+      onRetry={() => { void refreshWorkspaceState(); }}
+    />;
+  }
 
   return (
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <img
-            className="brand-wordmark"
-            src="/assets/sentinelgrid-logo-wordmark.png"
-            alt="SentinelGrid"
-            width={190}
-            height={60}
-          />
+          <img className="brand-wordmark" src="/assets/sentinelgrid-logo-wordmark.png" alt="SentinelGrid" width={190} height={60} />
         </div>
         <WorkspaceSwitcher activeOrganisationId={activeOrganisationId} onSelect={selectOrganisation} refreshKey={authRefreshKey} />
         <nav className="nav" aria-label="Primary">
@@ -526,20 +579,9 @@ export function App() {
             </NavLink>)}
           </div>)}
         </nav>
-        <AuthPanel onAuthChange={() => {
-          if (!authToken()) {
-            setOrganisationId(null);
-            setActiveOrganisationId(null);
-            setActiveOrganisationName("Workspace");
-          }
-          setAuthRefreshKey((value) => value + 1);
-        }} />
+        <AuthPanel onAuthChange={handleAuthChange} />
         <div className="toolbar">
-          <button
-            type="button"
-            className="btn secondary"
-            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-          >
+          <button type="button" className="btn secondary" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}>
             {theme === "dark" ? "Light theme" : "Dark theme"}
           </button>
         </div>
@@ -548,200 +590,3 @@ export function App() {
         <header className="topbar"><div className="topbar-context"><span>WORKSPACE</span><b>/</b><span className="topbar-workspace-name">{activeOrganisationName}</span><b>/</b><strong>{currentPage}</strong></div><div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
         <div className="main-content">
         <Routes key={activeOrganisationId ?? "no-workspace"}>
-          <Route path="/" element={<Overview />} />
-          <Route path="/topology" element={<TopologyPage />} />
-          <Route path="/incidents" element={<IncidentWorkbenchPage />} />
-          <Route path="/replay" element={<EventReplayPage />} />
-          <Route path="/scenarios" element={<ScenarioWorkbenchPage />} />
-          <Route path="/organisation" element={<OrganisationPanel />} />
-          <Route
-            path="/facilities"
-            element={
-              <ResourcePage
-                title="Facilities"
-                lead="Register and review facilities for this organisation."
-                path={(org) => `/v1/orgs/${org}/facilities`}
-                columns={[
-                  { key: "name", label: "Name" },
-                  { key: "code", label: "Code" },
-                  { key: "status", label: "Status" },
-                  { key: "created_at", label: "Created" },
-                ]}
-                create={{
-                  label: "Create facility",
-                  fields: (
-                    <>
-                      <input name="name" required placeholder="Facility name" />
-                      <input name="code" placeholder="Code" />
-                    </>
-                  ),
-                  build: (org, form) => ({
-                    path: `/v1/orgs/${org}/facilities`,
-                    body: {
-                      name: String(form.get("name") ?? ""),
-                      code: String(form.get("code") ?? "") || undefined,
-                    },
-                  }),
-                }}
-              />
-            }
-          />
-          <Route
-            path="/zones"
-            element={
-              <ResourcePage
-                title="Zones"
-                lead="Facility zones for registry scoping."
-                path={(org) => `/v1/orgs/${org}/zones`}
-                columns={[
-                  { key: "name", label: "Name" },
-                  { key: "facility_id", label: "Facility" },
-                  { key: "code", label: "Code" },
-                  { key: "status", label: "Status" },
-                ]}
-                create={{
-                  label: "Create zone",
-                  fields: (
-                    <>
-                      <input name="facility_id" required placeholder="Facility UUID" />
-                      <input name="name" required placeholder="Zone name" />
-                      <input name="code" placeholder="Code" />
-                    </>
-                  ),
-                  build: (org, form) => ({
-                    path: `/v1/orgs/${org}/zones`,
-                    body: {
-                      facility_id: String(form.get("facility_id") ?? ""),
-                      name: String(form.get("name") ?? ""),
-                      code: String(form.get("code") ?? "") || undefined,
-                    },
-                  }),
-                }}
-              />
-            }
-          />
-          <Route path="/assets" element={<AssetRegistryPage />} />
-          <Route path="/energy" element={<EnergyDashboard />} />
-          <Route path="/energy/assets/:assetId" element={<AssetEnergyProfile />} />
-          <Route
-            path="/devices"
-            element={
-              <ResourcePage
-                title="Device registry"
-                lead="Devices associated with assets."
-                path={(org) => `/v1/orgs/${org}/devices`}
-                columns={[
-                  { key: "name", label: "Name" },
-                  { key: "facility_id", label: "Facility" },
-                  { key: "asset_id", label: "Asset" },
-                  { key: "status", label: "Status" },
-                ]}
-                create={{
-                  label: "Register device",
-                  fields: <><input name="facility_id" required placeholder="Facility UUID" /><input name="asset_id" placeholder="Asset UUID (optional)" /><input name="name" required placeholder="Device name" /><select name="category" defaultValue="network"><option value="electrical">Electrical</option><option value="generators">Generator</option><option value="solar">Solar</option><option value="battery">Battery</option><option value="hvac">HVAC</option><option value="refrigeration">Refrigeration</option><option value="pumps_motors">Pumps & motors</option><option value="industrial">Industrial</option><option value="network">Network</option><option value="bms">Building systems</option><option value="data_center">Data centre</option><option value="transformers">Transformers</option><option value="ups">UPS</option><option value="cooling">Cooling plant</option><option value="other">Other</option></select></>,
-                  build: (org, form) => ({ path: `/v1/orgs/${org}/devices`, body: { facility_id: String(form.get("facility_id") ?? ""), asset_id: String(form.get("asset_id") ?? "") || null, name: String(form.get("name") ?? ""), category: String(form.get("category") ?? "network") } }),
-                }}
-              />
-            }
-          />
-          <Route
-            path="/sensors"
-            element={
-              <ResourcePage
-                title="Sensor registry"
-                lead="Registered sensors and their equipment, device and facility associations."
-                path={(org) => `/v1/orgs/${org}/sensors`}
-                columns={[
-                  { key: "name", label: "Sensor" }, { key: "sensor_type", label: "Type" }, { key: "unit", label: "Unit" },
-                  { key: "facility_id", label: "Facility" }, { key: "asset_id", label: "Asset" }, { key: "device_id", label: "Device" }, { key: "status", label: "Status" },
-                ]}
-                create={{
-                  label: "Register sensor",
-                  fields: <><input name="facility_id" required placeholder="Facility UUID" /><input name="asset_id" placeholder="Asset UUID (optional)" /><input name="device_id" placeholder="Device UUID (optional)" /><input name="name" required placeholder="Sensor name" /><input name="sensor_type" required placeholder="Sensor type (e.g. temperature)" /><input name="unit" placeholder="Unit (e.g. °C, kWh)" /></>,
-                  build: (org, form) => ({ path: `/v1/orgs/${org}/sensors`, body: { facility_id: String(form.get("facility_id") ?? ""), asset_id: String(form.get("asset_id") ?? "") || null, device_id: String(form.get("device_id") ?? "") || null, name: String(form.get("name") ?? ""), sensor_type: String(form.get("sensor_type") ?? ""), unit: String(form.get("unit") ?? "") || undefined } }),
-                }}
-              />
-            }
-          />
-          <Route
-            path="/connectors"
-            element={
-              <ResourcePage
-                title="Connectors"
-                lead="Register, heartbeat, rotate, and revoke edge connectors."
-                path={(org) => `/v1/orgs/${org}/connectors`}
-                columns={[
-                  { key: "name", label: "Name" },
-                  { key: "connector_uid", label: "UID" },
-                  { key: "status", label: "Status" },
-                  { key: "credential_status", label: "Credential" },
-                  { key: "last_heartbeat_at", label: "Heartbeat" },
-                ]}
-                create={{
-                  label: "Register connector",
-                  fields: <input name="name" required placeholder="Connector name" />,
-                  build: (org, form) => ({
-                    path: `/v1/orgs/${org}/connectors`,
-                    body: { name: String(form.get("name") ?? "") },
-                  }),
-                }}
-              />
-            }
-          />
-          <Route
-            path="/events"
-            element={
-              <ResourcePage
-                title="Event ledger"
-                lead="Validated telemetry and platform events for the tenant."
-                path={(org) => `/v1/events?organisation_id=${org}&limit=100`}
-                columns={[
-                  { key: "event_type", label: "Type" },
-                  { key: "source", label: "Source" },
-                  { key: "occurred_at", label: "Occurred" },
-                  { key: "classification", label: "Class" },
-                  { key: "integrity_status", label: "Integrity" },
-                ]}
-              />
-            }
-          />
-          <Route
-            path="/evidence"
-            element={
-              <ResourcePage
-                title="Evidence chain"
-                lead="Event-linked evidence records and integrity status."
-                path={(org) => `/v1/orgs/${org}/evidence/records`}
-                columns={[
-                  { key: "event_id", label: "Event" },
-                  { key: "payload_sha256", label: "SHA-256" },
-                  { key: "chain_hash", label: "Chain" },
-                  { key: "integrity_status", label: "Status" },
-                  { key: "created_at", label: "Created" },
-                ]}
-              />
-            }
-          />
-          <Route
-            path="/audit"
-            element={
-              <ResourcePage
-                title="Audit logs"
-                lead="Administrative actions for this organisation."
-                path={(org) => `/v1/orgs/${org}/audit-logs`}
-                columns={[
-                  { key: "action", label: "Action" },
-                  { key: "resource_type", label: "Resource" },
-                  { key: "resource_id", label: "ID" },
-                  { key: "created_at", label: "When" },
-                ]}
-              />
-            }
-          />
-          <Route path="/users" element={<OrganisationPanel />} />
-        </Routes>
-        </div>
-      </main>
-    </div>
-  );
-}

@@ -216,13 +216,15 @@ export class OrgsService {
     token: string,
     organisationId: string,
   ): Promise<{ channel: string; outbox_id?: string; status: string }> {
-    const acceptPath = process.env.SG_INVITE_ACCEPT_URL ?? "/accept-invite";
+    const appUrl = (process.env.SG_PUBLIC_APP_URL ?? "https://sentinelgrid-delta.vercel.app").replace(/\/$/, "");
+    const inviteUrl = `${appUrl}/?invite=${encodeURIComponent(token)}`;
     const bodyText = [
-      "You have been invited to a SentinelGrid organisation.",
-      `Accept path: ${acceptPath}`,
-      `Token: ${token}`,
+      "You have been invited to a SentinelGrid workspace.",
       "",
-      "If you did not expect this email, ignore it.",
+      `Accept your invitation: ${inviteUrl}`,
+      "",
+      "Sign in or create your account with the invited email address to join the workspace.",
+      "If you did not expect this email, you can ignore it.",
     ].join("\n");
 
     try {

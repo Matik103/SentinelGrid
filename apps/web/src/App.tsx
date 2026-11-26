@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { apiConfigured, apiGet, apiPost, authToken, ensureConfig, healthCheck } from "./api";
+import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, ensureConfig, healthCheck } from "./api";
 import { organisationId, restoreSession, setOrganisationId } from "./auth";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { AuthPanel } from "./AuthPanel";
@@ -51,7 +51,7 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
     setLoading(true);
     setError(null);
     if (!apiConfigured()) {
-      setError("API base URL missing in Supabase app_public_config (or VITE_API_BASE_URL for local).");
+      setError(apiConfigurationError());
       setLoading(false);
       return;
     }
@@ -156,7 +156,7 @@ function Overview() {
     const org = organisationId();
     if (!apiConfigured() || !org || !authToken()) {
       setLoading(false);
-      setError("Connect a workspace and authenticated session to populate this command view. No sample telemetry is displayed.");
+      setError(!apiConfigured() ? apiConfigurationError() : "Connect a workspace and authenticated session to populate this command view. No sample telemetry is displayed.");
       return () => { active = false; };
     }
     void Promise.all([

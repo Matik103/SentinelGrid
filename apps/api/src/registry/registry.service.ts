@@ -37,6 +37,13 @@ const AssetSchema = z.object({
   name: z.string().min(1).max(200),
   category: Categories.optional(),
   status: z.enum(["active", "commissioning", "maintenance", "archived"]).optional(),
+  manufacturer: z.string().max(200).optional().nullable(),
+  model: z.string().max(200).optional().nullable(),
+  serial_number: z.string().max(200).optional().nullable(),
+  manufactured_year: z.coerce.number().int().min(1900).max(2100).optional().nullable(),
+  rated_power_kw: z.coerce.number().nonnegative().max(100000000).optional().nullable(),
+  rated_capacity_kva: z.coerce.number().nonnegative().max(100000000).optional().nullable(),
+  specifications: z.record(z.string(), z.unknown()).optional(),
 });
 
 const DeviceSchema = z.object({
@@ -164,7 +171,7 @@ export class RegistryService {
     const sb = this.users.create(user.accessToken);
     const { data, error } = await sb
       .from("assets")
-      .select("id, facility_id, zone_id, name, category, status, created_at")
+      .select("id, facility_id, zone_id, name, category, status, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
       .eq("organisation_id", organisationId)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -185,8 +192,15 @@ export class RegistryService {
         name: input.name,
         category: input.category ?? "industrial",
         status: input.status ?? "active",
+        manufacturer: input.manufacturer ?? null,
+        model: input.model ?? null,
+        serial_number: input.serial_number ?? null,
+        manufactured_year: input.manufactured_year ?? null,
+        rated_power_kw: input.rated_power_kw ?? null,
+        rated_capacity_kva: input.rated_capacity_kva ?? null,
+        specifications: input.specifications ?? {},
       })
-      .select("id, facility_id, zone_id, name, category, status, created_at")
+      .select("id, facility_id, zone_id, name, category, status, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
       .single();
     if (error) throw new BadRequestException(error.message);
     return data;

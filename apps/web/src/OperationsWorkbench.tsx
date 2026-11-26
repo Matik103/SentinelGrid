@@ -94,7 +94,6 @@ export function TopologyPage() {
         </svg>
         <div className="topology-node-grid">{visible.map((asset) => {
           const parent = visible.find((p) => p.id === asset.parent_asset_id);
-          const eventsForAsset = 0;
           return <article className="topology-asset-node" key={asset.id}>
             <div className="topology-node-top"><span>{asset.category.replace(/_/g, " ").toUpperCase()}</span><span className={`asset-state state-${asset.status}`}>{asset.status}</span></div>
             <strong>{asset.name}</strong><small>{facilityLabel(asset.facility_id, facilities)}</small>

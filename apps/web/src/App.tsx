@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigured, apiGet, apiPost, authToken, ensureConfig, healthCheck } from "./api";
 import { organisationId, restoreSession, setOrganisationId } from "./auth";
@@ -192,8 +192,8 @@ function Overview() {
       <div className="command-hero">
         <div className="command-hero-copy">
           <div className="eyebrow"><span className="eyebrow-pulse" /> OPERATIONS / COMMAND OVERVIEW</div>
-          <h1 className="command-title">See the whole system.<br /><span>Understand what matters.</span></h1>
-          <p className="command-intro">A clear operational picture of your facilities, equipment, energy signals and recorded events — grounded in the data your organisation has connected.</p>
+          <h1 className="command-title">Infrastructure,<br /><span>in focus.</span></h1>
+          <p className="command-intro">One operational picture across facilities, equipment, energy signals and recorded events — with every insight grounded in connected source data.</p>
           <div className="command-actions">
             <NavLink className="command-primary-action" to="/facilities">Explore facilities <span>↗</span></NavLink>
             <NavLink className="command-secondary-action" to="/assets">Open asset registry</NavLink>
@@ -201,9 +201,9 @@ function Overview() {
         </div>
         <div className="command-hero-visual" aria-label="Infrastructure network illustration">
           <div className="orbital orbital-one" /><div className="orbital orbital-two" />
-          <div className="hero-core"><span className="core-cross">+</span><strong>SG</strong><small>COMMAND</small></div>
+          <div className="hero-core"><span className="core-cross">+</span><strong>CORE</strong><small>SYSTEM MODEL</small></div>
           <span className="orbit-node node-a">POWER</span><span className="orbit-node node-b">ASSETS</span><span className="orbit-node node-c">SENSORS</span><span className="orbit-node node-d">EVIDENCE</span>
-          <div className="visual-caption">CONNECTED INFRASTRUCTURE<br /><span>Operational context layer</span></div>
+          <div className="visual-caption">CONNECTED INFRASTRUCTURE<br /><span>Relationships · signals · evidence</span></div>
         </div>
       </div>
 
@@ -247,7 +247,7 @@ function Overview() {
         </section>
 
         <section className="command-panel topology-panel">
-          <div className="command-panel-heading"><div><span className="eyebrow">SYSTEM MODEL / RELATIONSHIPS</span><h2>Infrastructure context</h2></div><span className="model-status">MODEL PREVIEW</span></div>
+          <div className="command-panel-heading"><div><span className="eyebrow">SYSTEM MODEL / RELATIONSHIPS</span><h2>Infrastructure context</h2></div><span className="model-status">RELATIONSHIP MODEL</span></div>
           <div className="topology-canvas">
             <svg viewBox="0 0 620 190" role="img" aria-label="Conceptual infrastructure relationship model">
               <defs><linearGradient id="topologyLine" x1="0" x2="1"><stop offset="0" stopColor="#54d6c5" stopOpacity=".18"/><stop offset="1" stopColor="#54d6c5" stopOpacity=".8"/></linearGradient></defs>
@@ -433,6 +433,7 @@ export function App() {
   const [activeOrganisationName, setActiveOrganisationName] = useState("Workspace");
   const [authRefreshKey, setAuthRefreshKey] = useState(0);
   const location = useLocation();
+  const navigate = useNavigate();
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
   }, [theme]);

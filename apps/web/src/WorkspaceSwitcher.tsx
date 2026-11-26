@@ -119,7 +119,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
       </label>
       {error && <p className="workspace-picker-error" role="alert">{error}</p>}
       {organisations.length > 1 && <span className="workspace-picker-count">{organisations.length} organisations available</span>}
-      <button className="workspace-create-toggle" type="button" onClick={() => { setCreating((value) => !value); setError(null); }}>
+      <button className="workspace-create-toggle" type="button" disabled={!authToken()} onClick={() => { setCreating((value) => !value); setError(null); }}>
         <span aria-hidden="true">{creating ? "−" : "+"}</span>{creating ? "Close" : "Create organisation"}
       </button>
       {creating && (
@@ -140,6 +140,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
           </button>
         </form>
       )}
+      {!authToken() && <p className="workspace-picker-hint">Sign in to see or create your organisations.</p>}
       {!loading && authToken() && organisations.length === 0 && !creating && (
         <p className="workspace-picker-hint">Create your organisation to set up your first SentinelGrid workspace.</p>
       )}

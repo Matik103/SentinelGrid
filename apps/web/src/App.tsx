@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigured, apiGet, apiPost, authToken, healthCheck, organisationId } from "./api";
 import { AssetRegistryPage } from "./AssetRegistryPage";
@@ -130,61 +130,148 @@ function formatCell(value: unknown): string {
   return String(value);
 }
 
+type OverviewFacility = { id: string; name: string; code?: string | null; status?: string | null };
+type OverviewAsset = { id: string; name: string; category?: string | null; status?: string | null; facility_id?: string | null };
+type OverviewEvent = { id?: string; event_type?: string; source?: string; occurred_at?: string; classification?: string; integrity_status?: string };
+
+function dashboardTime(value?: string) {
+  if (!value) return "Time unavailable";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Time unavailable" : date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 function Overview() {
-  const [health, setHealth] = useState<string>("checking…");
-  const [orgCount, setOrgCount] = useState<string>("—");
-  const [facilityCount, setFacilityCount] = useState<string>("—");
-  const [eventCount, setEventCount] = useState<string>("—");
+  const [health, setHealth] = useState("Checking");
+  const [facilities, setFacilities] = useState<OverviewFacility[]>([]);
+  const [assets, setAssets] = useState<OverviewAsset[]>([]);
+  const [devices, setDevices] = useState<Record<string, unknown>[]>([]);
+  const [events, setEvents] = useState<OverviewEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const configured = apiConfigured() && Boolean(organisationId()) && Boolean(authToken());
 
   useEffect(() => {
-    void healthCheck().then(setHealth);
+    let active = true;
+    void healthCheck().then((value) => { if (active) setHealth(value); }).catch(() => { if (active) setHealth("Unavailable"); });
     const org = organisationId();
-    if (!org || !authToken() || !apiConfigured()) return;
-    void apiGet<unknown[]>(`/v1/orgs/mine`).then((r) => {
-      if (r.data) setOrgCount(String(r.data.length));
+    if (!apiConfigured() || !org || !authToken()) {
+      setLoading(false);
+      setError("Connect an organisation and authenticated session to populate this command view. No sample telemetry is displayed.");
+      return () => { active = false; };
+    }
+    void Promise.all([
+      apiGet<OverviewFacility[]>(`/v1/orgs/${org}/facilities`),
+      apiGet<OverviewAsset[]>(`/v1/orgs/${org}/assets`),
+      apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/devices`),
+      apiGet<OverviewEvent[]>(`/v1/events?organisation_id=${org}&limit=8`),
+    ]).then(([facilityResult, assetResult, deviceResult, eventResult]) => {
+      if (!active) return;
+      setFacilities(facilityResult.data ?? []);
+      setAssets(assetResult.data ?? []);
+      setDevices(deviceResult.data ?? []);
+      setEvents(eventResult.data ?? []);
+      const failures = [facilityResult, assetResult, deviceResult, eventResult].filter((result) => result.error);
+      if (failures.length) setError("Some workspace data could not be loaded. Open the relevant section to inspect its source response.");
+      setLoading(false);
+    }).catch(() => {
+      if (active) { setError("The command view could not retrieve workspace data."); setLoading(false); }
     });
-    void apiGet<unknown[]>(`/v1/orgs/${org}/facilities`).then((r) => {
-      if (r.data) setFacilityCount(String(r.data.length));
-    });
-    void apiGet<unknown[]>(`/v1/events?organisation_id=${org}&limit=50`).then((r) => {
-      if (r.data) setEventCount(String(r.data.length));
-    });
+    return () => { active = false; };
   }, []);
 
+  const criticalEvents = events.filter((event) => /critical|high/i.test(String(event.classification ?? ""))).length;
+  const stats = [
+    { label: "REGISTERED FACILITIES", value: loading ? "—" : String(facilities.length), detail: "Accessible locations", glyph: "▦", tone: "teal" },
+    { label: "TRACKED ASSETS", value: loading ? "—" : String(assets.length), detail: "Equipment registry", glyph: "◫", tone: "blue" },
+    { label: "CONNECTED DEVICES", value: loading ? "—" : String(devices.length), detail: "Registered endpoints", glyph: "⌘", tone: "violet" },
+    { label: "RECENT HIGH-PRIORITY", value: loading ? "—" : String(criticalEvents), detail: "Recorded event classifications", glyph: "△", tone: "amber" },
+  ];
+
   return (
-    <Page
-      title="Sentinel Command"
-      lead="Live organisation, registry, connector, event, and audit workflows against the Phase 0 API."
-    >
-      <div className="overview-hero" aria-hidden={false}>
-        <img
-          className="overview-logo"
-          src="/assets/sentinelgrid-logo.jpg"
-          alt="SentinelGrid"
-          width={96}
-          height={96}
-        />
-        <p className="overview-brand">SentinelGrid</p>
-      </div>
-      <div className="stats">
-        <div className="stat">
-          <strong>{orgCount}</strong>
-          <span>Memberships</span>
+    <section className="command-overview">
+      <div className="command-hero">
+        <div className="command-hero-copy">
+          <div className="eyebrow"><span className="eyebrow-pulse" /> OPERATIONS / COMMAND OVERVIEW</div>
+          <h1 className="command-title">See the whole system.<br /><span>Understand what matters.</span></h1>
+          <p className="command-intro">A clear operational picture of your facilities, equipment, energy signals and recorded events — grounded in the data your organisation has connected.</p>
+          <div className="command-actions">
+            <NavLink className="command-primary-action" to="/facilities">Explore facilities <span>↗</span></NavLink>
+            <NavLink className="command-secondary-action" to="/assets">Open asset registry</NavLink>
+          </div>
         </div>
-        <div className="stat">
-          <strong>{facilityCount}</strong>
-          <span>Facilities</span>
-        </div>
-        <div className="stat">
-          <strong>{eventCount}</strong>
-          <span>Recent events</span>
-        </div>
-        <div className="stat">
-          <strong className="mono">{health}</strong>
-          <span>API status</span>
+        <div className="command-hero-visual" aria-label="Infrastructure network illustration">
+          <div className="orbital orbital-one" /><div className="orbital orbital-two" />
+          <div className="hero-core"><span className="core-cross">+</span><strong>SG</strong><small>COMMAND</small></div>
+          <span className="orbit-node node-a">POWER</span><span className="orbit-node node-b">ASSETS</span><span className="orbit-node node-c">SENSORS</span><span className="orbit-node node-d">EVIDENCE</span>
+          <div className="visual-caption">CONNECTED INFRASTRUCTURE<br /><span>Operational context layer</span></div>
         </div>
       </div>
-    </Page>
+
+      <div className="command-section-heading">
+        <div><span className="eyebrow">WORKSPACE SNAPSHOT</span><h2>Operational footprint</h2></div>
+        <span className="snapshot-note">Values reflect accessible organisation records</span>
+      </div>
+      <div className="command-stat-grid">
+        {stats.map((item) => <article className="command-stat-card" key={item.label}>
+          <div className={`command-stat-icon ${item.tone}`}>{item.glyph}</div>
+          <div className="command-stat-label">{item.label}</div>
+          <strong>{item.value}</strong>
+          <span>{item.detail}</span>
+        </article>)}
+      </div>
+
+      {error && <div className="command-notice"><span>i</span><p>{error}</p></div>}
+
+      <div className="command-content-grid">
+        <section className="command-panel facilities-panel">
+          <div className="command-panel-heading"><div><span className="eyebrow">LOCATIONS / REGISTRY</span><h2>Facility overview</h2></div><NavLink to="/facilities">View all <span>↗</span></NavLink></div>
+          {loading ? <div className="command-empty">Loading accessible facilities…</div> : facilities.length ? <div className="facility-list">
+            {facilities.slice(0, 5).map((facility, index) => <article className="facility-row" key={facility.id}>
+              <div className="facility-index">{String(index + 1).padStart(2, "0")}</div>
+              <div className="facility-symbol">⌂</div>
+              <div className="facility-details"><strong>{facility.name}</strong><span>{facility.code || "Facility registry"} · {facility.status || "Status not reported"}</span></div>
+              <span className="facility-arrow">↗</span>
+            </article>)}
+          </div> : <div className="command-empty"><strong>No facilities registered yet</strong><span>Create your first facility to begin mapping its infrastructure.</span><NavLink to="/facilities">Register a facility ↗</NavLink></div>}
+        </section>
+
+        <section className="command-panel activity-panel">
+          <div className="command-panel-heading"><div><span className="eyebrow">EVENT LEDGER / LATEST RECORDS</span><h2>Recent activity</h2></div><NavLink to="/events">Open ledger <span>↗</span></NavLink></div>
+          {loading ? <div className="command-empty">Loading recorded events…</div> : events.length ? <div className="activity-list">
+            {events.slice(0, 6).map((event, index) => <article className="activity-row" key={event.id ?? `${event.event_type}-${index}`}>
+              <span className="activity-marker" />
+              <div className="activity-copy"><strong>{event.event_type || "Recorded event"}</strong><span>{event.source || "Source not specified"} · {dashboardTime(event.occurred_at)}</span></div>
+              <span className="activity-classification">{event.classification || "UNCLASSIFIED"}</span>
+            </article>)}
+          </div> : <div className="command-empty"><strong>No events recorded</strong><span>Validated source events will appear here when connectors begin reporting.</span></div>}
+        </section>
+
+        <section className="command-panel topology-panel">
+          <div className="command-panel-heading"><div><span className="eyebrow">SYSTEM MODEL / RELATIONSHIPS</span><h2>Infrastructure context</h2></div><span className="model-status">MODEL PREVIEW</span></div>
+          <div className="topology-canvas">
+            <svg viewBox="0 0 620 190" role="img" aria-label="Conceptual infrastructure relationship model">
+              <defs><linearGradient id="topologyLine" x1="0" x2="1"><stop offset="0" stopColor="#54d6c5" stopOpacity=".18"/><stop offset="1" stopColor="#54d6c5" stopOpacity=".8"/></linearGradient></defs>
+              <path d="M310 94 L140 42 M310 94 L480 42 M310 94 L140 148 M310 94 L480 148" stroke="url(#topologyLine)" strokeWidth="1.5" fill="none" strokeDasharray="5 6"/>
+              <rect x="250" y="66" width="120" height="56" rx="10" className="topology-hub"/>
+              <text x="310" y="89" textAnchor="middle" className="topology-label">FACILITY</text><text x="310" y="105" textAnchor="middle" className="topology-sub">CONTEXT</text>
+              {[[140,42,"POWER"],[480,42,"EQUIPMENT"],[140,148,"SENSORS"],[480,148,"EVIDENCE"]].map(([x,y,label]) => <g key={String(label)}><rect x={Number(x)-55} y={Number(y)-18} width="110" height="36" rx="8" className="topology-node"/><text x={x} y={Number(y)+4} textAnchor="middle" className="topology-label">{label}</text></g>)}
+            </svg>
+          </div>
+          <div className="topology-footnote"><span className="topology-dot" /> Conceptual model — live dependency links appear when asset relationships are registered.</div>
+        </section>
+
+        <section className="command-panel quick-access-panel">
+          <div className="command-panel-heading"><div><span className="eyebrow">WORKSPACES</span><h2>Go deeper</h2></div></div>
+          <div className="quick-access-grid">
+            <NavLink to="/energy"><span>ϟ</span><strong>Energy intelligence</strong><small>Measured demand and findings</small><b>↗</b></NavLink>
+            <NavLink to="/assets"><span>◫</span><strong>Asset explorer</strong><small>Equipment profiles and media</small><b>↗</b></NavLink>
+            <NavLink to="/connectors"><span>⌘</span><strong>Data connections</strong><small>Connector status and access</small><b>↗</b></NavLink>
+            <NavLink to="/evidence"><span>⟡</span><strong>Evidence explorer</strong><small>Integrity and event provenance</small><b>↗</b></NavLink>
+          </div>
+        </section>
+      </div>
+      <div className="command-footer"><span>SENTINEL COMMAND / INFRASTRUCTURE INTELLIGENCE</span><span>API HEALTH: {health.toUpperCase()} · {configured ? "AUTHENTICATED WORKSPACE" : "AWAITING WORKSPACE CONNECTION"} · READ-ONLY BY DEFAULT</span></div>
+    </section>
   );
 }
 
@@ -338,212 +425,53 @@ function ResourcePage({
 
 export function App() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
-  }, [theme]);
+  const location = useLocation();
+  useEffect(() => { document.documentElement.setAttribute("data-theme", theme); }, [theme]);
+  const currentPage = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.to === location.pathname)?.label ?? "Command workspace";
 
   return (
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <img
-            className="brand-logo"
-            src="/assets/sentinelgrid-logo.jpg"
-            alt="SentinelGrid"
-            width={40}
-            height={40}
-          />
-          <div className="brand-text">
-            Sentinel <span>Command</span>
-          </div>
+          <img className="brand-logo" src="/assets/sentinelgrid-logo.jpg" alt="" width={38} height={38} />
+          <div className="brand-text">SENTINEL<span>GRID</span><small>COMMAND PLATFORM</small></div>
         </div>
+        <div className="workspace-switcher"><span className="workspace-avatar">SG</span><div><strong>Operations workspace</strong><small>Organisation environment</small></div><span className="workspace-chevron">⌄</span></div>
         <nav className="nav" aria-label="Primary">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) => (isActive ? "active" : undefined)}
-            >
-              {item.label}
-            </NavLink>
-          ))}
+          {NAV_GROUPS.map((group) => <div className="nav-group" key={group.section}>
+            <div className="nav-section-label">{group.section}</div>
+            {group.items.map((item) => <NavLink key={item.to} to={item.to} end={item.to === "/"} className={({ isActive }) => isActive ? "active" : undefined}>
+              <span className="nav-glyph" aria-hidden="true">{item.glyph}</span><span>{item.label}</span>
+            </NavLink>)}
+          </div>)}
         </nav>
-        <div className="toolbar">
-          <button
-            type="button"
-            className="btn secondary"
-            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-          >
-            {theme === "dark" ? "Light theme" : "Dark theme"}
-          </button>
+        <div className="sidebar-bottom">
+          <div className="sidebar-assurance"><span className="assurance-mark">✓</span><div><strong>Safety boundary active</strong><small>Read-only operational access</small></div></div>
+          <button type="button" className="theme-toggle" onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")}><span>{theme === "dark" ? "☼" : "◐"}</span>{theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}</button>
+          <div className="sidebar-version">SENTINELGRID <span>·</span> COMMAND</div>
         </div>
       </aside>
       <main className="main">
-        <Routes>
-          <Route path="/" element={<Overview />} />
-          <Route path="/organisation" element={<OrganisationPanel />} />
-          <Route
-            path="/facilities"
-            element={
-              <ResourcePage
-                title="Facilities"
-                lead="Register and review facilities for this organisation."
-                path={(org) => `/v1/orgs/${org}/facilities`}
-                columns={[
-                  { key: "name", label: "Name" },
-                  { key: "code", label: "Code" },
-                  { key: "status", label: "Status" },
-                  { key: "created_at", label: "Created" },
-                ]}
-                create={{
-                  label: "Create facility",
-                  fields: (
-                    <>
-                      <input name="name" required placeholder="Facility name" />
-                      <input name="code" placeholder="Code" />
-                    </>
-                  ),
-                  build: (org, form) => ({
-                    path: `/v1/orgs/${org}/facilities`,
-                    body: {
-                      name: String(form.get("name") ?? ""),
-                      code: String(form.get("code") ?? "") || undefined,
-                    },
-                  }),
-                }}
-              />
-            }
-          />
-          <Route
-            path="/zones"
-            element={
-              <ResourcePage
-                title="Zones"
-                lead="Facility zones for registry scoping."
-                path={(org) => `/v1/orgs/${org}/zones`}
-                columns={[
-                  { key: "name", label: "Name" },
-                  { key: "facility_id", label: "Facility" },
-                  { key: "code", label: "Code" },
-                  { key: "status", label: "Status" },
-                ]}
-                create={{
-                  label: "Create zone",
-                  fields: (
-                    <>
-                      <input name="facility_id" required placeholder="Facility UUID" />
-                      <input name="name" required placeholder="Zone name" />
-                      <input name="code" placeholder="Code" />
-                    </>
-                  ),
-                  build: (org, form) => ({
-                    path: `/v1/orgs/${org}/zones`,
-                    body: {
-                      facility_id: String(form.get("facility_id") ?? ""),
-                      name: String(form.get("name") ?? ""),
-                      code: String(form.get("code") ?? "") || undefined,
-                    },
-                  }),
-                }}
-              />
-            }
-          />
-          <Route path="/assets" element={<AssetRegistryPage />} />
-          <Route path="/energy" element={<EnergyDashboard />} />
-          <Route
-            path="/devices"
-            element={
-              <ResourcePage
-                title="Device registry"
-                lead="Devices associated with assets."
-                path={(org) => `/v1/orgs/${org}/devices`}
-                columns={[
-                  { key: "name", label: "Name" },
-                  { key: "facility_id", label: "Facility" },
-                  { key: "asset_id", label: "Asset" },
-                  { key: "status", label: "Status" },
-                ]}
-              />
-            }
-          />
-          <Route
-            path="/connectors"
-            element={
-              <ResourcePage
-                title="Connectors"
-                lead="Register, heartbeat, rotate, and revoke edge connectors."
-                path={(org) => `/v1/orgs/${org}/connectors`}
-                columns={[
-                  { key: "name", label: "Name" },
-                  { key: "connector_uid", label: "UID" },
-                  { key: "status", label: "Status" },
-                  { key: "credential_status", label: "Credential" },
-                  { key: "last_heartbeat_at", label: "Heartbeat" },
-                ]}
-                create={{
-                  label: "Register connector",
-                  fields: <input name="name" required placeholder="Connector name" />,
-                  build: (org, form) => ({
-                    path: `/v1/orgs/${org}/connectors`,
-                    body: { name: String(form.get("name") ?? "") },
-                  }),
-                }}
-              />
-            }
-          />
-          <Route
-            path="/events"
-            element={
-              <ResourcePage
-                title="Event ledger"
-                lead="Validated telemetry and platform events for the tenant."
-                path={(org) => `/v1/events?organisation_id=${org}&limit=100`}
-                columns={[
-                  { key: "event_type", label: "Type" },
-                  { key: "source", label: "Source" },
-                  { key: "occurred_at", label: "Occurred" },
-                  { key: "classification", label: "Class" },
-                  { key: "integrity_status", label: "Integrity" },
-                ]}
-              />
-            }
-          />
-          <Route
-            path="/evidence"
-            element={
-              <ResourcePage
-                title="Evidence chain"
-                lead="Event-linked evidence records and integrity status."
-                path={(org) => `/v1/orgs/${org}/evidence/records`}
-                columns={[
-                  { key: "event_id", label: "Event" },
-                  { key: "payload_sha256", label: "SHA-256" },
-                  { key: "chain_hash", label: "Chain" },
-                  { key: "integrity_status", label: "Status" },
-                  { key: "created_at", label: "Created" },
-                ]}
-              />
-            }
-          />
-          <Route
-            path="/audit"
-            element={
-              <ResourcePage
-                title="Audit logs"
-                lead="Administrative actions for this organisation."
-                path={(org) => `/v1/orgs/${org}/audit-logs`}
-                columns={[
-                  { key: "action", label: "Action" },
-                  { key: "resource_type", label: "Resource" },
-                  { key: "resource_id", label: "ID" },
-                  { key: "created_at", label: "When" },
-                ]}
-              />
-            }
-          />
-          <Route path="/users" element={<OrganisationPanel />} />
-        </Routes>
+        <header className="topbar">
+          <div className="topbar-context"><span>WORKSPACE</span><b>/</b><strong>{currentPage}</strong></div>
+          <div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div>
+        </header>
+        <div className="main-content">
+          <Routes>
+            <Route path="/" element={<Overview />} />
+            <Route path="/organisation" element={<OrganisationPanel />} />
+            <Route path="/facilities" element={<ResourcePage title="Facilities" lead="Register and review facilities for this organisation." path={(org) => `/v1/orgs/${org}/facilities`} columns={[{ key: "name", label: "Name" }, { key: "code", label: "Code" }, { key: "status", label: "Status" }, { key: "created_at", label: "Created" }]} create={{ label: "Create facility", fields: <><input name="name" required placeholder="Facility name" /><input name="code" placeholder="Code" /></>, build: (org, form) => ({ path: `/v1/orgs/${org}/facilities`, body: { name: String(form.get("name") ?? ""), code: String(form.get("code") ?? "") || undefined } }) }} />} />
+            <Route path="/zones" element={<ResourcePage title="Zones" lead="Facility zones for registry scoping." path={(org) => `/v1/orgs/${org}/zones`} columns={[{ key: "name", label: "Name" }, { key: "facility_id", label: "Facility" }, { key: "code", label: "Code" }, { key: "status", label: "Status" }]} create={{ label: "Create zone", fields: <><input name="facility_id" required placeholder="Facility UUID" /><input name="name" required placeholder="Zone name" /><input name="code" placeholder="Code" /></>, build: (org, form) => ({ path: `/v1/orgs/${org}/zones`, body: { facility_id: String(form.get("facility_id") ?? ""), name: String(form.get("name") ?? ""), code: String(form.get("code") ?? "") || undefined } }) }} />} />
+            <Route path="/assets" element={<AssetRegistryPage />} />
+            <Route path="/energy" element={<EnergyDashboard />} />
+            <Route path="/devices" element={<ResourcePage title="Device registry" lead="Devices associated with assets." path={(org) => `/v1/orgs/${org}/devices`} columns={[{ key: "name", label: "Name" }, { key: "facility_id", label: "Facility" }, { key: "asset_id", label: "Asset" }, { key: "status", label: "Status" }]} />} />
+            <Route path="/connectors" element={<ResourcePage title="Connectors" lead="Register, heartbeat, rotate, and revoke edge connectors." path={(org) => `/v1/orgs/${org}/connectors`} columns={[{ key: "name", label: "Name" }, { key: "connector_uid", label: "UID" }, { key: "status", label: "Status" }, { key: "credential_status", label: "Credential" }, { key: "last_heartbeat_at", label: "Heartbeat" }]} create={{ label: "Register connector", fields: <input name="name" required placeholder="Connector name" />, build: (org, form) => ({ path: `/v1/orgs/${org}/connectors`, body: { name: String(form.get("name") ?? "") } }) }} />} />
+            <Route path="/events" element={<ResourcePage title="Event ledger" lead="Validated telemetry and platform events for the tenant." path={(org) => `/v1/events?organisation_id=${org}&limit=100`} columns={[{ key: "event_type", label: "Type" }, { key: "source", label: "Source" }, { key: "occurred_at", label: "Occurred" }, { key: "classification", label: "Class" }, { key: "integrity_status", label: "Integrity" }]} />} />
+            <Route path="/evidence" element={<ResourcePage title="Evidence chain" lead="Event-linked evidence records and integrity status." path={(org) => `/v1/orgs/${org}/evidence/records`} columns={[{ key: "event_id", label: "Event" }, { key: "payload_sha256", label: "SHA-256" }, { key: "chain_hash", label: "Chain" }, { key: "integrity_status", label: "Status" }, { key: "created_at", label: "Created" }]} />} />
+            <Route path="/audit" element={<ResourcePage title="Audit logs" lead="Administrative actions for this organisation." path={(org) => `/v1/orgs/${org}/audit-logs`} columns={[{ key: "action", label: "Action" }, { key: "resource_type", label: "Resource" }, { key: "resource_id", label: "ID" }, { key: "created_at", label: "When" }]} />} />
+            <Route path="/users" element={<OrganisationPanel />} />
+          </Routes>
+        </div>
       </main>
     </div>
   );

@@ -169,7 +169,6 @@ export function EventReplayPage() {
 export function ScenarioWorkbenchPage() {
   const { assets, facilities, events, loading, error } = useWorkbenchData();
   const [assetId, setAssetId] = useState("");
-  const [scenario, setScenario] = useState("unavailable");
   const [ran, setRan] = useState(false);
   const selected = assets.find((a) => a.id === assetId);
   const affected = useMemo(() => {
@@ -191,12 +190,11 @@ export function ScenarioWorkbenchPage() {
     <div className="workbench-panel scenario-builder">
       <div><span className="eyebrow">SCENARIO INPUT</span><h2>Assume one asset becomes unavailable</h2><p>Select an asset to calculate the explicitly linked descendants in the current registry.</p></div>
       <label>ASSET TO REMOVE FROM SERVICE<select value={assetId} onChange={(e) => { setAssetId(e.target.value); setRan(false); }}><option value="">Choose a registered asset</option>{assets.filter((a) => a.status !== "archived").map((a) => <option key={a.id} value={a.id}>{a.name} · {facilityLabel(a.facility_id, facilities)}</option>)}</select></label>
-      <label>SCENARIO CONDITION<select value={scenario} onChange={(e) => { setScenario(e.target.value); setRan(false); }}><option value="unavailable">Asset unavailable</option><option value="maintenance">Planned maintenance window</option><option value="power_loss">Power source unavailable</option></select></label>
-      <button type="button" className="btn" disabled={!assetId || loading} onClick={() => setRan(true)}>Run registry impact analysis ↗</button>
+            <button type="button" className="btn" disabled={!assetId || loading} onClick={() => setRan(true)}>Run registry impact analysis ↗</button>
     </div>
     {ran && selected ? <div className="scenario-results">
       <div className="workbench-metrics"><article><span>ASSETS IN LINKED BRANCH</span><strong>{affected.length}</strong><small>Includes selected asset</small></article><article><span>DESCENDANT ASSETS</span><strong>{Math.max(0,affected.length-1)}</strong><small>Explicit parent links only</small></article><article><span>SUM OF RATED POWER</span><strong>{ratedKw ? `${ratedKw.toLocaleString()} kW` : "Not available"}</strong><small>Recorded ratings; not actual demand</small></article><article><span>EVENTS ON SELECTED ASSET</span><strong>{measured.length}</strong><small>Events in loaded history window</small></article></div>
-      <div className="workbench-panel"><div className="workbench-panel-heading"><div><span className="eyebrow">SCENARIO OUTPUT / {scenario.replace(/_/g," ").toUpperCase()}</span><h2>Potential registry exposure</h2></div><span className="model-status">DETERMINISTIC</span></div>
+      <div className="workbench-panel"><div className="workbench-panel-heading"><div><span className="eyebrow">SCENARIO OUTPUT / ASSET UNAVAILABLE</span><h2>Potential registry exposure</h2></div><span className="model-status">DETERMINISTIC</span></div>
         <div className="scenario-root"><span>SELECTED ASSET</span><strong>{selected.name}</strong><small>{facilityLabel(selected.facility_id, facilities)} · {selected.category}</small></div>
         <div className="scenario-branch">{affected.filter((a) => a.id !== selected.id).map((a) => <div key={a.id}><i /><span><strong>{a.name}</strong><small>{a.category} · {a.status}</small></span><b>{a.criticality ?? "Criticality unknown"}</b></div>)}
           {affected.length === 1 && <p>No explicit child assets are linked to this asset in the loaded registry.</p>}

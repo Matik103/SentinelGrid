@@ -9,7 +9,7 @@ type View = "signin" | "signup" | "forgot" | "reset" | "verify";
 
 function friendlyAuthError(message: string) {
   if (/invalid login credentials/i.test(message)) return "That email and password combination doesn't match. Try again or reset your password.";
-  if (/email not confirmed/i.test(message)) return "Verify your email address before signing in. You can request a new confirmation email below.";
+  if (/email not confirmed/i.test(message)) return "Verify your email address before signing in. You can request a fresh confirmation email here.";
   if (/user already registered/i.test(message)) return "An account already exists for this email. Sign in instead, or reset your password.";
   if (/password should be at least/i.test(message)) return "Choose a longer password and try again.";
   if (/rate limit/i.test(message)) return "Too many attempts in a short time. Wait a moment before trying again.";
@@ -32,8 +32,11 @@ export function AuthPanel({ onAuthChange }: Props) {
 
   const run = async (event: FormEvent, action: () => Promise<void>) => {
     event.preventDefault(); setBusy(true); setError(null); setNotice(null);
-    try { await action(); } catch (err) { setError(friendlyAuthError(err instanceof Error ? err.message : String(err))); }
-    finally { setBusy(false); }
+    try { await action(); } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (view === "signin" && /email not confirmed/i.test(message)) setView("verify");
+      setError(friendlyAuthError(message));
+    } finally { setBusy(false); }
   };
 
   if (authToken() && view !== "reset") return (

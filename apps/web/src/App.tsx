@@ -502,7 +502,13 @@ export function App() {
     setWorkspaceGate("checking");
     const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>("/v1/orgs/mine");
     if (result.error) {
-      setGateMessage(result.error.message);
+      const message = result.error.message;
+      if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || result.error.status === 403) {
+        setGateMessage("Complete authenticator verification to continue.");
+        setWorkspaceGate("checking");
+        return;
+      }
+      setGateMessage(message);
       setWorkspaceGate("error");
       return;
     }

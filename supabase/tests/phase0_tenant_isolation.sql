@@ -20,7 +20,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION pg_temp.set_auth(p_user uuid)
+CREATE OR REPLACE FUNCTION pg_temp.set_auth(p_user uuid, p_aal text DEFAULT 'aal2')
 RETURNS void LANGUAGE plpgsql AS $$
 DECLARE
   v_email text;
@@ -28,6 +28,7 @@ BEGIN
   SELECT email INTO v_email FROM auth.users WHERE id = p_user;
   PERFORM set_config('request.jwt.claim.sub', p_user::text, true);
   PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
+  PERFORM set_config('request.jwt.claim.aal', p_aal, true);
   IF v_email IS NOT NULL THEN
     PERFORM set_config('request.jwt.claim.email', v_email, true);
   END IF;
@@ -36,6 +37,7 @@ BEGIN
     json_build_object(
       'sub', p_user::text,
       'role', 'authenticated',
+      'aal', p_aal,
       'email', coalesce(v_email, '')
     )::text,
     true
@@ -134,6 +136,25 @@ BEGIN
   INSERT INTO public.memberships (organisation_id, user_id, role_id, status)
   VALUES (org_a, u_member_a, role_viewer, 'active');
   PERFORM pg_temp.clear_auth();
+
+  -- AAL1 must not read tenant data even when the user has a valid role.
+  PERFORM pg_temp.set_auth(u_admin_a, 'aal1');
+  SELECT count(*) INTO tmp_count FROM public.memberships
+  WHERE organisation_id = org_a AND user_id = u_admin_a;
+  IF tmp_count <> 0 THEN
+    PERFORM pg_temp.fail('AAL1 session read tenant membership data');
+  END IF;
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.pass('AAL1 direct RLS read denied');
+
+  PERFORM pg_temp.set_auth(u_admin_a, 'aal2');
+  SELECT count(*) INTO tmp_count FROM public.memberships
+  WHERE organisation_id = org_a AND user_id = u_admin_a;
+  IF tmp_count <> 1 THEN
+    PERFORM pg_temp.fail('AAL2 session could not read its tenant membership');
+  END IF;
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.pass('AAL2 direct RLS read allowed');
 
   PERFORM pg_temp.set_auth(u_member_a);
   raised := false;
@@ -818,6 +839,64 @@ BEGIN
       PERFORM pg_temp.fail('asset-media bucket missing or public');
     END IF;
     PERFORM pg_temp.pass('asset-media storage bucket is private');
+  END;
+
+  -- 21) Auth identity assets: profile trigger, ensure_own_profile, anon fail-closed
+  DECLARE
+    u_profile uuid := gen_random_uuid();
+    profile_count int;
+    ensured public.profiles;
+    has_anon_profile_insert boolean;
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'auth' AND c.relname = 'users' AND t.tgname = 'on_auth_user_created'
+    ) THEN
+      PERFORM pg_temp.fail('on_auth_user_created trigger missing on auth.users');
+    END IF;
+    PERFORM pg_temp.pass('auth.users profile provisioning trigger present');
+
+    INSERT INTO auth.users (
+      id, instance_id, aud, role, email, encrypted_password,
+      email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data
+    ) VALUES (
+      u_profile, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+      'profile-auto@example.test', crypt('x', gen_salt('bf')), now(), now(), now(), '{}',
+      jsonb_build_object('display_name', 'Auto Profile')
+    );
+    SELECT count(*) INTO profile_count FROM public.profiles WHERE user_id = u_profile AND email = 'profile-auto@example.test';
+    IF profile_count <> 1 THEN
+      PERFORM pg_temp.fail('handle_new_auth_user did not create profile row');
+    END IF;
+    PERFORM pg_temp.pass('new auth user auto-creates profile');
+
+    PERFORM pg_temp.set_auth(u_profile);
+    ensured := public.ensure_own_profile('Updated Name');
+    IF ensured.display_name IS DISTINCT FROM 'Updated Name' THEN
+      PERFORM pg_temp.fail('ensure_own_profile did not update display_name');
+    END IF;
+    PERFORM pg_temp.pass('ensure_own_profile updates own profile');
+    PERFORM pg_temp.clear_auth();
+
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.role_table_grants
+      WHERE table_schema = 'public' AND table_name = 'profiles'
+        AND grantee = 'anon' AND privilege_type = 'INSERT'
+    ) INTO has_anon_profile_insert;
+    IF has_anon_profile_insert THEN
+      PERFORM pg_temp.fail('anon still has INSERT on profiles');
+    END IF;
+    PERFORM pg_temp.pass('anon cannot insert profiles (grant revoked)');
+
+    IF NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'bootstrap_organisation')
+       OR NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'create_organisation_invitation')
+       OR NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'accept_organisation_invitation')
+       OR NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'expire_organisation_invitation_by_token') THEN
+      PERFORM pg_temp.fail('required auth/invite RPCs missing');
+    END IF;
+    PERFORM pg_temp.pass('auth bootstrap and invitation RPCs present');
   END;
 
   RAISE NOTICE 'ALL PHASE0 SECURITY TESTS PASSED';

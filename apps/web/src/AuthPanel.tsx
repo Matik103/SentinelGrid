@@ -1,8 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
-  authToken, requestPasswordReset, resendSignupConfirmation,
+  authToken, requestPasswordReset, resendSignupConfirmation, restoreSession,
   signInWithPassword, signOut, signUpWithPassword, updatePassword,
 } from "./auth";
+import {
+  beginTotpChallenge, beginTotpEnrollment, prepareMfaSession, verifyTotpChallenge,
+  type MfaChallenge, type MfaFactor,
+} from "./mfa";
 
 type Props = { onAuthChange?: () => void };
 type View = "signin" | "signup" | "forgot" | "reset" | "verify";
@@ -25,9 +29,37 @@ export function AuthPanel({ onAuthChange }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [mfaPending, setMfaPending] = useState(false);
+  const [mfa, setMfa] = useState<MfaChallenge | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [verifiedFactors, setVerifiedFactors] = useState<MfaFactor[]>([]);
+  const signedIn = Boolean(authToken()) && !mfaPending && !mfa;
 
   useEffect(() => {
     if (window.location.hash.includes("type=recovery")) setView("reset");
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void restoreSession().then(async (session) => {
+      if (!active || !session || window.location.hash.includes("type=recovery")) return;
+      try {
+        setMfaPending(true);
+        const result = await prepareMfaSession();
+        if (!active) return;
+        setVerifiedFactors(result.factors);
+        if (result.complete) {
+          setMfa(null);
+          setMfaPending(false);
+          onAuthChange?.();
+        } else {
+          setMfa(result.challenge);
+        }
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : String(err));
+      }
+    }).catch(() => undefined);
+    return () => { active = false; };
   }, []);
 
   const run = async (event: FormEvent, action: () => Promise<void>) => {
@@ -39,9 +71,116 @@ export function AuthPanel({ onAuthChange }: Props) {
     } finally { setBusy(false); }
   };
 
-  if (authToken() && view !== "reset") return (
+  const completePasswordAuth = async () => {
+    setMfaPending(true);
+    const result = await prepareMfaSession();
+    setVerifiedFactors(result.factors);
+    if (result.complete) {
+      setMfa(null);
+      setMfaPending(false);
+      onAuthChange?.();
+    } else {
+      setMfa(result.challenge);
+    }
+  };
+
+  const onVerifyMfa = async (event: FormEvent) => {
+    event.preventDefault();
+    const code = mfaCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      setError("Enter the six-digit code from your authenticator app.");
+      return;
+    }
+    if (!mfa) return;
+    setBusy(true); setError(null);
+    try {
+      await verifyTotpChallenge(mfa, code);
+      await restoreSession();
+      setMfa(null);
+      setMfaPending(false);
+      setMfaCode("");
+      onAuthChange?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally { setBusy(false); }
+  };
+
+  if (mfa || mfaPending) {
+    return (
+      <main className="auth-experience">
+        <section className="auth-story">
+          <div className="auth-story-brand"><img src="/assets/sentinelgrid-logo-wordmark.png" alt="SentinelGrid" width="230" height="74" /></div>
+          <div className="auth-story-copy">
+            <span className="eyebrow"><i /> TRUSTED ACCESS / MULTI-FACTOR</span>
+            <h1>Verify your<br /><span>identity.</span></h1>
+            <p>Authenticator-app MFA protects every workspace decision. Enrollment uses free TOTP — no SMS provider required.</p>
+          </div>
+        </section>
+        <section className="auth-form-side">
+          <div className="auth-form-card">
+            <div className="auth-form-topline"><span>SECURE ACCESS</span><span>MFA / AAL2</span></div>
+            <div className="auth-form-heading">
+              <h2>{mfa?.mode === "enroll" ? "Set up authenticator" : mfa ? "Enter authenticator code" : "Multi-factor authentication required"}</h2>
+              <p>SentinelGrid requires a verified authenticator before workspace access.</p>
+            </div>
+            {error && <div className="auth-feedback error" role="alert">{error}</div>}
+            {mfa ? (
+              <div className="auth-mfa">
+                {mfa.mode === "enroll" && (
+                  <div className="auth-mfa-setup">
+                    <p>Scan this QR code with Google Authenticator, Microsoft Authenticator, 2FAS, or another TOTP app.</p>
+                    {mfa.qrCode && <img className="auth-mfa-qr" src={mfa.qrCode} alt="SentinelGrid authenticator setup QR code" />}
+                    {mfa.secret && <p className="auth-mfa-secret">Can't scan it? Enter this setup key manually: <code>{mfa.secret}</code></p>}
+                  </div>
+                )}
+                {mfa.mode === "challenge" && verifiedFactors.length > 1 && (
+                  <label className="auth-mfa-label">Authenticator
+                    <select value={mfa.factorId} disabled={busy} onChange={(event) => {
+                      setBusy(true); setError(null);
+                      void beginTotpChallenge(event.target.value, "challenge")
+                        .then(setMfa)
+                        .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+                        .finally(() => setBusy(false));
+                    }}>
+                      {verifiedFactors.map((factor) => <option key={factor.id} value={factor.id}>{factor.friendlyName}</option>)}
+                    </select>
+                  </label>
+                )}
+                <form className="auth-form auth-form-modern" onSubmit={(event) => void onVerifyMfa(event)}>
+                  <label>Six-digit authenticator code
+                    <input type="text" required inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} autoFocus />
+                  </label>
+                  <button className="auth-submit" type="submit" disabled={busy || mfaCode.length !== 6}>{busy ? "Verifying…" : mfa.mode === "enroll" ? "Verify and enable MFA" : "Verify and continue"}<span>↗</span></button>
+                </form>
+              </div>
+            ) : (
+              <button type="button" className="auth-submit" disabled={busy} onClick={() => {
+                setBusy(true); setError(null);
+                void prepareMfaSession()
+                  .then((result) => { setVerifiedFactors(result.factors); if (result.complete) { setMfaPending(false); onAuthChange?.(); } else setMfa(result.challenge); })
+                  .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+                  .finally(() => setBusy(false));
+              }}>{busy ? "Preparing…" : "Continue MFA setup"}</button>
+            )}
+            <div className="auth-form-bottom">
+              <button type="button" onClick={() => void signOut().then(() => { setMfa(null); setMfaPending(false); setVerifiedFactors([]); setMfaCode(""); onAuthChange?.(); })}>Sign out</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (signedIn && view !== "reset") return (
     <section className="auth-panel auth-panel-compact" aria-label="Account">
-      <div className="auth-status"><strong>Account secured</strong><span className="mono">Identity session active</span></div>
+      <div className="auth-status"><strong>Account secured</strong><span className="mono">MFA session active (AAL2)</span></div>
+      <button type="button" className="btn secondary" disabled={busy} onClick={() => {
+        setBusy(true); setError(null);
+        void beginTotpEnrollment()
+          .then((challenge) => { setMfaPending(true); setMfa(challenge); })
+          .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+          .finally(() => setBusy(false));
+      }}>{busy ? "Preparing…" : "Add backup authenticator"}</button>
       <button type="button" onClick={() => void signOut().then(() => onAuthChange?.()).catch((err) => setError(String(err)))} disabled={busy}>
         {busy ? "Signing out…" : "Sign out"}
       </button>
@@ -52,7 +191,7 @@ export function AuthPanel({ onAuthChange }: Props) {
   const invitePending = Boolean(new URLSearchParams(window.location.search).get("invite"));
   const title = view === "signin" ? "Welcome back" : view === "signup" ? "Create your account" : view === "forgot" ? "Reset your password" : view === "reset" ? "Choose a new password" : "Check your inbox";
   const description = view === "signin" ? "Sign in to continue to your secure operations environment." :
-    view === "signup" ? "Create your identity first. Your workspace and access permissions come next." :
+    view === "signup" ? "Create your identity first. Authenticator enrollment and workspace access come next." :
     view === "forgot" ? "We'll send a secure password reset link to your email address." :
     view === "reset" ? "Choose a new password to secure your SentinelGrid account." :
     "Your account is almost ready. Verify your email address to continue.";
@@ -64,7 +203,7 @@ export function AuthPanel({ onAuthChange }: Props) {
         <div className="auth-story-copy">
           <span className="eyebrow"><i /> TRUSTED ACCESS / OPERATIONAL INTELLIGENCE</span>
           <h1>Know your<br /><span>system.</span><br />Secure every<br />decision.</h1>
-          <p>One trusted identity. Workspace-scoped access. A clearer operational picture across the infrastructure that matters.</p>
+          <p>One trusted identity. MFA-protected workspace access. A clearer operational picture across the infrastructure that matters.</p>
         </div>
         <div className="auth-story-orbit" aria-hidden="true"><span className="auth-orbit auth-orbit-a" /><span className="auth-orbit auth-orbit-b" /><span className="auth-orbit-core">SG</span><span className="auth-orbit-label auth-label-a">IDENTITY</span><span className="auth-orbit-label auth-label-b">WORKSPACE</span><span className="auth-orbit-label auth-label-c">EVIDENCE</span></div>
         <div className="auth-story-footer"><span>SECURE BY DESIGN</span><span>INFRASTRUCTURE / INTELLIGENCE / CONTROL</span></div>
@@ -78,7 +217,7 @@ export function AuthPanel({ onAuthChange }: Props) {
           {notice && <div className="auth-feedback success" role="status">{notice}</div>}
 
           {view === "signin" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
-            await signInWithPassword(email.trim(), password); setPassword(""); onAuthChange?.();
+            await signInWithPassword(email.trim(), password); setPassword(""); await completePasswordAuth();
           })}>
             <label>Email address<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@company.com" required autoFocus /></label>
             <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder="Your password" required /></label>
@@ -91,7 +230,7 @@ export function AuthPanel({ onAuthChange }: Props) {
             if (password !== confirmPassword) throw new Error("Your passwords do not match.");
             const result = await signUpWithPassword(email.trim(), password, name);
             setPassword(""); setConfirmPassword("");
-            if (result.session) onAuthChange?.();
+            if (result.session) await completePasswordAuth();
             else { setView("verify"); setNotice(null); }
           })}>
             <label>Your name<input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Full name" required maxLength={120} /></label>
@@ -111,7 +250,7 @@ export function AuthPanel({ onAuthChange }: Props) {
           {view === "reset" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
             if (password.length < 8) throw new Error("Password should be at least 8 characters.");
             if (password !== confirmPassword) throw new Error("Your passwords do not match.");
-            await updatePassword(password); setPassword(""); setConfirmPassword(""); setNotice("Your password has been updated. You can now continue."); window.history.replaceState({}, "", window.location.pathname); onAuthChange?.(); setView("signin");
+            await updatePassword(password); setPassword(""); setConfirmPassword(""); setNotice("Your password has been updated. Sign in and complete MFA to continue."); window.history.replaceState({}, "", window.location.pathname); setView("signin");
           })}>
             <label>New password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={8} required autoFocus /></label>
             <label>Confirm new password<input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" minLength={8} required /></label>
@@ -120,7 +259,7 @@ export function AuthPanel({ onAuthChange }: Props) {
 
           {view === "verify" && <div className="auth-verify">
             <div className="auth-verify-icon">✉</div><strong>Verify your email</strong>
-            <p>We sent a confirmation link to <b>{email}</b>. Open it on this device to activate your account. Your workspace setup will follow verification.</p>
+            <p>We sent a confirmation link to <b>{email}</b>. Open it on this device to activate your account. Authenticator enrollment follows verification.</p>
             <button type="button" className="auth-submit" disabled={busy} onClick={() => void run({ preventDefault() {} } as FormEvent, async () => { await resendSignupConfirmation(email.trim()); setNotice("A fresh confirmation email has been sent."); })}>{busy ? "Sending…" : "Resend confirmation email"}</button>
           </div>}
 
@@ -129,7 +268,7 @@ export function AuthPanel({ onAuthChange }: Props) {
             {view === "signup" && <span>Already have an account? <button type="button" onClick={() => { setView("signin"); setError(null); }}>Sign in</button></span>}
             {(view === "forgot" || view === "reset" || view === "verify") && <span><button type="button" onClick={() => { setView("signin"); setError(null); setNotice(null); }}>Back to sign in</button></span>}
           </div>
-          <p className="auth-privacy-note">Your account is separate from your organisation. Workspace membership determines what you can access.</p>
+          <p className="auth-privacy-note">Password authentication alone is not enough. Workspace access requires a verified authenticator session (AAL2).</p>
         </div>
       </section>
     </main>

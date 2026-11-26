@@ -10,7 +10,7 @@ let configReady: Promise<void> | null = null;
 export function ensureConfig(): Promise<void> {
   if (!configReady) {
     configReady = loadPublicConfig().then((cfg) => {
-      apiBase = cfg.api_base_url.replace(/\\/$/, "");
+      apiBase = cfg.api_base_url.replace(/\/$/, "");
       apiConfigError = cfg.api_config_error;
     });
   }

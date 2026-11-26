@@ -46,8 +46,8 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
     setError(null);
     const result = await apiGet<OrganisationMembership[]>("/v1/orgs/mine");
     if (result.error) {
+      // Preserve the last known memberships and selected workspace on transient failures.
       setError(result.error.message);
-      setOrganisations([]);
     } else {
       const rows = (result.data ?? [])
         .filter((row) => row.status === "active" && row.organisations?.id)

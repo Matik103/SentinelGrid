@@ -95,10 +95,11 @@
 .brand-logo {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
-  object-fit: cover;
+  border-radius: 0;
+  object-fit: contain;
   flex-shrink: 0;
-  background: #0b1622;
+  background: transparent;
+  mix-blend-mode: normal;
 }
 
 .brand-text span {

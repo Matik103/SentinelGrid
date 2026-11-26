@@ -206,6 +206,18 @@ export async function getWorkspaceBranding(organisationIdValue: string): Promise
   return { logoPath: path, logoUrl: path ? `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/workspace-branding/${path.split("/").map(encodeURIComponent).join("/")}` : null };
 }
 
+export async function canManageWorkspaceBranding(organisationIdValue: string): Promise<boolean> {
+  const token = authToken();
+  if (!token) return false;
+  const response = await fetch(`${PUBLIC_SUPABASE_URL}/rest/v1/rpc/has_org_permission`, {
+    method: "POST",
+    headers: { apikey: PUBLIC_SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_organisation_id: organisationIdValue, p_permission: "org.admin" }),
+  });
+  if (!response.ok) return false;
+  return Boolean(await response.json());
+}
+
 export async function uploadWorkspaceLogo(organisationIdValue: string, file: File): Promise<WorkspaceBranding> {
   const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
   if (!allowed.has(file.type)) throw new Error("Choose a JPEG, PNG, WebP or AVIF logo.");

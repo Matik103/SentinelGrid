@@ -13,7 +13,7 @@ const NAV_GROUPS = [
   { section: "COMMAND", items: [{ to: "/", label: "Overview", glyph: "◈" }, { to: "/incidents", label: "Incident investigation", glyph: "⌁" }, { to: "/replay", label: "Event replay", glyph: "↶" }] },
   { section: "INFRASTRUCTURE", items: [{ to: "/topology", label: "Infrastructure topology", glyph: "⌗" }, { to: "/facilities", label: "Facilities", glyph: "▦" }, { to: "/zones", label: "Zones", glyph: "⌖" }, { to: "/assets", label: "Assets & equipment", glyph: "◫" }, { to: "/devices", label: "Devices", glyph: "⌘" }, { to: "/sensors", label: "Sensors", glyph: "◉" }, { to: "/energy", label: "Energy intelligence", glyph: "ϟ" }, { to: "/scenarios", label: "Failure scenario lab", glyph: "△" }] },
   { section: "SECURITY & EVIDENCE", items: [{ to: "/connectors", label: "Connectors", glyph: "⌘" }, { to: "/evidence", label: "Evidence chain", glyph: "⟡" }, { to: "/audit", label: "Audit trail", glyph: "≋" }] },
-  { section: "WORKSPACE", items: [{ to: "/organisation", label: "Organisation", glyph: "⌂" }, { to: "/users", label: "People & access", glyph: "◎" }] },
+  { section: "WORKSPACE", items: [{ to: "/organisation", label: "Workspace settings", glyph: "⌂" }, { to: "/users", label: "People & access", glyph: "◎" }] },
 ] as const;
 
 function Page({
@@ -93,7 +93,7 @@ function DataTable({
   if (!rows.length) {
     return (
       <div className="empty">
-        No rows returned from the API for this organisation.
+        No rows returned from the API for this workspace.
         <div className="badge-sim">LIVE API — empty result (not fabricated OT)</div>
       </div>
     );
@@ -156,7 +156,7 @@ function Overview() {
     const org = organisationId();
     if (!apiConfigured() || !org || !authToken()) {
       setLoading(false);
-      setError("Connect an organisation and authenticated session to populate this command view. No sample telemetry is displayed.");
+      setError("Connect a workspace and authenticated session to populate this command view. No sample telemetry is displayed.");
       return () => { active = false; };
     }
     void Promise.all([
@@ -209,7 +209,7 @@ function Overview() {
 
       <div className="command-section-heading">
         <div><span className="eyebrow">WORKSPACE SNAPSHOT</span><h2>Operational footprint</h2></div>
-        <span className="snapshot-note">Values reflect accessible organisation records</span>
+        <span className="snapshot-note">Values reflect accessible workspace records</span>
       </div>
       <div className="command-stat-grid">
         {stats.map((item) => <article className="command-stat-card" key={item.label}>
@@ -291,7 +291,7 @@ function OrganisationPanel() {
   const reload = async () => {
     setError(null);
     if (!org || !authToken() || !apiConfigured()) {
-      setError("Configure API base URL, organisation id, and access token.");
+      setError("Configure the API base URL and sign in to a workspace.");
       return;
     }
     const [m, i] = await Promise.all([
@@ -327,7 +327,7 @@ function OrganisationPanel() {
   }
 
   return (
-    <Page title="Organisation settings" lead="Tenant membership and invitation workflows.">
+    <Page title="Workspace settings" lead="Tenant membership and invitation workflows.">
       <StatusBanner error={error} />
       <h2 className="section-title">Members</h2>
       <DataTable
@@ -493,7 +493,15 @@ export function App() {
         </div>
       </aside>
       <main className="main">
-        <header className="topbar"><div className="topbar-context"><span>WORKSPACE</span><b>/</b><span className="topbar-workspace-name">{activeOrganisationName}</span><b>/</b><strong>{currentPage}</strong></div><div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
+        <header className="topbar">
+          <div className="topbar-leading">
+            <button type="button" className="topbar-back" aria-label="Go back" title="Go back"
+              onClick={() => window.history.state?.idx > 0 ? navigate(-1) : navigate("/")}>
+              <span aria-hidden="true">←</span>
+            </button>
+            <div className="topbar-context"><span>WORKSPACE</span><b>/</b><span className="topbar-workspace-name">{activeOrganisationName}</span><b>/</b><strong>{currentPage}</strong></div>
+          </div>
+          <div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
         <div className="main-content">
         <Routes key={activeOrganisationId ?? "no-workspace"}>
           <Route path="/" element={<Overview />} />
@@ -507,7 +515,7 @@ export function App() {
             element={
               <ResourcePage
                 title="Facilities"
-                lead="Register and review facilities for this organisation."
+                lead="Register and review facilities for this workspace."
                 path={(org) => `/v1/orgs/${org}/facilities`}
                 columns={[
                   { key: "name", label: "Name" },
@@ -675,7 +683,7 @@ export function App() {
             element={
               <ResourcePage
                 title="Audit logs"
-                lead="Administrative actions for this organisation."
+                lead="Administrative actions for this workspace."
                 path={(org) => `/v1/orgs/${org}/audit-logs`}
                 columns={[
                   { key: "action", label: "Action" },

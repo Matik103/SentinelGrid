@@ -95,7 +95,6 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
     setSlugEdited(false);
     setCreating(false);
     setSaving(false);
-    void loadOrganisations();
   }
 
   return (

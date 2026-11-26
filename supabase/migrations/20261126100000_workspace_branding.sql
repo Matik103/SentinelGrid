@@ -54,7 +54,7 @@ BEGIN
   IF NOT public.has_org_permission(p_organisation_id, 'org.admin') THEN
     RAISE EXCEPTION 'Workspace administrator permission required' USING ERRCODE = '42501';
   END IF;
-  IF p_logo_path IS NOT NULL AND p_logo_path !~ ('^' || p_organisation_id::text || '/[a-f0-9-]+\\.(jpg|png|webp|avif)$') THEN
+  IF p_logo_path IS NOT NULL AND p_logo_path !~ ('^' || p_organisation_id::text || '/[a-f0-9-]+[.](jpg|png|webp|avif)$') THEN
     RAISE EXCEPTION 'Invalid workspace logo path' USING ERRCODE = '22023';
   END IF;
   UPDATE public.organisations

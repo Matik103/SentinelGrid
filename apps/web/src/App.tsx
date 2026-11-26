@@ -333,7 +333,7 @@ function OrganisationPanel() {
     }
   }, [org]);
 
-  async function onWorkspaceLogoChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function onWorkspaceLogoChange(event: { currentTarget: HTMLInputElement }) {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
     if (!file || !org) return;

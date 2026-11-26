@@ -1,18 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  authModeLabel,
-  authToken,
-  organisationId,
-  restoreSession,
-  setOrganisationId,
-  signInWithPassword,
-  signOut,
-} from "./auth";
+import { authModeLabel, authToken, restoreSession, signInWithPassword, signOut } from "./auth";
 
-export function AuthPanel() {
+type Props = { onAuthChange?: () => void };
+
+export function AuthPanel({ onAuthChange }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [org, setOrg] = useState(organisationId() ?? "");
   const [status, setStatus] = useState(authModeLabel());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,9 +21,9 @@ export function AuthPanel() {
     setError(null);
     try {
       await signInWithPassword(email.trim(), password);
-      if (org.trim()) setOrganisationId(org.trim());
       setStatus(authModeLabel());
       setPassword("");
+      onAuthChange?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -44,6 +37,7 @@ export function AuthPanel() {
     try {
       await signOut();
       setStatus(authModeLabel());
+      onAuthChange?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -51,76 +45,31 @@ export function AuthPanel() {
     }
   };
 
-  const onSaveOrg = (event: FormEvent) => {
-    event.preventDefault();
-    setOrganisationId(org.trim() || null);
-    setStatus(authModeLabel());
-  };
-
   return (
     <div className="auth-panel" aria-label="Authentication">
       <div className="auth-status">
-        <strong>{status}</strong>
-        <span className="mono">{organisationId() ? `org ${organisationId()}` : "no organisation selected"}</span>
+        <strong>{signedIn ? "Account connected" : status}</strong>
+        <span className="mono">{signedIn ? "Workspace access is managed above" : "Sign in to access your workspaces"}</span>
       </div>
-      {error && <div className="empty">{error}</div>}
+      {error && <div className="inline-notice warning" role="alert">{error}</div>}
       {signedIn ? (
         <div className="auth-actions">
-          <form onSubmit={onSaveOrg} className="auth-form">
-            <label>
-              Organisation ID
-              <input
-                value={org}
-                onChange={(e) => setOrg(e.target.value)}
-                placeholder="UUID"
-                autoComplete="off"
-              />
-            </label>
-            <button type="submit" disabled={busy}>Save organisation</button>
-          </form>
           <button type="button" onClick={() => void onSignOut()} disabled={busy}>
-            Sign out
+            {busy ? "Signing out…" : "Sign out"}
           </button>
         </div>
       ) : (
-        <form onSubmit={(e) => void onSignIn(e)} className="auth-form">
-          <label>
-            Email
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="username"
-            />
+        <form onSubmit={(event) => void onSignIn(event)} className="auth-form">
+          <label>Email
+            <input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" />
           </label>
-          <label>
-            Password
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </label>
-          <label>
-            Organisation ID
-            <input
-              value={org}
-              onChange={(e) => setOrg(e.target.value)}
-              placeholder="UUID"
-              autoComplete="off"
-            />
+          <label>Password
+            <input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
           </label>
           <button type="submit" disabled={busy}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
-          {import.meta.env.DEV && (
-            <p className="auth-dev-hint">
-              Local only: `VITE_DEV_ACCESS_TOKEN` / `VITE_DEV_ORGANISATION_ID` still work. Production builds require Supabase Auth.
-            </p>
-          )}
+          {import.meta.env.DEV && <p className="auth-dev-hint">Local development may use VITE_DEV_ACCESS_TOKEN. Workspace access is still resolved from your memberships.</p>}
         </form>
       )}
     </div>

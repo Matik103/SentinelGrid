@@ -530,7 +530,7 @@ export function App() {
         setActiveOrganisationId(null);
         setActiveOrganisationName("Workspace");
         setWorkspaceGate("checking");
-      } else if (authReady) {
+      } else {
         void refreshWorkspaceState();
       }
     });

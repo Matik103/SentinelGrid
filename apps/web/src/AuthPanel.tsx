@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
-  authModeLabel, authToken, requestPasswordReset, resendSignupConfirmation,
+  authToken, requestPasswordReset, resendSignupConfirmation,
   signInWithPassword, signOut, signUpWithPassword, updatePassword,
 } from "./auth";
 
@@ -25,7 +25,6 @@ export function AuthPanel({ onAuthChange }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [status] = useState(authModeLabel());
 
   useEffect(() => {
     if (window.location.hash.includes("type=recovery")) setView("reset");
@@ -39,7 +38,7 @@ export function AuthPanel({ onAuthChange }: Props) {
 
   if (authToken() && view !== "reset") return (
     <section className="auth-panel auth-panel-compact" aria-label="Account">
-      <div className="auth-status"><strong>Account secured</strong><span className="mono">Supabase identity session active</span></div>
+      <div className="auth-status"><strong>Account secured</strong><span className="mono">Identity session active</span></div>
       <button type="button" onClick={() => void signOut().then(() => onAuthChange?.()).catch((err) => setError(String(err)))} disabled={busy}>
         {busy ? "Signing out…" : "Sign out"}
       </button>

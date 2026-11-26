@@ -47,7 +47,7 @@ async function ensureUserProfile(session: Session): Promise<void> {
   const { error } = await getSupabase().from("profiles").upsert({
     user_id: user.id, email: user.email ?? null, display_name: displayName,
   }, { onConflict: "user_id" });
-  if (error) throw new Error(`Account profile could not be initialised: ${error.message}`);
+  if (error) console.warn("SentinelGrid profile initialisation deferred:", error.message);
 }
 
 export async function restoreSession(): Promise<Session | null> {

@@ -161,7 +161,6 @@ function Overview() {
       setWorkspaceLogoUrl(null);
     }
     void healthCheck().then((value) => { if (active) setHealth(value); }).catch(() => { if (active) setHealth("Unavailable"); });
-    const org = organisationId();
     if (!apiConfigured() || !org || !authToken()) {
       setLoading(false);
       setError("Sign in and select a workspace to populate this command view. No sample telemetry is displayed.");

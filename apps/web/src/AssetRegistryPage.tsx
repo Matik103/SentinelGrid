@@ -20,7 +20,7 @@ type Asset = {
 };
 
 type Facility = { id: string; name: string; code?: string | null };
-type CategoryKey = "all" | "electrical" | "generators" | "solar" | "battery" | "hvac" | "refrigeration" | "pumps_motors" | "industrial" | "network" | "bms" | "other";
+type CategoryKey = "all" | "electrical" | "generators" | "solar" | "battery" | "hvac" | "refrigeration" | "pumps_motors" | "industrial" | "network" | "bms" | "data_center" | "transformers" | "ups" | "cooling" | "other";
 
 const CATEGORIES: { value: Exclude<CategoryKey, "all">; label: string; icon: string; hint: string }[] = [
   { value: "electrical", label: "Electrical", icon: "⚡", hint: "Voltage class, phase, protection or panel reference" },
@@ -33,6 +33,10 @@ const CATEGORIES: { value: Exclude<CategoryKey, "all">; label: string; icon: str
   { value: "industrial", label: "Industrial", icon: "▦", hint: "Equipment function or production line" },
   { value: "network", label: "Network", icon: "⌘", hint: "Network role, ports or rack position" },
   { value: "bms", label: "Building systems", icon: "⌂", hint: "System type or building-control reference" },
+  { value: "data_center", label: "Data centre", icon: "▤", hint: "Rack position, server/GPU type, PDU or rack units" },
+  { value: "transformers", label: "Transformer", icon: "ϟ", hint: "Voltage ratio, vector group, cooling class or rating" },
+  { value: "ups", label: "UPS", icon: "▰", hint: "Topology, kVA rating, runtime or battery configuration" },
+  { value: "cooling", label: "Cooling plant", icon: "❄", hint: "Chiller type, refrigerant, cooling capacity or COP" },
   { value: "other", label: "Other", icon: "◇", hint: "Additional equipment details" },
 ];
 

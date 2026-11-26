@@ -3,10 +3,11 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigured, apiGet, apiPost, authToken, healthCheck, organisationId } from "./api";
 import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
+import { TopologyPage, IncidentWorkbenchPage, EventReplayPage, ScenarioWorkbenchPage } from "./OperationsWorkbench";
 
 const NAV_GROUPS = [
-  { section: "COMMAND", items: [{ to: "/", label: "Overview", glyph: "◈" }, { to: "/events", label: "Event intelligence", glyph: "⌁" }] },
-  { section: "INFRASTRUCTURE", items: [{ to: "/facilities", label: "Facilities", glyph: "▦" }, { to: "/zones", label: "Zones", glyph: "⌗" }, { to: "/assets", label: "Assets & equipment", glyph: "◫" }, { to: "/devices", label: "Devices & sensors", glyph: "⌘" }, { to: "/energy", label: "Energy intelligence", glyph: "ϟ" }] },
+  { section: "COMMAND", items: [{ to: "/", label: "Overview", glyph: "◈" }, { to: "/incidents", label: "Incident investigation", glyph: "⌁" }, { to: "/replay", label: "Event replay", glyph: "↶" }] },
+  { section: "INFRASTRUCTURE", items: [{ to: "/topology", label: "Infrastructure topology", glyph: "⌗" }, { to: "/facilities", label: "Facilities", glyph: "▦" }, { to: "/zones", label: "Zones", glyph: "⌖" }, { to: "/assets", label: "Assets & equipment", glyph: "◫" }, { to: "/devices", label: "Devices & sensors", glyph: "⌘" }, { to: "/energy", label: "Energy intelligence", glyph: "ϟ" }, { to: "/scenarios", label: "Failure scenario lab", glyph: "△" }] },
   { section: "SECURITY & EVIDENCE", items: [{ to: "/connectors", label: "Connectors", glyph: "⌘" }, { to: "/evidence", label: "Evidence chain", glyph: "⟡" }, { to: "/audit", label: "Audit trail", glyph: "≋" }] },
   { section: "WORKSPACE", items: [{ to: "/organisation", label: "Organisation", glyph: "⌂" }, { to: "/users", label: "People & access", glyph: "◎" }] },
 ] as const;
@@ -454,6 +455,10 @@ export function App() {
         <div className="main-content">
           <Routes>
             <Route path="/" element={<Overview />} />
+            <Route path="/topology" element={<TopologyPage />} />
+            <Route path="/incidents" element={<IncidentWorkbenchPage />} />
+            <Route path="/replay" element={<EventReplayPage />} />
+            <Route path="/scenarios" element={<ScenarioWorkbenchPage />} />
             <Route path="/organisation" element={<OrganisationPanel />} />
             <Route path="/facilities" element={<ResourcePage title="Facilities" lead="Register and review facilities for this organisation." path={(org) => `/v1/orgs/${org}/facilities`} columns={[{ key: "name", label: "Name" }, { key: "code", label: "Code" }, { key: "status", label: "Status" }, { key: "created_at", label: "Created" }]} create={{ label: "Create facility", fields: <><input name="name" required placeholder="Facility name" /><input name="code" placeholder="Code" /></>, build: (org, form) => ({ path: `/v1/orgs/${org}/facilities`, body: { name: String(form.get("name") ?? ""), code: String(form.get("code") ?? "") || undefined } }) }} />} />
             <Route path="/zones" element={<ResourcePage title="Zones" lead="Facility zones for registry scoping." path={(org) => `/v1/orgs/${org}/zones`} columns={[{ key: "name", label: "Name" }, { key: "facility_id", label: "Facility" }, { key: "code", label: "Code" }, { key: "status", label: "Status" }]} create={{ label: "Create zone", fields: <><input name="facility_id" required placeholder="Facility UUID" /><input name="name" required placeholder="Zone name" /><input name="code" placeholder="Code" /></>, build: (org, form) => ({ path: `/v1/orgs/${org}/zones`, body: { facility_id: String(form.get("facility_id") ?? ""), name: String(form.get("name") ?? ""), code: String(form.get("code") ?? "") || undefined } }) }} />} />

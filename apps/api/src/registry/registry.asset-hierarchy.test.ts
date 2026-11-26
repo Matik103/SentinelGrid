@@ -69,4 +69,42 @@ describe("RegistryService asset hierarchy", () => {
     assert.equal(inserted?.organisation_id, organisationId);
     assert.equal(result.parent_asset_id, parentId);
   });
+
+  it("rejects a circular parent chain before updating the asset", async () => {
+    const assetId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    let selectCount = 0;
+    let updateCalled = false;
+    const query = (data: unknown) => {
+      const builder: any = {
+        eq: () => builder,
+        maybeSingle: async () => ({ data, error: null }),
+        then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+          Promise.resolve({ data, error: null }).then(resolve, reject),
+      };
+      return builder;
+    };
+    const sb = {
+      from: () => ({
+        select: () => {
+          selectCount += 1;
+          if (selectCount === 1) return query({ id: assetId, facility_id: facilityId });
+          if (selectCount === 2) return query({ id: parentId });
+          return query([
+            { id: parentId, parent_asset_id: assetId },
+            { id: assetId, parent_asset_id: null },
+          ]);
+        },
+        update: () => { updateCalled = true; return query({}); },
+      }),
+    };
+    const service = new RegistryService(
+      { requirePermission: async () => undefined } as never,
+      { create: () => sb } as never,
+    );
+    await assert.rejects(
+      service.setAssetParent(user, organisationId, assetId, { parent_asset_id: parentId }),
+      /circular asset dependency/i,
+    );
+    assert.equal(updateCalled, false);
+  });
 });

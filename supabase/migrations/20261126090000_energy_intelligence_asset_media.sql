@@ -300,10 +300,26 @@ CREATE TABLE IF NOT EXISTS public.energy_measurements (
   source_event_id text NOT NULL,
   quality text NOT NULL DEFAULT 'unknown'
     CHECK (quality IN ('good', 'uncertain', 'poor', 'unknown')),
-  classification text NOT NULL DEFAULT 'real'
+  classification text NOT NULL
     CHECK (classification IN ('real', 'simulated', 'replayed', 'synthetic')),
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT energy_measurements_canonical_unit CHECK (
+    (metric_key IN ('active_power_kw', 'battery_power_kw', 'cooling_capacity_kw') AND unit = 'kW')
+    OR (metric_key = 'apparent_power_kva' AND unit = 'kVA')
+    OR (metric_key = 'reactive_power_kvar' AND unit = 'kvar')
+    OR (metric_key = 'energy_kwh' AND unit = 'kWh')
+    OR (metric_key = 'voltage_v' AND unit = 'V')
+    OR (metric_key = 'current_a' AND unit = 'A')
+    OR (metric_key = 'frequency_hz' AND unit = 'Hz')
+    OR (metric_key = 'power_factor' AND unit = '1')
+    OR (metric_key = 'temperature_c' AND unit = '°C')
+    OR (metric_key IN ('humidity_pct', 'fuel_level_pct', 'battery_soc_pct') AND unit = '%')
+    OR (metric_key = 'fuel_consumption_lph' AND unit = 'L/h')
+    OR (metric_key = 'flow_rate_m3_h' AND unit = 'm³/h')
+    OR (metric_key = 'pressure_kpa' AND unit = 'kPa')
+    OR (metric_key = 'pue' AND unit = 'ratio')
+  ),
   CONSTRAINT energy_measurements_facility_same_org_fk
     FOREIGN KEY (organisation_id, facility_id)
     REFERENCES public.facilities (organisation_id, id) ON DELETE CASCADE,
@@ -380,7 +396,12 @@ CREATE TABLE IF NOT EXISTS public.energy_anomalies (
   asset_id uuid,
   measurement_id uuid,
   event_id uuid,
-  metric_key text NOT NULL,
+  metric_key text NOT NULL CHECK (metric_key IN (
+    'active_power_kw', 'apparent_power_kva', 'reactive_power_kvar', 'energy_kwh',
+    'voltage_v', 'current_a', 'frequency_hz', 'power_factor', 'temperature_c',
+    'humidity_pct', 'fuel_consumption_lph', 'fuel_level_pct', 'battery_soc_pct',
+    'battery_power_kw', 'cooling_capacity_kw', 'flow_rate_m3_h', 'pressure_kpa', 'pue'
+  )),
   severity text NOT NULL CHECK (severity IN ('info', 'low', 'medium', 'high', 'critical')),
   status text NOT NULL DEFAULT 'open'
     CHECK (status IN ('open', 'acknowledged', 'resolved', 'false_positive')),

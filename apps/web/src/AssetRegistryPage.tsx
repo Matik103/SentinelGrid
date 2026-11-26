@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
-import { Link } from "react-router-dom";
-import { apiGet, apiPost, listAssetMedia, listEnergyMeasurements, uploadAssetImage, type AssetMediaRecord, type EnergyMeasurement } from "./api";
-import { organisationId } from "./api";
+import { Link, useSearchParams } from "react-router-dom";
+import { addAssetExternalImage, apiGet, apiPost, listAssetMedia, listEnergyMeasurements, organisationId, uploadAssetImage, type AssetMediaRecord, type EnergyMeasurement } from "./api";
 
 type Asset = {
   id: string;
@@ -71,11 +70,12 @@ function SpecValue({ label, value, suffix = "" }: { label: string; value: unknow
 
 export function AssetRegistryPage() {
   const org = organisationId();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [media, setMedia] = useState<AssetMediaRecord[]>([]);
   const [measurements, setMeasurements] = useState<EnergyMeasurement[]>([]);
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedId, setSelectedId] = useState(searchParams.get("asset") ?? "");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CategoryKey>("all");
   const [loading, setLoading] = useState(true);
@@ -85,6 +85,11 @@ export function AssetRegistryPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [verifiedPhoto, setVerifiedPhoto] = useState(false);
+  const [externalUrl, setExternalUrl] = useState("");
+  const [externalSource, setExternalSource] = useState<"manufacturer_catalogue" | "representative">("manufacturer_catalogue");
+  const [externalAttribution, setExternalAttribution] = useState("");
+  const [manufacturerReference, setManufacturerReference] = useState("");
+  const [verifiedExternal, setVerifiedExternal] = useState(false);
 
   const load = async () => {
     if (!org) { setError("Select an organisation to load its asset registry."); setLoading(false); return; }
@@ -97,7 +102,8 @@ export function AssetRegistryPage() {
     else {
       const next = assetResult.data ?? [];
       setAssets(next);
-      setSelectedId((current) => current && next.some((a) => a.id === current) ? current : next[0]?.id ?? "");
+      const requestedAsset = searchParams.get("asset");
+      setSelectedId((current) => current && next.some((a) => a.id === current) ? current : requestedAsset && next.some((a) => a.id === requestedAsset) ? requestedAsset : next[0]?.id ?? "");
     }
     if (facilityResult.data) setFacilities(facilityResult.data);
     if (facilityResult.error) setMediaWarning(`Facility list: ${facilityResult.error.message}`);
@@ -182,6 +188,20 @@ export function AssetRegistryPage() {
     } finally { setUploading(false); }
   }
 
+  async function onExternalImage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!org || !selected) return;
+    setUploading(true); setMessage(null);
+    try {
+      await addAssetExternalImage(org, selected.id, externalUrl, externalSource, externalAttribution, manufacturerReference, verifiedExternal);
+      setMessage("External image reference saved with its source and verification status.");
+      setExternalUrl(""); setExternalAttribution(""); setManufacturerReference(""); setVerifiedExternal(false);
+      setMedia(await listAssetMedia(org));
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    } finally { setUploading(false); }
+  }
+
   return <section className="asset-experience">
     <div className="page-heading-row">
       <div>
@@ -238,7 +258,7 @@ export function AssetRegistryPage() {
           {filtered.map((asset) => {
             const image = mediaByAsset.get(asset.id);
             const meta = categoryMeta(asset.category);
-            return <button type="button" key={asset.id} onClick={() => setSelectedId(asset.id)} className={`asset-card ${selected?.id === asset.id ? "selected" : ""}`}>
+            return <button type="button" key={asset.id} onClick={() => { setSelectedId(asset.id); const next = new URLSearchParams(searchParams); next.set("asset", asset.id); setSearchParams(next); }} className={`asset-card ${selected?.id === asset.id ? "selected" : ""}`}>
               <EquipmentVisual asset={asset} media={image} />
               <div className="asset-card-content">
                 <div className="asset-card-top"><span className="asset-category">{meta.label}</span><span className={`asset-status ${asset.status === "active" ? "active" : "muted"}`}>{asset.status}</span></div>
@@ -285,7 +305,18 @@ export function AssetRegistryPage() {
               <span>{uploading ? "Uploading image…" : "＋ Add equipment photograph"}</span>
             </label>
             <label className="verification-check"><input type="checkbox" checked={verifiedPhoto} onChange={(event) => setVerifiedPhoto(event.target.checked)} /> I confirm this photograph shows this exact asset.</label>
-            <div className="media-provenance-note">Uploads are stored in a private, organisation-scoped bucket. Manufacturer or catalogue imagery must be recorded separately and must not be mistaken for an actual site photograph.</div>
+            <form className="external-image-form" onSubmit={onExternalImage}>
+              <label>Manufacturer / catalogue image URL<input type="url" required value={externalUrl} onChange={(event) => setExternalUrl(event.target.value)} placeholder="https://manufacturer.example/product.jpg" /></label>
+              <div className="external-image-fields">
+                <label>Image source<select value={externalSource} onChange={(event) => setExternalSource(event.target.value as "manufacturer_catalogue" | "representative")}><option value="manufacturer_catalogue">Manufacturer catalogue</option><option value="representative">Representative reference</option></select></label>
+                <label>Model / product reference<input value={manufacturerReference} onChange={(event) => setManufacturerReference(event.target.value)} placeholder={selected.manufacturer && selected.model ? `${selected.manufacturer} ${selected.model}` : "Exact model reference"} /></label>
+              </div>
+              <label>Attribution / source page<input value={externalAttribution} onChange={(event) => setExternalAttribution(event.target.value)} placeholder="Manufacturer product page or image credit" /></label>
+              <label className="verification-check"><input type="checkbox" checked={verifiedExternal} onChange={(event) => setVerifiedExternal(event.target.checked)} /> I verified this image matches the exact make and model.</label>
+              <button className="btn secondary" type="submit" disabled={uploading}>{uploading ? "Saving…" : "Save image reference"}</button>
+            </form>
+            <div className="media-provenance-note">Manufacturer catalogue and representative images keep their provenance. Only mark an image as an exact match after checking the same model/reference. The customer’s actual equipment photo remains the preferred source.</div>
+            {selectedMedia.length > 0 && <div className="asset-media-strip">{selectedMedia.map((item) => <div key={item.id} title={`${item.provenance} · ${item.asset_match_verified ? "match verified" : "match unverified"}`}>{item.display_url ? <img src={item.display_url} alt={item.caption ?? "Asset reference"} /> : <span>Image unavailable</span>}<small>{item.is_primary ? "PRIMARY" : item.media_kind.toUpperCase()}</small></div>)}</div>}
           </div>
           <div className="asset-profile-footer"><span>Asset ID</span><code>{selected.id}</code><span>Added {fmtDate(selected.created_at)}</span></div>
         </> : <div className="empty">Select an asset to inspect its profile.</div>}

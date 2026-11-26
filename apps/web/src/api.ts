@@ -273,6 +273,56 @@ export async function uploadAssetImage(
   }
 }
 
+
+export async function addAssetExternalImage(
+  organisationIdValue: string,
+  assetId: string,
+  sourceUrl: string,
+  provenance: "manufacturer_catalogue" | "representative",
+  attribution: string,
+  manufacturerReference: string,
+  verifiedMatch: boolean,
+): Promise<AssetMediaRecord> {
+  let parsed: URL;
+  try { parsed = new URL(sourceUrl); }
+  catch { throw new Error("Enter a valid image URL."); }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+    throw new Error("External equipment images must use a secure HTTPS URL.");
+  }
+  if (!/\.(?:png|jpe?g|webp|avif)(?:$|[?#])/i.test(parsed.pathname + parsed.search)) {
+    throw new Error("Use a direct JPEG, PNG, WebP or AVIF image URL.");
+  }
+  const currentQuery = new URLSearchParams({
+    organisation_id: `eq.${organisationIdValue}`,
+    asset_id: `eq.${assetId}`,
+    is_primary: "eq.true",
+  });
+  await supabaseRest<unknown>(`/rest/v1/asset_media?${currentQuery.toString()}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ is_primary: false }),
+  });
+  const inserted = await supabaseRest<AssetMediaRecord[]>("/rest/v1/asset_media", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify([{
+      organisation_id: organisationIdValue,
+      asset_id: assetId,
+      external_url: parsed.toString(),
+      media_kind: "primary",
+      provenance,
+      is_primary: true,
+      asset_match_verified: verifiedMatch,
+      manufacturer_reference: manufacturerReference.trim() || null,
+      attribution: attribution.trim() || null,
+      caption: provenance === "manufacturer_catalogue" ? "Manufacturer catalogue image" : "Representative reference image",
+    }]),
+  });
+  const row = inserted[0];
+  if (!row) throw new Error("The image reference was not saved.");
+  return { ...row, display_url: row.external_url ?? undefined };
+}
+
 export async function listEnergyMeasurements(
   organisationIdValue: string,
   since: string,

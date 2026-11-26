@@ -62,7 +62,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
         : rows.some((row) => row.id === activeOrganisationId)
           ? activeOrganisationId
           : rows[0]?.id;
-      if (next && next !== activeOrganisationId) {
+      if (next) {
         const selected = rows.find((row) => row.id === next);
         onSelect(next, selected?.name ?? "Workspace");
       }
@@ -116,7 +116,10 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
           aria-label="Switch workspace"
           value={activeOrganisationId ?? ""}
           disabled={loading || organisations.length === 0}
-          onChange={(event) => onSelect(event.target.value)}
+          onChange={(event) => {
+            const selected = organisations.find((item) => item.id === event.target.value);
+            if (selected) onSelect(selected.id, selected.name);
+          }}
         >
           {!activeOrganisationId && <option value="">Select workspace</option>}
           {organisations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}

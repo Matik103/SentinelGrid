@@ -1569,3 +1569,8 @@ body {
   .workspace-picker { padding: .6rem; }
   .workspace-picker-control { min-height: 40px; }
 }
+
+.workspace-create-toggle:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}

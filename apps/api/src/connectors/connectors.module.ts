@@ -10,5 +10,6 @@ import { ConnectorIngestController } from "./connector-ingest.controller.js";
   imports: [AuthModule, OrgsModule, EventsModule],
   controllers: [ConnectorsController, ConnectorIngestController],
   providers: [ConnectorsService],
+  exports: [ConnectorsService],
 })
 export class ConnectorsModule {}

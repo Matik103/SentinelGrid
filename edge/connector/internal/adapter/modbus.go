@@ -8,7 +8,8 @@ import (
 )
 
 // ModbusAdapter implements read-only Modbus TCP via connectivity probe.
-// No register reads of invented process values. Hardware unavailable → clear status.
+// Register maps and normalize.Envelope emission require documented hardware maps;
+// until then Collect returns Scaffold status only — never invented process values.
 type ModbusAdapter struct {
 	AllowLiveProbe bool
 }

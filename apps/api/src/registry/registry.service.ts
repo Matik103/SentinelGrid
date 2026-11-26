@@ -47,7 +47,16 @@ const AssetSchema = z.object({
   manufactured_year: z.coerce.number().int().min(1900).max(2100).optional().nullable(),
   rated_power_kw: z.coerce.number().nonnegative().max(100000000).optional().nullable(),
   rated_capacity_kva: z.coerce.number().nonnegative().max(100000000).optional().nullable(),
-  specifications: z.record(z.string(), z.unknown()).optional(),
+  specifications: z
+    .record(z.string(), z.unknown())
+    .refine((value) => JSON.stringify(value).length <= 8_192, {
+      message: "specifications must be at most 8 KiB of JSON",
+    })
+    .optional(),
+});
+
+const AssetUpdateSchema = AssetSchema.partial().extend({
+  facility_id: z.string().uuid().optional(),
 });
 
 const DeviceSchema = z.object({
@@ -207,6 +216,40 @@ export class RegistryService {
       .select("id, facility_id, zone_id, name, category, status, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
       .single();
     if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async updateAsset(user: AuthUser, organisationId: string, assetId: string, body: unknown) {
+    const input = AssetUpdateSchema.parse(body);
+    await this.orgs.requirePermission(user, organisationId, "asset.write");
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    for (const key of [
+      "facility_id",
+      "zone_id",
+      "name",
+      "category",
+      "status",
+      "manufacturer",
+      "model",
+      "serial_number",
+      "manufactured_year",
+      "rated_power_kw",
+      "rated_capacity_kva",
+      "specifications",
+    ] as const) {
+      if (input[key] !== undefined) patch[key] = input[key];
+    }
+    if (Object.keys(patch).length <= 1) throw new BadRequestException("No asset fields to update");
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb
+      .from("assets")
+      .update(patch)
+      .eq("id", assetId)
+      .eq("organisation_id", organisationId)
+      .select("id, facility_id, zone_id, name, category, status, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at, updated_at")
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new BadRequestException("Asset not found");
     return data;
   }
 

@@ -1,6 +1,8 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigured, apiGet, apiPost, authToken, healthCheck, organisationId } from "./api";
+import { restoreSession } from "./auth";
+import { AuthPanel } from "./AuthPanel";
 import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
 
@@ -57,12 +59,12 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
     }
     const org = organisationId();
     if (!org) {
-      setError("Set VITE_DEV_ORGANISATION_ID or localStorage sg_organisation_id.");
+      setError("Sign in and select an organisation ID.");
       setLoading(false);
       return;
     }
     if (!authToken()) {
-      setError("Set VITE_DEV_ACCESS_TOKEN or localStorage sg_access_token.");
+      setError("Sign in with Supabase Auth (or localStorage sg_access_token for local only).");
       setLoading(false);
       return;
     }
@@ -341,6 +343,9 @@ export function App() {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
   }, [theme]);
+  useEffect(() => {
+    void restoreSession();
+  }, []);
 
   return (
     <div className="shell">
@@ -369,6 +374,7 @@ export function App() {
             </NavLink>
           ))}
         </nav>
+        <AuthPanel />
         <div className="toolbar">
           <button
             type="button"

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { addAssetExternalImage, apiGet, apiPost, listAssetMedia, listEnergyMeasurements, organisationId, uploadAssetImage, type AssetMediaRecord, type EnergyMeasurement } from "./api";
+import { addAssetExternalImage, apiGet, apiPatch, apiPost, listAssetMedia, listEnergyMeasurements, organisationId, uploadAssetImage, type AssetMediaRecord, type EnergyMeasurement } from "./api";
 
 type Asset = {
   id: string;
@@ -86,6 +86,7 @@ export function AssetRegistryPage() {
   const [error, setError] = useState<string | null>(null);
   const [mediaWarning, setMediaWarning] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [verifiedPhoto, setVerifiedPhoto] = useState(false);
@@ -145,6 +146,29 @@ export function AssetRegistryPage() {
   const selectedMedia = selected ? media.filter((item) => item.asset_id === selected.id) : [];
   const selectedMeasurements = selected ? measurements.filter((item) => item.asset_id === selected.id && item.classification === "real") : [];
   const facilityName = (id: string) => facilities.find((item) => item.id === id)?.name ?? "Facility not loaded";
+
+  async function updateAsset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!org || !selected) return;
+    const form = new FormData(event.currentTarget);
+    const body = {
+      name: String(form.get("name") ?? "").trim(),
+      manufacturer: String(form.get("manufacturer") ?? "").trim() || null,
+      model: String(form.get("model") ?? "").trim() || null,
+      serial_number: String(form.get("serial_number") ?? "").trim() || null,
+      manufactured_year: form.get("manufactured_year") ? Number(form.get("manufactured_year")) : null,
+      rated_power_kw: form.get("rated_power_kw") ? Number(form.get("rated_power_kw")) : null,
+      rated_capacity_kva: form.get("rated_capacity_kva") ? Number(form.get("rated_capacity_kva")) : null,
+    };
+    const result = await apiPatch<Asset>(`/v1/orgs/${org}/assets/${selected.id}`, body);
+    if (result.error) {
+      setMessage(result.error.message);
+      return;
+    }
+    setMessage("Asset identity updated.");
+    setShowEdit(false);
+    await load();
+  }
 
   async function createAsset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -281,8 +305,23 @@ export function AssetRegistryPage() {
           <div className="asset-profile-visual"><EquipmentVisual asset={selected} media={mediaByAsset.get(selected.id)} large /></div>
           <div className="asset-profile-head">
             <div><span className="eyebrow">{categoryMeta(selected.category).label.toUpperCase()} / ASSET PROFILE</span><h2>{selected.name}</h2><p>{facilityName(selected.facility_id)}{selected.zone_id ? " · Zone assigned" : ""}</p></div>
-            <span className={`asset-status ${selected.status === "active" ? "active" : "muted"}`}>{selected.status}</span>
+            <div className="asset-profile-actions">
+              <span className={`asset-status ${selected.status === "active" ? "active" : "muted"}`}>{selected.status}</span>
+              <button type="button" className="btn secondary" onClick={() => setShowEdit((v) => !v)}>{showEdit ? "Cancel edit" : "Edit identity"}</button>
+            </div>
           </div>
+          {showEdit && <form className="asset-create-panel compact" onSubmit={(e) => void updateAsset(e)}>
+            <div className="asset-form-grid">
+              <label>Asset name<input name="name" required defaultValue={selected.name} /></label>
+              <label>Manufacturer<input name="manufacturer" defaultValue={selected.manufacturer ?? ""} /></label>
+              <label>Model<input name="model" defaultValue={selected.model ?? ""} /></label>
+              <label>Serial number<input name="serial_number" defaultValue={selected.serial_number ?? ""} /></label>
+              <label>Manufactured year<input name="manufactured_year" type="number" min="1900" max="2100" defaultValue={selected.manufactured_year ?? ""} /></label>
+              <label>Rated power (kW)<input name="rated_power_kw" type="number" min="0" step="0.001" defaultValue={selected.rated_power_kw ?? ""} /></label>
+              <label>Rated capacity (kVA)<input name="rated_capacity_kva" type="number" min="0" step="0.001" defaultValue={selected.rated_capacity_kva ?? ""} /></label>
+            </div>
+            <div className="form-footer"><span>Updates require asset.write.</span><button className="btn" type="submit">Save changes</button></div>
+          </form>}
           <div className="asset-spec-grid">
             <SpecValue label="Manufacturer" value={selected.manufacturer} />
             <SpecValue label="Model" value={selected.model} />

@@ -59,6 +59,8 @@ jobs:
           supabase --version
           # Exclude only names valid for pinned CLI 2.75.0 (see `supabase start -h`).
           # Do not use --ignore-health-check: startup failure must fail the job.
+          # Exclude only names valid for pinned CLI 2.75.0 (see `supabase start -h`).
+          # Inbucket/mailpit uses config.toml port 54327 to avoid host 54324 conflicts.
           supabase start \
             -x storage-api,realtime,studio,imgproxy,edge-runtime,vector,logflare,supavisor
           supabase status

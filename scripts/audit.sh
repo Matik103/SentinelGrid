@@ -77,13 +77,18 @@ for required in \
   supabase/migrations/20261125180000_phase0_security_grants_and_platform_boundary.sql \
   supabase/migrations/20261125190000_phase0_ingestion_dlq_and_payload_objects.sql \
   supabase/migrations/20261125200000_phase0_ingestion_replay_and_tenant_integrity.sql \
+  supabase/migrations/20261125270000_phase0_app_public_config.sql \
+  supabase/migrations/20261126090000_energy_intelligence_asset_media.sql \
+  docs/CURSOR_ENERGY_VISUAL_HANDOFF.md \
   supabase/seed/phase0_demo.sql \
   supabase/tests/phase0_tenant_isolation.sql \
   apps/api/src/main.ts \
   apps/api/src/orgs/orgs.controller.ts \
   apps/api/src/events/ingestion.service.ts \
+  apps/api/src/energy/energy-ingestion.service.ts \
   apps/api/src/evidence/payload-storage.service.ts \
-  edge/connector/cmd/connector/main.go
+  edge/connector/cmd/connector/main.go \
+  edge/connector/internal/normalize/envelope.go
 do
   if [[ -f "$required" ]]; then pass_check "files.$(basename "$required")" "Required Phase 0 file exists" "$required"
   else fail_check critical "files.$(basename "$required")" "Required Phase 0 file missing" "$required" "Restore the required file."; fi
@@ -229,6 +234,17 @@ if [[ -f apps/web/src/App.tsx ]] && [[ -f apps/web/src/tokens.css ]] && [[ -f ap
   && grep -q 'apiGet\|VITE_API_BASE_URL' apps/web/src/api.ts; then
   pass_check product.command_ui "Sentinel Command UI wired to Phase 0 API workflows" "apps/web"
 else fail_check high product.command_ui "Sentinel Command UI missing" "apps/web" "Add Command shell wired to live API workflows."; fi
+
+if [[ -f apps/api/src/energy/energy-ingestion.service.ts ]] \
+  && [[ -f apps/api/src/energy/anomaly-evaluation.service.ts ]] \
+  && [[ -f packages/shared/src/energy-schema.ts ]] \
+  && grep -q 'EnergyMeasurementEnvelopeSchema' packages/shared/src/energy-schema.ts \
+  && grep -q 'ingestFromConnector' apps/api/src/energy/energy-ingestion.service.ts \
+  && grep -q 'sustained_demand_deviation\|sustainedDemandDeviation' apps/api/src/energy/anomaly-evaluation.service.ts \
+  && grep -q 'signInWithPassword' apps/web/src/auth.ts \
+  && grep -q 'energy.read' supabase/tests/phase0_tenant_isolation.sql; then
+  pass_check product.energy_foundation "Energy envelope, connector ingest, anomaly rules, auth session, RLS coverage present" "apps/api/src/energy"
+else fail_check high product.energy_foundation "Energy handoff backend incomplete" "docs/CURSOR_ENERGY_VISUAL_HANDOFF.md" "Add envelope, ingest, anomaly scaffold, auth, and RLS tests."; fi
 
 ENDED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 BRANCH="$(git branch --show-current 2>/dev/null || echo unknown)"

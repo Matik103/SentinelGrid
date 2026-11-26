@@ -670,6 +670,156 @@ BEGIN
     PERFORM pg_temp.clear_auth();
   END;
 
+  -- 20) energy.read + facility RLS + authenticated write denial + asset_media isolation
+  DECLARE
+    u_mgr2 uuid := gen_random_uuid();
+    role_mgr2 uuid;
+    fac_energy uuid;
+    fac_other uuid;
+    asset_energy uuid;
+    asset_other uuid;
+    meas_energy uuid;
+    meas_other uuid;
+    media_ok uuid;
+    media_other uuid;
+    energy_perm_ok boolean;
+  BEGIN
+    SELECT id INTO role_mgr2 FROM public.roles WHERE key = 'facility_manager';
+    IF role_mgr2 IS NULL THEN
+      PERFORM pg_temp.fail('facility_manager role missing for energy tests');
+    END IF;
+
+    SELECT EXISTS (
+      SELECT 1 FROM public.permissions WHERE key = 'energy.read'
+    ) INTO energy_perm_ok;
+    IF NOT energy_perm_ok THEN
+      PERFORM pg_temp.fail('energy.read permission missing');
+    END IF;
+
+    INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+    VALUES (
+      u_mgr2, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+      'mgr-energy@example.test', crypt('x', gen_salt('bf')), now(), now(), now(), '{}', '{}'
+    );
+
+    PERFORM pg_temp.set_auth(u_admin_a);
+    INSERT INTO public.facilities (organisation_id, name, code)
+    VALUES (org_a, 'Energy Plant', 'EN1') RETURNING id INTO fac_energy;
+    INSERT INTO public.facilities (organisation_id, name, code)
+    VALUES (org_a, 'Other Plant', 'EN2') RETURNING id INTO fac_other;
+    INSERT INTO public.memberships (organisation_id, user_id, role_id, status)
+    VALUES (org_a, u_mgr2, role_mgr2, 'active');
+    INSERT INTO public.facility_user_assignments (organisation_id, facility_id, user_id, assigned_by)
+    VALUES (org_a, fac_energy, u_mgr2, u_admin_a);
+    INSERT INTO public.assets (organisation_id, facility_id, name, category)
+    VALUES (org_a, fac_energy, 'Meter A', 'electrical') RETURNING id INTO asset_energy;
+    INSERT INTO public.assets (organisation_id, facility_id, name, category)
+    VALUES (org_a, fac_other, 'Meter B', 'electrical') RETURNING id INTO asset_other;
+    PERFORM pg_temp.clear_auth();
+
+    -- Service-role writes measurements (authenticated cannot insert).
+    PERFORM set_config('request.jwt.claim.role', 'service_role', true);
+    PERFORM set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+    EXECUTE 'SET LOCAL ROLE service_role';
+    INSERT INTO public.energy_measurements (
+      organisation_id, facility_id, asset_id, metric_key, value, unit, measured_at,
+      source, source_event_id, quality, classification
+    ) VALUES (
+      org_a, fac_energy, asset_energy, 'active_power_kw', 12.5, 'kW', now(),
+      'test-source', 'evt-energy-1', 'good', 'real'
+    ) RETURNING id INTO meas_energy;
+    INSERT INTO public.energy_measurements (
+      organisation_id, facility_id, asset_id, metric_key, value, unit, measured_at,
+      source, source_event_id, quality, classification
+    ) VALUES (
+      org_a, fac_other, asset_other, 'active_power_kw', 9.1, 'kW', now(),
+      'test-source', 'evt-energy-2', 'good', 'real'
+    ) RETURNING id INTO meas_other;
+    RESET ROLE;
+    PERFORM pg_temp.clear_auth();
+
+    PERFORM pg_temp.set_auth(u_viewer_a);
+    raised := false;
+    BEGIN
+      INSERT INTO public.energy_measurements (
+        organisation_id, facility_id, asset_id, metric_key, value, unit, measured_at,
+        source, source_event_id, quality, classification
+      ) VALUES (
+        org_a, fac_energy, asset_energy, 'active_power_kw', 1, 'kW', now(),
+        'browser', 'should-fail', 'good', 'real'
+      );
+    EXCEPTION WHEN insufficient_privilege OR check_violation OR others THEN
+      raised := true;
+    END;
+    IF NOT raised THEN
+      PERFORM pg_temp.fail('authenticated must not INSERT energy_measurements');
+    END IF;
+    PERFORM pg_temp.pass('authenticated energy_measurements INSERT denied');
+
+    SELECT count(*) INTO tmp_count FROM public.energy_measurements WHERE organisation_id = org_a;
+    IF tmp_count < 2 THEN
+      PERFORM pg_temp.fail('viewer with energy.read cannot read org energy measurements');
+    END IF;
+    PERFORM pg_temp.pass('read_only_viewer energy.read SELECT allowed');
+    PERFORM pg_temp.clear_auth();
+
+    PERFORM pg_temp.set_auth(u_mgr2);
+    SELECT count(*) INTO tmp_count FROM public.energy_measurements WHERE id = meas_energy;
+    IF tmp_count <> 1 THEN
+      PERFORM pg_temp.fail('facility manager cannot read energy in assigned facility');
+    END IF;
+    SELECT count(*) INTO tmp_count FROM public.energy_measurements WHERE id = meas_other;
+    IF tmp_count <> 0 THEN
+      PERFORM pg_temp.fail('facility manager can read energy in unassigned facility');
+    END IF;
+    PERFORM pg_temp.pass('facility manager energy measurement facility isolation');
+    PERFORM pg_temp.clear_auth();
+
+    -- asset_media cross-facility / cross-org isolation
+    PERFORM pg_temp.set_auth(u_admin_a);
+    INSERT INTO public.asset_media (
+      organisation_id, asset_id, external_url, media_kind, provenance, is_primary, attribution
+    ) VALUES (
+      org_a, asset_energy, 'https://example.com/meter-a.jpg', 'primary', 'manufacturer_catalogue', true, 'test'
+    ) RETURNING id INTO media_ok;
+    INSERT INTO public.asset_media (
+      organisation_id, asset_id, external_url, media_kind, provenance, is_primary, attribution
+    ) VALUES (
+      org_a, asset_other, 'https://example.com/meter-b.jpg', 'primary', 'representative', true, 'test'
+    ) RETURNING id INTO media_other;
+    PERFORM pg_temp.clear_auth();
+
+    PERFORM pg_temp.set_auth(u_mgr2);
+    SELECT count(*) INTO tmp_count FROM public.asset_media WHERE id = media_ok;
+    IF tmp_count <> 1 THEN
+      PERFORM pg_temp.fail('facility manager cannot read asset_media in assigned facility');
+    END IF;
+    SELECT count(*) INTO tmp_count FROM public.asset_media WHERE id = media_other;
+    IF tmp_count <> 0 THEN
+      PERFORM pg_temp.fail('facility manager can read asset_media in unassigned facility');
+    END IF;
+    PERFORM pg_temp.pass('facility manager asset_media facility isolation');
+    PERFORM pg_temp.clear_auth();
+
+    PERFORM pg_temp.set_auth(u_admin_b);
+    SELECT count(*) INTO tmp_count FROM public.asset_media WHERE id = media_ok;
+    IF tmp_count <> 0 THEN
+      PERFORM pg_temp.fail('cross-org asset_media SELECT leaked');
+    END IF;
+    SELECT count(*) INTO tmp_count FROM public.energy_measurements WHERE id = meas_energy;
+    IF tmp_count <> 0 THEN
+      PERFORM pg_temp.fail('cross-org energy_measurements SELECT leaked');
+    END IF;
+    PERFORM pg_temp.pass('cross-org energy and asset_media isolation');
+    PERFORM pg_temp.clear_auth();
+
+    -- Private bucket exists and is not public
+    IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'asset-media' AND public = false) THEN
+      PERFORM pg_temp.fail('asset-media bucket missing or public');
+    END IF;
+    PERFORM pg_temp.pass('asset-media storage bucket is private');
+  END;
+
   RAISE NOTICE 'ALL PHASE0 SECURITY TESTS PASSED';
 END;
 $$;

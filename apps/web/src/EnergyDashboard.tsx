@@ -45,8 +45,17 @@ function PowerTrend({ data }: { data: EnergyMeasurement[] }) {
   </div>;
 }
 
-function MetricCard({ label, value, unit, detail }: { label: string; value: string; unit?: string; detail: string }) {
-  return <div className="energy-metric-card"><span>{label}</span><strong>{value}{unit && <small> {unit}</small>}</strong><em>{detail}</em></div>;
+function MetricCard({ label, value, unit, detail, meta }: { label: string; value: string; unit?: string; detail: string; meta?: string }) {
+  return <div className="energy-metric-card"><span>{label}</span><strong>{value}{unit && <small> {unit}</small>}</strong><em>{detail}</em>{meta && <small className="metric-meta">{meta}</small>}</div>;
+}
+
+function freshnessLabel(measuredAt?: string): string {
+  if (!measuredAt) return "no readings";
+  const ageMs = Date.now() - new Date(measuredAt).getTime();
+  if (!Number.isFinite(ageMs) || ageMs < 0) return "unknown freshness";
+  if (ageMs <= 5 * 60 * 1000) return "fresh (<5m)";
+  if (ageMs <= 60 * 60 * 1000) return "aging (<1h)";
+  return "stale (>1h)";
 }
 
 export function EnergyDashboard() {
@@ -130,10 +139,22 @@ export function EnergyDashboard() {
     {error && <div className="inline-notice warning">{telemetryAvailable ? "Some data could not be loaded: " : "Energy telemetry is not connected yet: "}{error}</div>}
 
     <div className="energy-metric-grid">
-      <MetricCard label="LATEST ACTIVE POWER" value={latestPower ? fmt(Number(latestPower.value)) : "—"} unit={latestPower?.unit ?? "kW"} detail={latestPower ? `Measured ${dateTime(latestPower.measured_at)}` : "No live power reading"} />
-      <MetricCard label="LATEST ENERGY READING" value={latestEnergy ? fmt(Number(latestEnergy.value)) : "—"} unit={latestEnergy?.unit ?? "kWh"} detail={latestEnergy ? `Measured ${dateTime(latestEnergy.measured_at)}` : "No energy register reading"} />
-      <MetricCard label="QUALITY-CHECKED SAMPLES" value={fmt(good.length, 0)} detail="Real readings with good data quality" />
-      <MetricCard label="OPEN FINDINGS" value={fmt(scopedAnomalies.length, 0)} detail={`${affectedAssets} linked assets require review`} />
+      <MetricCard
+        label="LATEST ACTIVE POWER"
+        value={latestPower ? fmt(Number(latestPower.value)) : "—"}
+        unit={latestPower?.unit ?? "kW"}
+        detail={latestPower ? `Measured ${dateTime(latestPower.measured_at)}` : "No live power reading"}
+        meta={latestPower ? `${freshnessLabel(latestPower.measured_at)} · ${latestPower.source} · ${latestPower.quality} · ${latestPower.classification}` : "not configured / no readings"}
+      />
+      <MetricCard
+        label="LATEST ENERGY READING"
+        value={latestEnergy ? fmt(Number(latestEnergy.value)) : "—"}
+        unit={latestEnergy?.unit ?? "kWh"}
+        detail={latestEnergy ? `Measured ${dateTime(latestEnergy.measured_at)}` : "No energy register reading"}
+        meta={latestEnergy ? `${freshnessLabel(latestEnergy.measured_at)} · ${latestEnergy.source} · ${latestEnergy.quality} · ${latestEnergy.classification}` : "not configured / no readings"}
+      />
+      <MetricCard label="QUALITY-CHECKED SAMPLES" value={fmt(good.length, 0)} detail="Real readings with good data quality" meta={telemetryAvailable ? "pipeline connected" : "telemetry unavailable"} />
+      <MetricCard label="OPEN FINDINGS" value={fmt(scopedAnomalies.length, 0)} detail={`${affectedAssets} linked assets require review`} meta="reviewable operational findings" />
     </div>
 
     <div className="energy-main-grid">

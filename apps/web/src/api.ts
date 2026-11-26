@@ -1,4 +1,7 @@
 import { loadPublicConfig, PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from "./bootstrap";
+import { authToken, organisationId } from "./auth";
+
+export { authToken, organisationId };
 
 let apiBase = "";
 let configReady: Promise<void> | null = null;
@@ -18,22 +21,6 @@ export function apiConfigured(): boolean {
   return Boolean(base());
 }
 
-export function authToken(): string | null {
-  return (
-    (import.meta.env.VITE_DEV_ACCESS_TOKEN as string | undefined) ||
-    localStorage.getItem("sg_access_token") ||
-    null
-  );
-}
-
-export function organisationId(): string | null {
-  return (
-    (import.meta.env.VITE_DEV_ORGANISATION_ID as string | undefined) ||
-    localStorage.getItem("sg_organisation_id") ||
-    null
-  );
-}
-
 export type ApiError = { status: number; message: string };
 
 export async function apiGet<T>(path: string): Promise<{ data?: T; error?: ApiError }> {
@@ -49,7 +36,7 @@ export async function apiGet<T>(path: string): Promise<{ data?: T; error?: ApiEr
   }
   const token = authToken();
   if (!token) {
-    return { error: { status: 401, message: "Sign in required (set VITE_DEV_ACCESS_TOKEN or sg_access_token)" } };
+    return { error: { status: 401, message: "Sign in required (Supabase Auth session or local sg_access_token)" } };
   }
   try {
     const res = await fetch(`${root}${path.startsWith("/") ? path : `/${path}`}`, {
@@ -72,6 +59,21 @@ export async function apiPost<T>(
   path: string,
   body: unknown,
 ): Promise<{ data?: T; error?: ApiError }> {
+  return apiMutate<T>("POST", path, body);
+}
+
+export async function apiPatch<T>(
+  path: string,
+  body: unknown,
+): Promise<{ data?: T; error?: ApiError }> {
+  return apiMutate<T>("PATCH", path, body);
+}
+
+async function apiMutate<T>(
+  method: "POST" | "PATCH",
+  path: string,
+  body: unknown,
+): Promise<{ data?: T; error?: ApiError }> {
   await ensureConfig();
   const root = base();
   if (!root) {
@@ -86,7 +88,7 @@ export async function apiPost<T>(
   if (!token) return { error: { status: 401, message: "Sign in required" } };
   try {
     const res = await fetch(`${root}${path.startsWith("/") ? path : `/${path}`}`, {
-      method: "POST",
+      method,
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 import { SupabaseAuthGuard } from "../auth/supabase-auth.guard.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
@@ -88,6 +88,16 @@ export class RegistryController {
     @Body() body: unknown,
   ) {
     return this.registry.createAsset(user, this.uuid(orgId), body);
+  }
+
+  @Patch("assets/:assetId")
+  updateAsset(
+    @CurrentUser() user: AuthUser,
+    @Param("organisationId") orgId: string,
+    @Param("assetId") assetId: string,
+    @Body() body: unknown,
+  ) {
+    return this.registry.updateAsset(user, this.uuid(orgId), this.uuid(assetId), body);
   }
 
   @Get("devices")

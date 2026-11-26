@@ -38,6 +38,8 @@ const ZoneSchema = z.object({
 const AssetSchema = z.object({
   facility_id: z.string().uuid(),
   zone_id: z.string().uuid().optional().nullable(),
+  parent_asset_id: z.string().uuid().optional().nullable(),
+  criticality: z.enum(["low", "medium", "high", "critical"]).optional(),
   name: z.string().min(1).max(200),
   category: Categories.optional(),
   status: z.enum(["active", "commissioning", "maintenance", "archived"]).optional(),
@@ -187,12 +189,25 @@ export class RegistryService {
     const input = AssetSchema.parse(body);
     await this.orgs.requirePermission(user, organisationId, "asset.write");
     const sb = this.users.create(user.accessToken);
+    if (input.parent_asset_id) {
+      const { data: parent, error: parentError } = await sb
+        .from("assets")
+        .select("id")
+        .eq("id", input.parent_asset_id)
+        .eq("organisation_id", organisationId)
+        .eq("facility_id", input.facility_id)
+        .maybeSingle();
+      if (parentError) throw new BadRequestException(parentError.message);
+      if (!parent) throw new BadRequestException("Parent asset must belong to the same organisation and facility.");
+    }
     const { data, error } = await sb
       .from("assets")
       .insert({
         organisation_id: organisationId,
         facility_id: input.facility_id,
         zone_id: input.zone_id ?? null,
+        parent_asset_id: input.parent_asset_id ?? null,
+        criticality: input.criticality ?? "medium",
         name: input.name,
         category: input.category ?? "industrial",
         status: input.status ?? "active",
@@ -204,7 +219,7 @@ export class RegistryService {
         rated_capacity_kva: input.rated_capacity_kva ?? null,
         specifications: input.specifications ?? {},
       })
-      .select("id, facility_id, zone_id, name, category, status, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
+      .select("id, facility_id, zone_id, parent_asset_id, name, category, status, criticality, manufacturer, model, serial_number, manufactured_year, rated_power_kw, rated_capacity_kva, specifications, created_at")
       .single();
     if (error) throw new BadRequestException(error.message);
     return data;

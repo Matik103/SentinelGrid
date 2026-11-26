@@ -599,3 +599,74 @@
   .energy-metric-card strong { font-size: 1.15rem; }
   .asset-profile-visual .equipment-visual.large { height: 180px; }
 }
+
+
+.external-image-form {
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+  margin-top: .7rem;
+  padding: .75rem;
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+  background: var(--sg-bg);
+}
+.external-image-form label {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  color: var(--sg-text-muted);
+  font-size: .68rem;
+}
+.external-image-form input,
+.external-image-form select {
+  width: 100%;
+  min-width: 0;
+  padding: .55rem .6rem;
+  background: var(--sg-surface);
+  border: 1px solid var(--sg-border);
+  border-radius: 6px;
+  color: var(--sg-text);
+  font: inherit;
+}
+.external-image-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+}
+.external-image-form .btn { align-self: flex-start; }
+.asset-media-strip {
+  display: flex;
+  gap: .5rem;
+  overflow-x: auto;
+  padding: .65rem 0 .15rem;
+}
+.asset-media-strip > div {
+  position: relative;
+  flex: 0 0 78px;
+  width: 78px;
+  height: 68px;
+  overflow: hidden;
+  border: 1px solid var(--sg-border);
+  border-radius: 6px;
+  background: var(--sg-surface);
+}
+.asset-media-strip img { width: 100%; height: 100%; object-fit: cover; }
+.asset-media-strip span { display: block; padding: .3rem; color: var(--sg-text-muted); font-size: 9px; }
+.asset-media-strip small {
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  max-width: calc(100% - 6px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 4px;
+  background: rgba(5, 13, 22, .82);
+  border-radius: 3px;
+  color: #eaf2f8;
+  font: 8px var(--sg-font-mono);
+}
+@media (max-width: 560px) {
+  .external-image-fields { grid-template-columns: minmax(0, 1fr); }
+}

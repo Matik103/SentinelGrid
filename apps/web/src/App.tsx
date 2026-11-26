@@ -459,6 +459,14 @@ export function App() {
     setActiveOrganisationId(id);
     setActiveOrganisationName(name);
   };
+  const handleAuthChange = () => {
+    if (!authToken()) {
+      setOrganisationId(null);
+      setActiveOrganisationId(null);
+      setActiveOrganisationName("No workspace selected");
+    }
+    setAuthRefreshKey((value) => value + 1);
+  };
   const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
 
   return (

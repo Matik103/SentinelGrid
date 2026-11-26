@@ -185,9 +185,8 @@ DROP POLICY IF EXISTS asset_media_storage_select ON storage.objects;
 CREATE POLICY asset_media_storage_select ON storage.objects
   FOR SELECT TO authenticated
   USING (
-    public.is_platform_admin() OR (
     bucket_id = 'asset-media'
-    AND EXISTS (
+    AND (public.is_platform_admin() OR EXISTS (
       SELECT 1 FROM public.assets a
       WHERE a.organisation_id::text = (storage.foldername(name))[1]
         AND a.id::text = (storage.foldername(name))[2]
@@ -204,9 +203,8 @@ DROP POLICY IF EXISTS asset_media_storage_insert ON storage.objects;
 CREATE POLICY asset_media_storage_insert ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (
-    public.is_platform_admin() OR (
     bucket_id = 'asset-media'
-    AND EXISTS (
+    AND (public.is_platform_admin() OR EXISTS (
       SELECT 1 FROM public.assets a
       WHERE a.organisation_id::text = (storage.foldername(name))[1]
         AND a.id::text = (storage.foldername(name))[2]
@@ -223,9 +221,8 @@ DROP POLICY IF EXISTS asset_media_storage_update ON storage.objects;
 CREATE POLICY asset_media_storage_update ON storage.objects
   FOR UPDATE TO authenticated
   USING (
-    public.is_platform_admin() OR (
     bucket_id = 'asset-media'
-    AND EXISTS (
+    AND (public.is_platform_admin() OR EXISTS (
       SELECT 1 FROM public.assets a
       WHERE a.organisation_id::text = (storage.foldername(name))[1]
         AND a.id::text = (storage.foldername(name))[2]
@@ -236,9 +233,8 @@ CREATE POLICY asset_media_storage_update ON storage.objects
     )
   )
   WITH CHECK (
-    public.is_platform_admin() OR (
     bucket_id = 'asset-media'
-    AND EXISTS (
+    AND (public.is_platform_admin() OR EXISTS (
       SELECT 1 FROM public.assets a
       WHERE a.organisation_id::text = (storage.foldername(name))[1]
         AND a.id::text = (storage.foldername(name))[2]
@@ -253,9 +249,8 @@ DROP POLICY IF EXISTS asset_media_storage_delete ON storage.objects;
 CREATE POLICY asset_media_storage_delete ON storage.objects
   FOR DELETE TO authenticated
   USING (
-    public.is_platform_admin() OR (
     bucket_id = 'asset-media'
-    AND EXISTS (
+    AND (public.is_platform_admin() OR EXISTS (
       SELECT 1 FROM public.assets a
       WHERE a.organisation_id::text = (storage.foldername(name))[1]
         AND a.id::text = (storage.foldername(name))[2]

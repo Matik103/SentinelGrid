@@ -127,7 +127,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
         <span className="workspace-chevron" aria-hidden="true">⌄</span>
       </label>
       {error && <p className="workspace-picker-error" role="alert">{error}</p>}
-      {organisations.length > 1 && <span className="workspace-picker-count">{organisations.length} organisations available</span>}
+      {organisations.length > 1 && <span className="workspace-picker-count">{organisations.length} workspaces available</span>}
       <button className="workspace-create-toggle" type="button" disabled={!authToken()} onClick={() => { setCreating((value) => !value); setError(null); }}>
         <span aria-hidden="true">{creating ? "−" : "+"}</span>{creating ? "Close" : "Create workspace"}
       </button>

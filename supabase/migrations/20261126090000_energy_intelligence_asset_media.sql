@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS public.asset_media (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_by uuid REFERENCES auth.users (id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT asset_media_external_https CHECK (external_url IS NULL OR external_url ~ '^https://'),
   CONSTRAINT asset_media_has_source CHECK (
     (storage_path IS NOT NULL AND external_url IS NULL)
     OR (storage_path IS NULL AND external_url IS NOT NULL)
@@ -213,6 +214,8 @@ CREATE POLICY asset_media_storage_update ON storage.objects
       WHERE a.organisation_id::text = (storage.foldername(name))[1]
         AND a.id::text = (storage.foldername(name))[2]
         AND public.has_org_permission(a.organisation_id, 'asset.write')
+        AND (NOT public.is_facility_manager(a.organisation_id)
+          OR public.has_facility_access(a.organisation_id, a.facility_id))
     )
   )
   WITH CHECK (
@@ -222,6 +225,8 @@ CREATE POLICY asset_media_storage_update ON storage.objects
       WHERE a.organisation_id::text = (storage.foldername(name))[1]
         AND a.id::text = (storage.foldername(name))[2]
         AND public.has_org_permission(a.organisation_id, 'asset.write')
+        AND (NOT public.is_facility_manager(a.organisation_id)
+          OR public.has_facility_access(a.organisation_id, a.facility_id))
     )
   );
 
@@ -235,6 +240,8 @@ CREATE POLICY asset_media_storage_delete ON storage.objects
       WHERE a.organisation_id::text = (storage.foldername(name))[1]
         AND a.id::text = (storage.foldername(name))[2]
         AND public.has_org_permission(a.organisation_id, 'asset.write')
+        AND (NOT public.is_facility_manager(a.organisation_id)
+          OR public.has_facility_access(a.organisation_id, a.facility_id))
     )
   );
 

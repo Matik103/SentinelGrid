@@ -1,7 +1,8 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { apiConfigured, apiGet, apiPost, authToken, healthCheck, organisationId } from "./api";
-import { restoreSession } from "./auth";
+import { apiConfigured, apiGet, apiPost, authToken, ensureConfig, healthCheck } from "./api";
+import { organisationId, restoreSession, setOrganisationId } from "./auth";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { AuthPanel } from "./AuthPanel";
 import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
@@ -428,13 +429,31 @@ function ResourcePage({
 
 export function App() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [activeOrganisationId, setActiveOrganisationId] = useState<string | null>(() => organisationId());
+  const [activeOrganisationName, setActiveOrganisationName] = useState("Workspace");
+  const [authRefreshKey, setAuthRefreshKey] = useState(0);
   const location = useLocation();
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
   }, [theme]);
   useEffect(() => {
-    void restoreSession();
+    void Promise.all([restoreSession(), ensureConfig()]).finally(() => {
+      setAuthRefreshKey((value) => value + 1);
+    });
   }, []);
+  const selectOrganisation = (id: string | null, name: string) => {
+    if (id !== activeOrganisationId) setOrganisationId(id);
+    setActiveOrganisationId(id);
+    setActiveOrganisationName(name);
+  };
+  const handleAuthChange = () => {
+    if (!authToken()) {
+      setOrganisationId(null);
+      setActiveOrganisationId(null);
+      setActiveOrganisationName("No workspace selected");
+    }
+    setAuthRefreshKey((value) => value + 1);
+  };
   const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
 
   return (
@@ -452,7 +471,7 @@ export function App() {
             Sentinel <span>Command</span>
           </div>
         </div>
-        <div className="workspace-switcher"><span className="workspace-avatar">SG</span><div><strong>Operations workspace</strong><small>Organisation environment</small></div><span className="workspace-chevron">⌄</span></div>
+        <WorkspaceSwitcher activeOrganisationId={activeOrganisationId} onSelect={selectOrganisation} refreshKey={authRefreshKey} />
         <nav className="nav" aria-label="Primary">
           {NAV_GROUPS.map((group) => <div className="nav-group" key={group.section}>
             <div className="nav-section-label">{group.section}</div>
@@ -461,7 +480,7 @@ export function App() {
             </NavLink>)}
           </div>)}
         </nav>
-        <AuthPanel />
+        <AuthPanel onAuthChange={handleAuthChange} />
         <div className="toolbar">
           <button
             type="button"
@@ -473,9 +492,9 @@ export function App() {
         </div>
       </aside>
       <main className="main">
-        <header className="topbar"><div className="topbar-context"><span>WORKSPACE</span><b>/</b><strong>{currentPage}</strong></div><div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
+        <header className="topbar"><div className="topbar-context"><span>WORKSPACE</span><b>/</b><span className="topbar-workspace-name">{activeOrganisationName}</span><b>/</b><strong>{currentPage}</strong></div><div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
         <div className="main-content">
-        <Routes>
+        <Routes key={activeOrganisationId ?? "no-workspace"}>
           <Route path="/" element={<Overview />} />
           <Route path="/topology" element={<TopologyPage />} />
           <Route path="/incidents" element={<IncidentWorkbenchPage />} />

@@ -262,6 +262,55 @@ export async function listAssetMedia(organisationIdValue: string): Promise<Asset
   }));
 }
 
+async function replaceAssetPrimaryMedia(params: {
+  organisationId: string;
+  assetId: string;
+  storagePath?: string | null;
+  externalUrl?: string | null;
+  provenance: AssetMediaRecord["provenance"];
+  verifiedMatch: boolean;
+  originalFilename?: string | null;
+  contentType?: string | null;
+  byteLength?: number | null;
+  manufacturerReference?: string | null;
+  attribution?: string | null;
+  caption?: string | null;
+}): Promise<AssetMediaRecord> {
+  const token = authToken();
+  if (!token) throw new Error("Sign in required.");
+  const response = await fetch(`${PUBLIC_SUPABASE_URL}/rest/v1/rpc/replace_asset_primary_media`, {
+    method: "POST",
+    headers: {
+      apikey: PUBLIC_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({
+      p_organisation_id: params.organisationId,
+      p_asset_id: params.assetId,
+      p_storage_path: params.storagePath ?? null,
+      p_external_url: params.externalUrl ?? null,
+      p_provenance: params.provenance,
+      p_asset_match_verified: params.verifiedMatch,
+      p_original_filename: params.originalFilename ?? null,
+      p_content_type: params.contentType ?? null,
+      p_byte_length: params.byteLength ?? null,
+      p_manufacturer_reference: params.manufacturerReference ?? null,
+      p_attribution: params.attribution ?? null,
+      p_caption: params.caption ?? null,
+      p_media_kind: "primary",
+    }),
+  });
+  if (!response.ok) {
+    throw new Error((await response.text()).slice(0, 300) || "Could not save asset media metadata.");
+  }
+  const payload = (await response.json()) as AssetMediaRecord | AssetMediaRecord[];
+  const row = Array.isArray(payload) ? payload[0] : payload;
+  if (!row) throw new Error("The media record was not returned.");
+  return row;
+}
+
 export async function uploadAssetImage(
   organisationIdValue: string,
   assetId: string,
@@ -281,35 +330,17 @@ export async function uploadAssetImage(
   });
 
   try {
-    const currentQuery = new URLSearchParams({
-      organisation_id: `eq.${organisationIdValue}`,
-      asset_id: `eq.${assetId}`,
-      is_primary: "eq.true",
+    const row = await replaceAssetPrimaryMedia({
+      organisationId: organisationIdValue,
+      assetId,
+      storagePath,
+      provenance: "customer_upload",
+      verifiedMatch,
+      originalFilename: file.name,
+      contentType: file.type,
+      byteLength: file.size,
+      caption: "Customer-uploaded equipment photograph",
     });
-    await supabaseRest<unknown>(`/rest/v1/asset_media?${currentQuery.toString()}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ is_primary: false }),
-    });
-    const inserted = await supabaseRest<AssetMediaRecord[]>("/rest/v1/asset_media", {
-      method: "POST",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify([{
-        organisation_id: organisationIdValue,
-        asset_id: assetId,
-        storage_path: storagePath,
-        media_kind: "primary",
-        provenance: "customer_upload",
-        is_primary: true,
-        asset_match_verified: verifiedMatch,
-        original_filename: file.name,
-        content_type: file.type,
-        byte_length: file.size,
-        caption: "Customer-uploaded equipment photograph",
-      }]),
-    });
-    const row = inserted[0];
-    if (!row) throw new Error("The image uploaded, but its asset record was not returned.");
     try { return { ...row, display_url: await signedAssetUrl(storagePath) }; }
     catch { return row; }
   } catch (error) {
@@ -340,34 +371,19 @@ export async function addAssetExternalImage(
   if (!/\.(?:png|jpe?g|webp|avif)(?:$|[?#])/i.test(parsed.pathname + parsed.search)) {
     throw new Error("Use a direct JPEG, PNG, WebP or AVIF image URL.");
   }
-  const currentQuery = new URLSearchParams({
-    organisation_id: `eq.${organisationIdValue}`,
-    asset_id: `eq.${assetId}`,
-    is_primary: "eq.true",
+  if (verifiedMatch && provenance === "representative") {
+    throw new Error("Representative images cannot be marked as an exact asset match.");
+  }
+  const row = await replaceAssetPrimaryMedia({
+    organisationId: organisationIdValue,
+    assetId,
+    externalUrl: parsed.toString(),
+    provenance,
+    verifiedMatch,
+    manufacturerReference: manufacturerReference.trim() || null,
+    attribution: attribution.trim() || null,
+    caption: provenance === "manufacturer_catalogue" ? "Manufacturer catalogue image" : "Representative reference image",
   });
-  await supabaseRest<unknown>(`/rest/v1/asset_media?${currentQuery.toString()}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ is_primary: false }),
-  });
-  const inserted = await supabaseRest<AssetMediaRecord[]>("/rest/v1/asset_media", {
-    method: "POST",
-    headers: { Prefer: "return=representation" },
-    body: JSON.stringify([{
-      organisation_id: organisationIdValue,
-      asset_id: assetId,
-      external_url: parsed.toString(),
-      media_kind: "primary",
-      provenance,
-      is_primary: true,
-      asset_match_verified: verifiedMatch,
-      manufacturer_reference: manufacturerReference.trim() || null,
-      attribution: attribution.trim() || null,
-      caption: provenance === "manufacturer_catalogue" ? "Manufacturer catalogue image" : "Representative reference image",
-    }]),
-  });
-  const row = inserted[0];
-  if (!row) throw new Error("The image reference was not saved.");
   return { ...row, display_url: row.external_url ?? undefined };
 }
 

@@ -443,7 +443,7 @@ export function App() {
         <div className="brand">
           <img
             className="brand-logo"
-            src="/assets/sentinelgrid-logo.png"
+            src="/assets/sentinelgrid-mark.svg"
             alt="SentinelGrid"
             width={40}
             height={40}

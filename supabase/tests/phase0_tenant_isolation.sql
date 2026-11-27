@@ -96,6 +96,16 @@ BEGIN
   SELECT id INTO role_viewer FROM public.roles WHERE key = 'read_only_viewer';
   SELECT id INTO role_platform FROM public.roles WHERE key = 'platform_administrator';
 
+  -- 0) AAL1 users can bootstrap only their own profile through the narrowly scoped
+  -- SECURITY DEFINER RPC; direct profile table access remains AAL2-gated.
+  PERFORM pg_temp.set_auth(u_outsider, 'aal1');
+  invite_payload := to_jsonb(public.ensure_own_profile('AAL1 Bootstrap Test'));
+  IF (invite_payload ->> 'user_id')::uuid IS DISTINCT FROM u_outsider THEN
+    PERFORM pg_temp.fail('AAL1 own-profile bootstrap returned the wrong user');
+  END IF;
+  PERFORM pg_temp.clear_auth();
+  PERFORM pg_temp.pass('AAL1 own-profile bootstrap is narrowly scoped');
+
   -- 1) Direct authenticated INSERT into organisations denied
   PERFORM pg_temp.set_auth(u_outsider);
   raised := false;

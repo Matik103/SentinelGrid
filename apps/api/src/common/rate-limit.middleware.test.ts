@@ -16,4 +16,14 @@ describe("production fail-closed policy", () => {
     // Behaviour is enforced in RateLimitMiddleware.ensureStore; assert env contract here.
     assert.equal(process.env.RATE_LIMIT_ALLOW_MEMORY === "1" || true, true);
   });
+
+  it("skips rate limiting for GET /v1/health in middleware source", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { dirname, join } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const source = readFileSync(join(here, "rate-limit.middleware.ts"), "utf8");
+    assert.match(source, /path === "\/v1\/health"/);
+    assert.match(source, /Liveness\/readiness must not depend/);
+  });
 });

@@ -48,7 +48,7 @@ The Blueprint sets `NODE_ENV=production`, `PORT=8080`, `SG_PUBLIC_APP_URL=https:
 After the Blueprint deploys:
 1. Confirm Render reports the service healthy.
 2. Call `https://<actual-render-service>.onrender.com/v1/health`.
-3. Expect HTTP 200, `dependencies.supabase = "ok"`, and `monitoring.email_worker_enabled = true` only when the Resend worker's required environment is present.
+3. Expect HTTP 200 and `dependencies.supabase = "ok"`. `monitoring.email_worker_enabled` reflects whether the worker actually started; `monitoring.email_resend_configured` reports whether both Resend secrets exist; `public_api_origin_configured` reports whether the public API origin has been written to Supabase.
 4. If the API fails to boot, inspect missing server env values and logs; the service intentionally refuses to start without Supabase URL and service-role credentials.
 
 ## Supabase migrations and authentication

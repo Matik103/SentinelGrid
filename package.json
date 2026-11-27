@@ -11,6 +11,6 @@
     "audit:gate": "./scripts/audit.sh"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   }
 }

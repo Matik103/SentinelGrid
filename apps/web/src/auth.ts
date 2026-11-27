@@ -1,9 +1,15 @@
 import { createClient, type AuthChangeEvent, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from "./bootstrap";
+import {
+  RECOVERY_FLAG,
+  accessTokenHasRecoveryAmr,
+  amrIncludesRecovery,
+  urlIndicatesPasswordRecovery,
+} from "./authRecovery";
+import { clearAllCachedWorkspaceLogos } from "./workspaceLogoCache";
 
 const TOKEN_KEY = "sg_access_token";
 const ORG_KEY = "sg_organisation_id";
-const RECOVERY_FLAG = "sg_pending_password_recovery";
 let client: SupabaseClient | null = null;
 let sessionListeners: Array<(event: AuthChangeEvent, session: Session | null) => void> = [];
 
@@ -19,13 +25,7 @@ function authRedirectUrl(kind?: "reset"): string {
 /** Persist recovery intent before Supabase strips `#type=recovery` from the URL. */
 export function capturePasswordRecoveryIntent(): void {
   try {
-    const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
-    const hashParams = new URLSearchParams(hash);
-    const query = new URLSearchParams(window.location.search);
-    const hashType = hashParams.get("type");
-    const queryType = query.get("type");
-    const queryReset = query.get("reset");
-    if (hashType === "recovery" || queryType === "recovery" || queryReset === "1") {
+    if (urlIndicatesPasswordRecovery(window.location.hash, window.location.search)) {
       sessionStorage.setItem(RECOVERY_FLAG, "1");
     }
   } catch {
@@ -48,24 +48,9 @@ export function clearPasswordRecoveryPending(): void {
 /** True when the JWT/session AMR shows this is a recovery (password-reset) session. */
 export function sessionIsRecovery(session: Session | null | undefined): boolean {
   if (!session) return false;
-  const direct = (session as Session & { amr?: Array<{ method?: string } | string> }).amr;
-  if (Array.isArray(direct) && direct.some((entry) => {
-    const method = typeof entry === "string" ? entry : entry?.method;
-    return method === "recovery";
-  })) return true;
-  try {
-    const token = session.access_token;
-    const payload = token.split(".")[1];
-    if (!payload) return false;
-    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as { amr?: Array<{ method?: string } | string> };
-    if (!Array.isArray(json.amr)) return false;
-    return json.amr.some((entry) => {
-      const method = typeof entry === "string" ? entry : entry?.method;
-      return method === "recovery";
-    });
-  } catch {
-    return false;
-  }
+  const direct = (session as Session & { amr?: unknown }).amr;
+  if (amrIncludesRecovery(direct)) return true;
+  return accessTokenHasRecoveryAmr(session.access_token);
 }
 
 export function noteRecoveryFromSession(session: Session | null | undefined): void {
@@ -170,6 +155,7 @@ export async function signOut(): Promise<void> {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ORG_KEY);
   clearPasswordRecoveryPending();
+  clearAllCachedWorkspaceLogos();
 }
 /**
  * Subscribe to Supabase auth lifecycle events.

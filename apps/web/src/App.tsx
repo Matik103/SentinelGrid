@@ -316,7 +316,14 @@ function Overview() {
   );
 }
 
-function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void } = {}) {
+function OrganisationPanel({
+  onBrandingChange,
+  mode = "settings",
+}: {
+  onBrandingChange?: () => void;
+  /** settings = branding; people = members + invitations */
+  mode?: "settings" | "people";
+} = {}) {
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<Record<string, unknown>[]>([]);
   const [invites, setInvites] = useState<Record<string, unknown>[]>([]);
@@ -330,9 +337,12 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
   const [logoBusy, setLogoBusy] = useState(false);
   const [canManageBranding, setCanManageBranding] = useState(false);
   const [logoMessage, setLogoMessage] = useState<string | null>(null);
+  const showBranding = mode === "settings";
+  const showPeople = mode === "people";
 
   const reload = async () => {
     setError(null);
+    if (!showPeople) return;
     if (!org || !authToken() || !apiConfigured()) {
       setError("Sign in and select a workspace above to manage its members and invitations.");
       return;
@@ -349,6 +359,7 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
 
   useEffect(() => {
     void reload();
+    if (!showBranding) return;
     if (org && authToken()) {
       const cached = peekCachedWorkspaceLogo(org);
       if (cached !== undefined) setLogoUrl(cached);
@@ -359,7 +370,7 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
       setLogoUrl(null);
       setCanManageBranding(false);
     }
-  }, [org]);
+  }, [org, mode]);
 
   async function onWorkspaceLogoChange(event: { currentTarget: HTMLInputElement }) {
     const file = event.currentTarget.files?.[0];
@@ -397,71 +408,82 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
     }
   }
 
+  const title = showPeople ? "People & access" : "Workspace settings";
+  const lead = showPeople
+    ? "Review membership and send invitations for this workspace."
+    : "Personalise this workspace and manage its identity.";
+
   return (
-    <Page title="Workspace settings" lead="Manage this workspace’s membership and invitations.">
+    <Page title={title} lead={lead}>
       <StatusBanner error={error} />
-      <section className="workspace-branding-panel">
-        <div className="workspace-branding-copy"><h2>Workspace logo</h2><p>Personalise the centre of your command overview with your organisation’s logo. Until one is uploaded, SentinelGrid’s default emblem remains in place.</p></div>
-        <div className="workspace-branding-control">
-          <div className="workspace-branding-preview">
-            {logoUrl === undefined
-              ? <span className="workspace-branding-pending" aria-hidden="true" />
-              : logoUrl
-                ? <img src={logoUrl} alt="Current workspace logo" />
-                : <img src="/assets/sentinelgrid-logo-mark.png" alt="Default SentinelGrid emblem" />}
+      {showBranding && (
+        <section className="workspace-branding-panel">
+          <div className="workspace-branding-copy"><h2>Workspace logo</h2><p>Personalise the centre of your command overview with your organisation’s logo. Until one is uploaded, SentinelGrid’s default emblem remains in place.</p></div>
+          <div className="workspace-branding-control">
+            <div className="workspace-branding-preview">
+              {logoUrl === undefined
+                ? <span className="workspace-branding-pending" aria-hidden="true" />
+                : logoUrl
+                  ? <img src={logoUrl} alt="Current workspace logo" />
+                  : <img src="/assets/sentinelgrid-logo-mark.png" alt="Default SentinelGrid emblem" />}
+            </div>
+            {canManageBranding ? <label className="btn workspace-logo-upload">{logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload workspace logo"}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={logoBusy || logoUrl === undefined} onChange={onWorkspaceLogoChange} /></label> : <span className="workspace-branding-hint">Workspace administrator access required</span>}
           </div>
-          {canManageBranding ? <label className="btn workspace-logo-upload">{logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload workspace logo"}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={logoBusy || logoUrl === undefined} onChange={onWorkspaceLogoChange} /></label> : <span className="workspace-branding-hint">Workspace administrator access required</span>}
-        </div>
-        {logoMessage && <p className="workspace-branding-message" role="status">{logoMessage}</p>}
-      </section>
-      <h2 className="section-title">Members</h2>
-      <DataTable
-        columns={[
-          { key: "member", label: "User" },
-          { key: "status", label: "Status" },
-          { key: "roles", label: "Role" },
-        ]}
-        rows={members.map((row) => {
-          const displayName = typeof row.display_name === "string" ? row.display_name.trim() : "";
-          const email = typeof row.email === "string" ? row.email.trim() : "";
-          return {
-            ...row,
-            member: displayName || email || row.user_id || "—",
-          };
-        })}
-        emptyLabel="No members in this workspace yet."
-      />
-      <h2 className="section-title">Invitations</h2>
-      <DataTable
-        columns={[
-          { key: "email", label: "Email" },
-          { key: "status", label: "Status" },
-          { key: "expires_at", label: "Expires" },
-          { key: "roles", label: "Role" },
-        ]}
-        rows={invites}
-        emptyLabel="No pending invitations."
-      />
-      <form className="inline-form" onSubmit={onInvite}>
-        <input
-          type="email"
-          required
-          placeholder="invitee@example.com"
-          value={inviteEmail}
-          onChange={(e) => setInviteEmail(e.target.value)}
-        />
-        <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
-          <option value="read_only_viewer">Read-only viewer</option>
-          <option value="operations_manager">Operations manager</option>
-          <option value="security_analyst">Security analyst</option>
-          <option value="facility_manager">Facility manager</option>
-          <option value="organisation_administrator">Workspace administrator</option>
-        </select>
-        <button type="submit" className="btn">
-          Send invite
-        </button>
-      </form>
-      {msg && <p className="page-lead">{msg}</p>}
+          {logoMessage && <p className="workspace-branding-message" role="status">{logoMessage}</p>}
+        </section>
+      )}
+      {showPeople && (
+        <>
+          <h2 className="section-title">Members</h2>
+          <DataTable
+            columns={[
+              { key: "member", label: "User" },
+              { key: "status", label: "Status" },
+              { key: "roles", label: "Role" },
+            ]}
+            rows={members.map((row) => {
+              const displayName = typeof row.display_name === "string" ? row.display_name.trim() : "";
+              const email = typeof row.email === "string" ? row.email.trim() : "";
+              return {
+                ...row,
+                member: displayName || email || row.user_id || "—",
+              };
+            })}
+            emptyLabel="No members in this workspace yet."
+          />
+          <h2 className="section-title">Invitations</h2>
+          <DataTable
+            columns={[
+              { key: "email", label: "Email" },
+              { key: "status", label: "Status" },
+              { key: "expires_at", label: "Expires" },
+              { key: "roles", label: "Role" },
+            ]}
+            rows={invites}
+            emptyLabel="No pending invitations."
+          />
+          <form className="inline-form" onSubmit={onInvite}>
+            <input
+              type="email"
+              required
+              placeholder="invitee@example.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
+            <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
+              <option value="read_only_viewer">Read-only viewer</option>
+              <option value="operations_manager">Operations manager</option>
+              <option value="security_analyst">Security analyst</option>
+              <option value="facility_manager">Facility manager</option>
+              <option value="organisation_administrator">Workspace administrator</option>
+            </select>
+            <button type="submit" className="btn">
+              Send invite
+            </button>
+          </form>
+          {msg && <p className="page-lead">{msg}</p>}
+        </>
+      )}
     </Page>
   );
 }
@@ -683,19 +705,19 @@ export function App() {
   }, [workspaceGate, authReady]);
 
   const handleAuthChange = () => {
+    // Keep React recoveryPending in sync with sessionStorage (expired link / abandon reset).
+    const pending = isPasswordRecoveryPending();
+    setRecoveryPending(pending);
+
     if (!authToken()) {
       setOrganisationId(null);
       setActiveOrganisationId(null);
       setActiveOrganisationName("Workspace");
-      setRecoveryPending(false);
       setWorkspaceGate("checking");
       return;
     }
     // Recovery: stay on AuthPanel until the new password is saved (even after MFA step-up).
-    if (recoveryPending || isPasswordRecoveryPending()) {
-      setRecoveryPending(true);
-      return;
-    }
+    if (pending) return;
     // After MFA verify / sign-in, force workspace load even if we were on mfa.
     void refreshWorkspaceState({ force: true });
   };
@@ -765,7 +787,7 @@ export function App() {
           <Route path="/incidents" element={<IncidentWorkbenchPage />} />
           <Route path="/replay" element={<EventReplayPage />} />
           <Route path="/scenarios" element={<ScenarioWorkbenchPage />} />
-          <Route path="/organisation" element={<OrganisationPanel onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
+          <Route path="/organisation" element={<OrganisationPanel mode="settings" onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
           <Route
             path="/facilities"
             element={
@@ -950,7 +972,7 @@ export function App() {
               />
             }
           />
-          <Route path="/users" element={<OrganisationPanel onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
+          <Route path="/users" element={<OrganisationPanel mode="people" onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
         </Routes>
         </div>
       </main>

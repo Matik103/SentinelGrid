@@ -26,3 +26,17 @@ export function clearCachedWorkspaceLogo(organisationId: string): void {
     /* ignore */
   }
 }
+
+/** Drop every cached workspace logo (call on sign-out). */
+export function clearAllCachedWorkspaceLogos(): void {
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < sessionStorage.length; index += 1) {
+      const key = sessionStorage.key(index);
+      if (key?.startsWith(STORAGE_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}

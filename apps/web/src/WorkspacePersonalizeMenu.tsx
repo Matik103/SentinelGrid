@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { canManageWorkspaceBranding, getWorkspaceBranding, uploadWorkspaceLogo } from "./api";
 import { getSupabase, restoreSession, signOut } from "./auth";
+import { currentAssuranceLevel, listVerifiedTotpFactors } from "./mfa";
 import { peekCachedWorkspaceLogo } from "./workspaceLogoCache";
 
 type Props = {
@@ -43,8 +44,25 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
   const [signingOut, setSigningOut] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [identity, setIdentity] = useState<AccountIdentity>({ email: null, displayName: null });
+  const [mfaStatus, setMfaStatus] = useState("Checking security…");
   const rootRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const [level, factors] = await Promise.all([currentAssuranceLevel(), listVerifiedTotpFactors()]);
+        if (!active) return;
+        if (factors.length > 0 && level === "aal2") setMfaStatus("MFA active");
+        else if (factors.length > 0) setMfaStatus("MFA enrolled — verify to continue");
+        else setMfaStatus("MFA not set up");
+      } catch {
+        if (active) setMfaStatus("Security status unavailable");
+      }
+    })();
+    return () => { active = false; };
+  }, [open, organisationId]);
 
   useEffect(() => {
     let active = true;
@@ -139,7 +157,7 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
             ) : null}
             <p className="account-menu-mfa" aria-label="Account security">
               <i aria-hidden="true" />
-              MFA active
+              {mfaStatus}
             </p>
           </header>
 

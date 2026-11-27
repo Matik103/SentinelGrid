@@ -66,11 +66,13 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
       // Recovery: stay on reset; step up MFA first when the account has a verified factor.
       if (isPasswordRecoveryPending()) {
         if (!session) {
+          // D5: clear both storage flag and App recoveryPending via onAuthChange.
           clearPasswordRecoveryPending();
           setRecoveryStep(null);
           setRecoveryMfa(null);
           setError("This password reset link is invalid or has expired. Request a new one.");
           setView("forgot");
+          onAuthChange?.();
           return;
         }
         try {
@@ -80,8 +82,14 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
             const factors = await listVerifiedTotpFactors();
             if (!active) return;
             if (!factors.length) {
-              setError("Authenticator enrollment is incomplete. Sign in normally to finish MFA setup, or contact support.");
-              setRecoveryStep("password");
+              // D6: do not offer password change without a verified factor to step up.
+              clearPasswordRecoveryPending();
+              setRecoveryStep(null);
+              setRecoveryMfa(null);
+              setError("Authenticator enrollment is incomplete. Sign in normally to finish MFA setup before resetting your password.");
+              setView("forgot");
+              await signOut();
+              onAuthChange?.();
               return;
             }
             setVerifiedFactors(factors);
@@ -94,8 +102,11 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
           setView("reset");
         } catch (err) {
           if (!active) return;
+          clearPasswordRecoveryPending();
+          setRecoveryStep(null);
           setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
-          setRecoveryStep("password");
+          setView("forgot");
+          onAuthChange?.();
         }
         return;
       }
@@ -459,7 +470,31 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
           <div className="auth-form-bottom">
             {view === "signin" && <span>New to SentinelGrid? <button type="button" onClick={() => { setView("signup"); setError(null); setNotice(null); }}>Create an account</button></span>}
             {view === "signup" && <span>Already have an account? <button type="button" onClick={() => { setView("signin"); setError(null); }}>Sign in</button></span>}
-            {(view === "forgot" || view === "reset" || view === "verify") && <span><button type="button" onClick={() => { setView("signin"); setError(null); setNotice(null); }}>Back to sign in</button></span>}
+            {(view === "forgot" || view === "reset" || view === "verify") && (
+              <span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setNotice(null);
+                    // D7: abandoning reset must clear recovery intent and end the recovery session.
+                    if (isPasswordRecoveryPending() || recoveryStep) {
+                      clearPasswordRecoveryPending();
+                      setRecoveryStep(null);
+                      setRecoveryMfa(null);
+                      void signOut().finally(() => {
+                        setView("signin");
+                        onAuthChange?.();
+                      });
+                      return;
+                    }
+                    setView("signin");
+                  }}
+                >
+                  Back to sign in
+                </button>
+              </span>
+            )}
           </div>
           <p className="auth-privacy-note">Journey: 1) Identity → 2) Authenticator (MFA) → 3) Workspace. Password alone is never enough for Command access.</p>
         </div>

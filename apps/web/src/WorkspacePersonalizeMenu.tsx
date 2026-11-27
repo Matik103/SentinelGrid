@@ -87,7 +87,7 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
     try {
       const branding = await uploadWorkspaceLogo(organisationId, file);
       setLogoUrl(branding.logoUrl);
-      setMessage("Logo saved. It now appears in the workspace switcher.");
+      setMessage("Logo updated.");
       onBrandingChange?.();
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : "Could not upload the workspace logo.");
@@ -126,31 +126,25 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
           : initials(organisationName)}
       </button>
       {open && (
-        <div className="workspace-personalize-panel" role="dialog" aria-label="Account and workspace">
-          <div className="workspace-personalize-header">
-            <span className="eyebrow">ACCOUNT</span>
-            <strong>{identityLabel}</strong>
-            {identity.displayName && identity.email && (
-              <span className="workspace-personalize-email">{identity.email}</span>
-            )}
-            <div className="workspace-personalize-security" aria-label="Account security">
-              <strong>Account secured</strong>
-              <span className="mono">MFA session active (AAL2)</span>
-            </div>
-          </div>
+        <div className="account-menu" role="dialog" aria-label="Account and workspace">
+          <header className="account-menu-header">
+            <p className="account-menu-name">{identityLabel}</p>
+            {identity.displayName && identity.email ? (
+              <p className="account-menu-meta">{identity.email}</p>
+            ) : null}
+            <p className="account-menu-mfa" aria-label="Account security">
+              <i aria-hidden="true" />
+              MFA active · AAL2
+            </p>
+          </header>
 
-          <div className="workspace-personalize-section">
-            <span className="eyebrow">ACTIVE WORKSPACE</span>
-            <div className="workspace-personalize-workspace">
-              <div className="workspace-personalize-preview">
-                {logoUrl
-                  ? <img src={logoUrl} alt="Current workspace logo" />
-                  : <span aria-hidden="true">{initials(organisationName)}</span>}
-              </div>
-              <div className="workspace-personalize-workspace-copy">
-                <strong>{organisationName}</strong>
-                <p>Personalise the logo shown in the workspace switcher.</p>
-              </div>
+          <div className="account-menu-workspace">
+            <span className="account-menu-mark" aria-hidden="true">
+              {logoUrl ? <img src={logoUrl} alt="" /> : initials(organisationName)}
+            </span>
+            <div className="account-menu-workspace-copy">
+              <span className="account-menu-label">Workspace</span>
+              <strong>{organisationName}</strong>
             </div>
             {canManage ? (
               <>
@@ -167,36 +161,36 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
                 />
                 <button
                   type="button"
-                  className="btn workspace-personalize-upload"
+                  className="account-menu-text-action"
                   disabled={busy || signingOut || !organisationId}
                   onClick={() => fileRef.current?.click()}
                 >
-                  {busy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload logo"}
+                  {busy ? "Uploading…" : logoUrl ? "Replace" : "Upload logo"}
                 </button>
               </>
-            ) : (
-              <p className="workspace-personalize-hint">
-                {organisationId
-                  ? "Workspace administrator access is required to change the logo."
-                  : "Select a workspace first."}
-              </p>
-            )}
+            ) : null}
           </div>
+          {!canManage && organisationId ? (
+            <p className="account-menu-hint">Admin access required to change the logo.</p>
+          ) : null}
+          {!organisationId ? (
+            <p className="account-menu-hint">Select a workspace first.</p>
+          ) : null}
 
-          <nav className="workspace-personalize-links" aria-label="Account destinations">
+          <nav className="account-menu-links" aria-label="Account destinations">
             <NavLink to="/organisation" onClick={() => setOpen(false)}>Workspace settings</NavLink>
             <NavLink to="/users" onClick={() => setOpen(false)}>People &amp; access</NavLink>
           </nav>
 
           <button
             type="button"
-            className="btn secondary workspace-personalize-signout"
+            className="account-menu-signout"
             disabled={busy || signingOut}
             onClick={() => void handleSignOut()}
           >
             {signingOut ? "Signing out…" : "Sign out"}
           </button>
-          {message && <p className="workspace-personalize-message" role="status">{message}</p>}
+          {message ? <p className="account-menu-message" role="status">{message}</p> : null}
         </div>
       )}
     </div>

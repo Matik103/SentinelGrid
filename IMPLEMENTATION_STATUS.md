@@ -1,7 +1,7 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `204f423d02f0e8104e4e1c240753455cc2d9c44d` — web auth/recovery/MFA gate aligned with `main` closeout `95c1ef3`  
+**Current tip:** `4aac47451424a881a47641d02fe4548f8eb3b2c9` — web auth/recovery/MFA gate aligned with `main` closeout `95c1ef3`  
 **Prior tip (pre-auth port):** `0034a558a0edf035ff0e4541953470114ad2f63e`  
 **Stale tip previously recorded in docs:** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  

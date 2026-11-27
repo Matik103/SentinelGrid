@@ -154,6 +154,17 @@ CREATE POLICY evidence_payloads_storage_delete ON storage.objects
     )
   );
 
+-- ========== 20261127120000_payload_storage_supabase_backend ==========
+ALTER TABLE public.payload_objects
+  DROP CONSTRAINT IF EXISTS payload_objects_storage_backend_check;
+
+ALTER TABLE public.payload_objects
+  ADD CONSTRAINT payload_objects_storage_backend_check
+  CHECK (storage_backend IN ('supabase', 's3_compatible', 'local_dev'));
+
+ALTER TABLE public.payload_objects
+  ALTER COLUMN storage_backend SET DEFAULT 'supabase';
+
 -- ========== api_base_url ==========
 INSERT INTO public.app_public_config (key, value, updated_at)
 VALUES ('api_base_url', jsonb_build_object('url', 'https://sentinelgrid-fpzo.onrender.com'), now())
@@ -174,3 +185,8 @@ WHERE n.nspname = 'public' AND p.proname = 'ensure_own_profile';
 SELECT id, name, public, file_size_limit
 FROM storage.buckets
 WHERE id = 'evidence-payloads';
+
+SELECT conname, pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conrelid = 'public.payload_objects'::regclass
+  AND conname = 'payload_objects_storage_backend_check';

@@ -2,14 +2,16 @@
 
 Phase 0 evidence payloads are written to an object store **before** `payload_objects` metadata is committed. Reads verify SHA-256 against metadata.
 
-Production uses **Supabase Storage** (project buckets) via the S3-compatible protocol — not Amazon S3.
+Production uses **Supabase Storage** via the service-role Storage API — not Amazon S3 and not the S3-compatible SDK path.
 
 ## Backends
 
 | `PAYLOAD_STORAGE_BACKEND` | Use | Notes |
 |---|---|---|
 | `local_dev` | Local / CI only | Files under `PAYLOAD_STORAGE_ROOT` (default `.payload-store`). **Forbidden when `NODE_ENV=production`.** Ignored at Nest boot in production if still set in the host env. |
-| `s3` / `s3_compatible` | Staging / production | Real PutObject / GetObject via `@aws-sdk/client-s3` against Supabase Storage’s S3 endpoint. DB column stores `s3_compatible`. |
+| `supabase` | Staging / production | `storage.from(bucket).upload/download/remove` with the Nest service-role client. DB column stores `supabase`. |
+
+Legacy aliases `s3` / `s3_compatible` map to `supabase` for one release, then should be removed from host env. Amazon S3 SDK / `AWS_*` credentials are not used.
 
 Unknown backends and metadata-only writes are refused (fail-closed).
 
@@ -21,38 +23,26 @@ Hosted project: **`abaeizgfsskvjklfslrh`**.
 | --- | --- |
 | Bucket | `evidence-payloads` (private; migration `20261127100000_evidence_payloads_storage_bucket.sql`) |
 | Do **not** reuse | `asset-media` (equipment photos + image MIME / different RLS) |
-| S3 endpoint | `https://abaeizgfsskvjklfslrh.storage.supabase.co/storage/v1/s3` |
-| Path style | `S3_FORCE_PATH_STYLE=true` |
-| Region | Copy from Supabase Dashboard → **Storage → S3 connection** (project region) |
-| Access keys | Dashboard → **Storage → S3 access keys** (server-only; bypass RLS). **Not** the anon key. Prefer dedicated Storage S3 keys over pasting the DB service role into AWS_* vars. |
+| Auth | Nest `SUPABASE_SERVICE_ROLE_KEY` (server-only). Bypasses Storage object RLS. |
 
 ### Render Dashboard env (names + non-secret values)
 
-Set on **Render → sentinelgrid-api → Environment** (Blueprint `sync: false` often does not merge into an already-created service):
-
 | Name | Value |
 | --- | --- |
-| `PAYLOAD_STORAGE_BACKEND` | `s3_compatible` |
-| `S3_BUCKET` | `evidence-payloads` |
-| `S3_ENDPOINT` | `https://abaeizgfsskvjklfslrh.storage.supabase.co/storage/v1/s3` |
-| `S3_FORCE_PATH_STYLE` | `true` |
-| `AWS_REGION` | *(from Supabase Storage S3 connection page)* |
-| `AWS_ACCESS_KEY_ID` | *(Supabase Storage S3 access key id)* |
-| `AWS_SECRET_ACCESS_KEY` | *(Supabase Storage S3 secret)* |
+| `PAYLOAD_STORAGE_BACKEND` | `supabase` |
+| `PAYLOAD_STORAGE_BUCKET` | `evidence-payloads` |
 
-Also **delete** `PAYLOAD_STORAGE_BACKEND=local_dev` if present.
+Also **delete** any of: `PAYLOAD_STORAGE_BACKEND=local_dev`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_ENDPOINT`, `S3_FORCE_PATH_STYLE`, `S3_BUCKET` (optional legacy; `PAYLOAD_STORAGE_BUCKET` preferred).
 
-After redeploy, `GET /v1/health` should show `"payload_backend":"s3_compatible"` (not `deferred` / `local_dev`). Nest also ensures the configured private bucket exists at boot via the service-role Storage API (idempotent). Still apply migration `20261127100000` (or paste `supabase/ops/apply-pending-production.sql`) so authenticated Storage RLS policies exist alongside the bucket.
+After redeploy, `GET /v1/health` should show `"payload_backend":"supabase"` and `"payload_bucket":"ready"|"created"`. Apply migrations `20261127090000`, `20261127100000`, and `20261127120000` on the remote project (AAL1 DEFINER, bucket RLS, backend check).
 
 ### Required env summary
 
-- `S3_BUCKET` or `PAYLOAD_S3_BUCKET`
-- `AWS_REGION` or `S3_REGION`
-- `S3_ENDPOINT` — Supabase Storage S3 URL (`https://` only in production)
-- `S3_FORCE_PATH_STYLE=true`
-- `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` (both required on Render; pair both)
+- `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+- `PAYLOAD_STORAGE_BACKEND=supabase`
+- `PAYLOAD_STORAGE_BUCKET=evidence-payloads` (optional; defaults to `evidence-payloads`)
 
-Misconfiguration (missing bucket/region, unpaired keys, http endpoint in production) throws at startup / first use — the API does not fall back to local disk in production.
+Misconfiguration throws at startup / first use — the API does not fall back to local disk or Amazon S3 in production.
 
 ## Integrity
 
@@ -63,4 +53,4 @@ Misconfiguration (missing bucket/region, unpaired keys, http endpoint in product
 
 ## Audit
 
-`scripts/audit.sh` requires this document and asserts production forbids `local_dev` while S3-compatible stores are implemented.
+`scripts/audit.sh` requires this document and asserts production forbids `local_dev` while Supabase Storage is implemented.

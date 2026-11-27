@@ -37,28 +37,17 @@ services:
         sync: false
       - key: SG_EMAIL_FROM
         sync: false
-      # Evidence payloads → Supabase Storage (S3 protocol), NOT Amazon S3.
-      # Project abaeizgfsskvjklfslrh, private bucket evidence-payloads.
-      # Production never selects local_dev (even if Dashboard still has it — Nest ignores it).
-      # Blueprint sync often skips existing services — set secrets in Dashboard if needed.
+      # Evidence payloads → Supabase Storage API (service role). No Amazon S3 / AWS_* keys.
       - key: PAYLOAD_STORAGE_BACKEND
-        value: s3_compatible
-      - key: S3_BUCKET
+        value: supabase
+      - key: PAYLOAD_STORAGE_BUCKET
         value: evidence-payloads
-      - key: S3_ENDPOINT
-        value: https://abaeizgfsskvjklfslrh.storage.supabase.co/storage/v1/s3
-      - key: S3_FORCE_PATH_STYLE
-        value: "true"
-      # From Supabase Dashboard → Storage → S3 connection / access keys (server-only).
-      - key: AWS_REGION
-        sync: false
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
       # Optional: REDIS_URL for multi-instance rate limiting (then RATE_LIMIT_ALLOW_MEMORY can go)
       - key: REDIS_URL
         sync: false
       # Optional: set in Render to the deployed git SHA for /v1/health monitoring.build_sha
       - key: GIT_SHA
+        sync: false
+      # Optional: Management API token so Nest/ops scripts can apply SQL on boot if desired
+      - key: SUPABASE_ACCESS_TOKEN
         sync: false

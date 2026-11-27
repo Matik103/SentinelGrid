@@ -24,6 +24,7 @@ describe("PayloadStorageService.onModuleInit production", () => {
     const svc = new PayloadStorageService(admin as never);
     await svc.onModuleInit();
     assert.equal((svc as unknown as { store?: unknown }).store, undefined);
+    assert.equal(svc.getActiveBackend(), "deferred");
   });
 
   it("defers when backend unset in production", async () => {
@@ -33,22 +34,23 @@ describe("PayloadStorageService.onModuleInit production", () => {
     const svc = new PayloadStorageService(admin as never);
     await svc.onModuleInit();
     assert.equal((svc as unknown as { store?: unknown }).store, undefined);
+    assert.equal(svc.getActiveBackend(), "deferred");
   });
 
-  it("ensures configured storage bucket via service-role API", async () => {
+  it("uses Supabase Storage API and ensures bucket", async () => {
     process.env.NODE_ENV = "production";
-    process.env.PAYLOAD_STORAGE_BACKEND = "s3_compatible";
-    process.env.S3_BUCKET = "evidence-payloads";
-    process.env.AWS_REGION = "us-east-1";
-    process.env.S3_ENDPOINT = "https://example.storage.supabase.co/storage/v1/s3";
-    process.env.S3_FORCE_PATH_STYLE = "true";
-    process.env.AWS_ACCESS_KEY_ID = "test-key";
-    process.env.AWS_SECRET_ACCESS_KEY = "test-secret";
+    process.env.PAYLOAD_STORAGE_BACKEND = "supabase";
+    process.env.PAYLOAD_STORAGE_BUCKET = "evidence-payloads";
 
     let created = false;
     const admin = {
       client: {
         storage: {
+          from: () => ({
+            upload: async () => ({ error: null }),
+            download: async () => ({ data: null, error: { message: "unused" } }),
+            remove: async () => ({ error: null }),
+          }),
           getBucket: async () => ({ data: null, error: { message: "Bucket not found" } }),
           createBucket: async (id: string, opts: { public: boolean }) => {
             created = id === "evidence-payloads" && opts.public === false;
@@ -60,16 +62,15 @@ describe("PayloadStorageService.onModuleInit production", () => {
     const svc = new PayloadStorageService(admin as never);
     await svc.onModuleInit();
     assert.equal(created, true);
-    assert.equal((svc as unknown as { store?: { backend: string } }).store?.backend, "s3_compatible");
+    assert.equal(svc.getActiveBackend(), "supabase");
     assert.equal(svc.getConfiguredBucketStatus(), "created");
   });
 
-  it("ensures bucket even when S3 object-store env is incomplete", async () => {
+  it("maps legacy s3_compatible env to Supabase Storage", async () => {
     process.env.NODE_ENV = "production";
     process.env.PAYLOAD_STORAGE_BACKEND = "s3_compatible";
     process.env.S3_BUCKET = "evidence-payloads";
     delete process.env.AWS_REGION;
-    delete process.env.S3_REGION;
     delete process.env.AWS_ACCESS_KEY_ID;
     delete process.env.AWS_SECRET_ACCESS_KEY;
 
@@ -88,8 +89,8 @@ describe("PayloadStorageService.onModuleInit production", () => {
     const svc = new PayloadStorageService(admin as never);
     await svc.onModuleInit();
     assert.equal(created, true);
+    assert.equal(svc.getActiveBackend(), "supabase");
     assert.equal(svc.getConfiguredBucketStatus(), "created");
-    assert.equal((svc as unknown as { store?: unknown }).store, undefined);
   });
 });
 

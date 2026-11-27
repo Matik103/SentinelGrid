@@ -154,10 +154,11 @@ if [[ -f apps/api/src/evidence/payload-storage.service.ts ]] \
   && [[ -f supabase/migrations/20261125190000_phase0_ingestion_dlq_and_payload_objects.sql ]] \
   && [[ -f docs/PAYLOAD_STORAGE.md ]] \
   && grep -q 'forbidden in production' apps/api/src/evidence/object-store.ts \
-  && grep -q 'S3ObjectStore\|s3_compatible' apps/api/src/evidence/object-store.ts \
+  && grep -q 'SupabaseStorageObjectStore\|supabase' apps/api/src/evidence/object-store.ts \
+  && ! grep -q '@aws-sdk/client-s3' apps/api/package.json \
   && grep -q 'sha256' apps/api/src/evidence/payload-storage.service.ts; then
-  pass_check product.payload_storage "S3-compatible payload storage with SHA-256 integrity and production fail-closed local_dev ban" "apps/api/src/evidence"
-else fail_check high product.payload_storage "Payload storage incomplete (need S3 adapter, integrity, docs)" "docs/PAYLOAD_STORAGE.md" "Implement ObjectStore + PayloadStorageService with fail-closed S3 config."; fi
+  pass_check product.payload_storage "Supabase Storage payload path with SHA-256 integrity and production fail-closed local_dev ban" "apps/api/src/evidence"
+else fail_check high product.payload_storage "Payload storage incomplete (need Supabase Storage adapter, integrity, docs; no Amazon S3 SDK)" "docs/PAYLOAD_STORAGE.md" "Implement ObjectStore + PayloadStorageService with fail-closed supabase config."; fi
 
 if [[ -f edge/connector/cmd/connector/main.go ]] \
   && grep -q 'read_only' edge/connector/internal/config/config.go \

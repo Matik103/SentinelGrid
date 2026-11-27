@@ -53,16 +53,27 @@ After the Blueprint deploys:
 
 ## Supabase migrations and authentication
 
-Apply pending migrations to the hosted project from the repository root:
+Apply pending migrations to the hosted project from the repository root (Management API path used by agents):
+
+```sh
+# requires SUPABASE_ACCESS_TOKEN or ~/.supabase/access-token
+node scripts/apply-pending-production.mjs
+# or statement-by-statement:
+node scripts/apply-remote-sql.mjs abaeizgfsskvjklfslrh supabase/migrations/<file>.sql
+```
+
+Linked CLI alternative when the project is already linked locally:
 
 ```sh
 npx supabase link --project-ref abaeizgfsskvjklfslrh
 npx supabase db push
 ```
 
-Review the pending migration list before confirming `db push`; it applies all unapplied migrations, not just the profile fix. The important missing migration on the shared branch is:
+Review the pending migration list before confirming `db push`. Important pending migrations on the shared branch include:
 
 `supabase/migrations/20261127090000_ensure_own_profile_bootstrap_definer.sql`
+`supabase/migrations/20261127100000_evidence_payloads_storage_bucket.sql`
+`supabase/migrations/20261127120000_payload_storage_supabase_backend.sql`
 
 It changes `ensure_own_profile(text)` to a tightly scoped SECURITY DEFINER function so first-session profile creation works at AAL1. It does not relax direct profile table access: the restrictive AAL2 policy remains in force. The matching regression case is in `supabase/tests/phase0_tenant_isolation.sql`.
 

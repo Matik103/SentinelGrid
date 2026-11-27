@@ -5,8 +5,35 @@ import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import {
   LocalDevObjectStore,
+  createLocalDevObjectStoreFromEnv,
   createObjectStoreFromEnv,
+  resolvePayloadBackend,
+  resolvePayloadBucket,
 } from "./object-store.js";
+
+describe("resolvePayloadBackend", () => {
+  const prev = { ...process.env };
+
+  afterEach(() => {
+    for (const k of Object.keys(process.env)) {
+      if (!(k in prev)) delete process.env[k];
+    }
+    Object.assign(process.env, prev);
+  });
+
+  it("maps legacy s3 aliases to supabase", () => {
+    process.env.PAYLOAD_STORAGE_BACKEND = "s3_compatible";
+    assert.equal(resolvePayloadBackend(), "supabase");
+    process.env.PAYLOAD_STORAGE_BACKEND = "s3";
+    assert.equal(resolvePayloadBackend(), "supabase");
+  });
+
+  it("defaults to local_dev outside production when unset", () => {
+    process.env.NODE_ENV = "test";
+    delete process.env.PAYLOAD_STORAGE_BACKEND;
+    assert.equal(resolvePayloadBackend(), "local_dev");
+  });
+});
 
 describe("createObjectStoreFromEnv", () => {
   const prev = { ...process.env };
@@ -22,14 +49,14 @@ describe("createObjectStoreFromEnv", () => {
     process.env.NODE_ENV = "test";
     process.env.PAYLOAD_STORAGE_BACKEND = "local_dev";
     process.env.PAYLOAD_STORAGE_ROOT = path.join(tmpdir(), "sg-payload-test");
-    const store = createObjectStoreFromEnv();
+    const store = createLocalDevObjectStoreFromEnv();
     assert.equal(store.backend, "local_dev");
   });
 
   it("forbids local_dev in production", () => {
     process.env.NODE_ENV = "production";
     process.env.PAYLOAD_STORAGE_BACKEND = "local_dev";
-    assert.throws(() => createObjectStoreFromEnv(), /forbidden in production/);
+    assert.throws(() => createLocalDevObjectStoreFromEnv(), /forbidden in production/);
   });
 
   it("does not default to local_dev when unset in production", () => {
@@ -38,49 +65,22 @@ describe("createObjectStoreFromEnv", () => {
     assert.throws(() => createObjectStoreFromEnv(), /PAYLOAD_STORAGE_BACKEND is not configured/);
   });
 
-  it("fail-closes when s3 is selected without bucket/region", () => {
+  it("refuses Amazon S3 SDK path for supabase (requires service-role client)", () => {
     process.env.NODE_ENV = "production";
-    process.env.PAYLOAD_STORAGE_BACKEND = "s3";
-    delete process.env.S3_BUCKET;
-    delete process.env.PAYLOAD_S3_BUCKET;
-    delete process.env.AWS_REGION;
-    delete process.env.S3_REGION;
-    assert.throws(() => createObjectStoreFromEnv(), /misconfigured/);
-  });
-
-  it("fail-closes on unpaired AWS credentials", () => {
-    process.env.NODE_ENV = "production";
-    process.env.PAYLOAD_STORAGE_BACKEND = "s3_compatible";
-    process.env.S3_BUCKET = "evidence";
-    process.env.AWS_REGION = "us-east-1";
-    process.env.AWS_ACCESS_KEY_ID = "AKIA";
-    delete process.env.AWS_SECRET_ACCESS_KEY;
-    assert.throws(() => createObjectStoreFromEnv(), /both be set/);
-  });
-
-  it("creates s3_compatible store when configured", () => {
-    process.env.NODE_ENV = "production";
-    process.env.PAYLOAD_STORAGE_BACKEND = "s3";
-    process.env.S3_BUCKET = "evidence";
-    process.env.AWS_REGION = "eu-west-1";
-    process.env.AWS_ACCESS_KEY_ID = "AKIA";
-    process.env.AWS_SECRET_ACCESS_KEY = "secret";
-    const store = createObjectStoreFromEnv();
-    assert.equal(store.backend, "s3_compatible");
+    process.env.PAYLOAD_STORAGE_BACKEND = "supabase";
+    process.env.PAYLOAD_STORAGE_BUCKET = "evidence-payloads";
+    assert.throws(() => createObjectStoreFromEnv(), /service-role client/);
   });
 
   it("rejects unknown backends", () => {
     process.env.PAYLOAD_STORAGE_BACKEND = "memory";
-    assert.throws(() => createObjectStoreFromEnv(), /Unsupported/);
+    assert.throws(() => createObjectStoreFromEnv(), /Unsupported|Amazon S3/);
   });
 
-  it("rejects non-https S3_ENDPOINT in production", () => {
-    process.env.NODE_ENV = "production";
-    process.env.PAYLOAD_STORAGE_BACKEND = "s3";
-    process.env.S3_BUCKET = "evidence";
-    process.env.AWS_REGION = "us-east-1";
-    process.env.S3_ENDPOINT = "http://minio.local:9000";
-    assert.throws(() => createObjectStoreFromEnv(), /https/);
+  it("resolves bucket name with PAYLOAD_STORAGE_BUCKET preferred", () => {
+    process.env.PAYLOAD_STORAGE_BUCKET = "evidence-payloads";
+    process.env.S3_BUCKET = "legacy";
+    assert.equal(resolvePayloadBucket(), "evidence-payloads");
   });
 });
 

@@ -1,14 +1,8 @@
-import {
-  DeleteObjectCommand,
-  GetObjectCommand,
-  PutObjectCommand,
-  S3Client,
-} from "@aws-sdk/client-s3";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { Readable } from "node:stream";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type ObjectStoreBackend = "local_dev" | "s3_compatible";
+export type ObjectStoreBackend = "local_dev" | "supabase";
 
 export type ObjectStore = {
   readonly backend: ObjectStoreBackend;
@@ -46,136 +40,117 @@ export class LocalDevObjectStore implements ObjectStore {
   }
 }
 
-export type S3ObjectStoreConfig = {
-  region: string;
-  bucket: string;
-  endpoint?: string;
-  forcePathStyle?: boolean;
-  accessKeyId?: string;
-  secretAccessKey?: string;
-};
+/**
+ * Evidence bytes in Supabase Storage via the service-role Storage API.
+ * No Amazon S3 SDK, no AWS_* keys, no S3-compatible endpoint.
+ */
+export class SupabaseStorageObjectStore implements ObjectStore {
+  readonly backend = "supabase" as const;
 
-export class S3ObjectStore implements ObjectStore {
-  readonly backend = "s3_compatible" as const;
-  private readonly client: S3Client;
-
-  constructor(private readonly cfg: S3ObjectStoreConfig) {
-    this.client = new S3Client({
-      region: cfg.region,
-      endpoint: cfg.endpoint,
-      forcePathStyle: cfg.forcePathStyle ?? Boolean(cfg.endpoint),
-      credentials:
-        cfg.accessKeyId && cfg.secretAccessKey
-          ? { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey }
-          : undefined,
-    });
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly bucket: string,
+  ) {
+    if (!bucket.trim()) throw new Error("Supabase Storage bucket name is required");
   }
 
   async put(objectKey: string, bytes: Buffer, contentType: string): Promise<void> {
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.cfg.bucket,
-        Key: objectKey,
-        Body: bytes,
-        ContentType: contentType,
-        ContentLength: bytes.byteLength,
-      }),
-    );
+    const { error } = await this.client.storage.from(this.bucket).upload(objectKey, bytes, {
+      contentType,
+      upsert: false,
+    });
+    if (error) throw new Error(`Supabase Storage upload failed: ${error.message}`);
   }
 
   async get(objectKey: string): Promise<Buffer> {
-    const out = await this.client.send(
-      new GetObjectCommand({ Bucket: this.cfg.bucket, Key: objectKey }),
-    );
-    if (!out.Body) throw new Error("S3 GetObject returned empty body");
-    return streamToBuffer(out.Body as Readable);
+    const { data, error } = await this.client.storage.from(this.bucket).download(objectKey);
+    if (error || !data) {
+      throw new Error(`Supabase Storage download failed: ${error?.message ?? "empty body"}`);
+    }
+    return Buffer.from(await data.arrayBuffer());
   }
 
   async delete(objectKey: string): Promise<void> {
-    await this.client.send(
-      new DeleteObjectCommand({ Bucket: this.cfg.bucket, Key: objectKey }),
-    );
+    const { error } = await this.client.storage.from(this.bucket).remove([objectKey]);
+    if (error) throw new Error(`Supabase Storage delete failed: ${error.message}`);
   }
 }
 
-async function streamToBuffer(body: Readable | Uint8Array | string | Blob): Promise<Buffer> {
-  if (Buffer.isBuffer(body)) return body;
-  if (body instanceof Uint8Array) return Buffer.from(body);
-  if (typeof body === "string") return Buffer.from(body, "utf8");
-  if (typeof (body as Readable).pipe === "function") {
-    const chunks: Buffer[] = [];
-    for await (const chunk of body as Readable) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    return Buffer.concat(chunks);
-  }
-  // Browser Blob in some SDK typings
-  if (typeof (body as Blob).arrayBuffer === "function") {
-    return Buffer.from(await (body as Blob).arrayBuffer());
-  }
-  throw new Error("Unsupported S3 body type");
+/** Resolve configured private bucket name (no Amazon S3 naming). */
+export function resolvePayloadBucket(env: NodeJS.ProcessEnv = process.env): string {
+  return (
+    env.PAYLOAD_STORAGE_BUCKET?.trim() ||
+    env.S3_BUCKET?.trim() || // legacy Render Blueprint name; treat as bucket only
+    "evidence-payloads"
+  );
 }
 
 /**
- * Resolve object store from environment. Fail-closed when misconfigured.
- * - Production never defaults to local_dev (unset backend → explicit configure error)
- * - local_dev forbidden when NODE_ENV=production
- * - s3 / s3_compatible requires bucket + region; credentials or default provider chain
+ * Normalize backend selection. Amazon S3 backends are rejected.
+ * Legacy `s3_compatible` / `s3` aliases map to Supabase Storage for one release.
+ */
+export function resolvePayloadBackend(
+  env: NodeJS.ProcessEnv = process.env,
+): ObjectStoreBackend | "" {
+  const nodeEnv = env.NODE_ENV ?? "development";
+  const raw = (env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "").toLowerCase();
+  const requested = raw || (nodeEnv === "production" ? "" : "local_dev");
+  if (!requested) return "";
+  if (requested === "local_dev") return "local_dev";
+  if (requested === "supabase" || requested === "s3_compatible" || requested === "s3") {
+    return "supabase";
+  }
+  return requested as ObjectStoreBackend;
+}
+
+/**
+ * Build a local_dev store from env. Production supabase stores are created with
+ * {@link SupabaseStorageObjectStore} + the Nest service-role client.
+ */
+export function createLocalDevObjectStoreFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): LocalDevObjectStore {
+  const nodeEnv = env.NODE_ENV ?? "development";
+  const backend = resolvePayloadBackend(env);
+  if (backend !== "local_dev") {
+    throw new Error(
+      `createLocalDevObjectStoreFromEnv requires PAYLOAD_STORAGE_BACKEND=local_dev (got ${backend || "unset"})`,
+    );
+  }
+  if (nodeEnv === "production") {
+    throw new Error("local_dev payload storage is forbidden in production");
+  }
+  const root = path.resolve(env.PAYLOAD_STORAGE_ROOT ?? path.join(process.cwd(), ".payload-store"));
+  return new LocalDevObjectStore(root);
+}
+
+/**
+ * @deprecated Use createLocalDevObjectStoreFromEnv / SupabaseStorageObjectStore.
+ * Kept as a thin dispatcher so older call sites fail closed without Amazon S3.
  */
 export function createObjectStoreFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): ObjectStore {
   const nodeEnv = env.NODE_ENV ?? "development";
-  const rawBackend = env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "";
-  const requested = (rawBackend || (nodeEnv === "production" ? "" : "local_dev")).toLowerCase();
+  const backend = resolvePayloadBackend(env);
 
-  if (!requested) {
+  if (!backend) {
     throw new Error(
-      "PAYLOAD_STORAGE_BACKEND is not configured; set to s3 (or s3_compatible) with S3_BUCKET and AWS_REGION before evidence writes",
+      "PAYLOAD_STORAGE_BACKEND is not configured; set to supabase (Supabase Storage) before evidence writes",
     );
   }
 
-  if (requested === "local_dev") {
-    if (nodeEnv === "production") {
-      throw new Error("local_dev payload storage is forbidden in production");
-    }
-    const root = path.resolve(env.PAYLOAD_STORAGE_ROOT ?? path.join(process.cwd(), ".payload-store"));
-    return new LocalDevObjectStore(root);
+  if (backend === "local_dev") {
+    return createLocalDevObjectStoreFromEnv(env);
   }
 
-  if (requested === "s3" || requested === "s3_compatible") {
-    const bucket = env.S3_BUCKET?.trim() || env.PAYLOAD_S3_BUCKET?.trim();
-    const region = env.AWS_REGION?.trim() || env.S3_REGION?.trim();
-    const endpoint = env.S3_ENDPOINT?.trim() || undefined;
-    const accessKeyId = env.AWS_ACCESS_KEY_ID?.trim() || undefined;
-    const secretAccessKey = env.AWS_SECRET_ACCESS_KEY?.trim() || undefined;
-
-    if (!bucket || !region) {
-      throw new Error(
-        "S3 payload storage misconfigured: S3_BUCKET (or PAYLOAD_S3_BUCKET) and AWS_REGION (or S3_REGION) are required",
-      );
-    }
-    // Explicit keys must be paired; otherwise rely on default provider chain (IAM role, etc.).
-    if ((accessKeyId && !secretAccessKey) || (!accessKeyId && secretAccessKey)) {
-      throw new Error(
-        "S3 payload storage misconfigured: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must both be set or both omitted",
-      );
-    }
-    if (nodeEnv === "production" && endpoint && !/^https:\/\//i.test(endpoint)) {
-      throw new Error("S3_ENDPOINT must use https in production");
-    }
-
-    return new S3ObjectStore({
-      region,
-      bucket,
-      endpoint,
-      forcePathStyle: env.S3_FORCE_PATH_STYLE === "1" || env.S3_FORCE_PATH_STYLE === "true",
-      accessKeyId,
-      secretAccessKey,
-    });
+  if (backend === "supabase") {
+    throw new Error(
+      "Supabase Storage requires the Nest service-role client; use SupabaseStorageObjectStore via PayloadStorageService",
+    );
   }
 
   throw new Error(
-    `Unsupported PAYLOAD_STORAGE_BACKEND: ${requested}; refusing metadata-only evidence writes`,
+    `Unsupported PAYLOAD_STORAGE_BACKEND: ${String(env.PAYLOAD_STORAGE_BACKEND)}; Amazon S3 is not supported — use supabase`,
   );
 }

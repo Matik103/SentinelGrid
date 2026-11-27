@@ -2,7 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
 import { SupabaseAdminService } from "../common/supabase-admin.service.js";
 import {
-  createObjectStoreFromEnv,
+  SupabaseStorageObjectStore,
+  createLocalDevObjectStoreFromEnv,
+  resolvePayloadBackend,
+  resolvePayloadBucket,
   type ObjectStore,
   type ObjectStoreBackend,
 } from "./object-store.js";
@@ -21,7 +24,7 @@ export type StoredPayloadMeta = {
 
 /**
  * Evidence / payload object storage with SHA-256 integrity.
- * Supports local_dev (non-production) and S3-compatible backends.
+ * Production uses Supabase Storage via the service-role API (not Amazon S3).
  * Fail-closed when misconfigured; never writes metadata without verified bytes.
  */
 @Injectable()
@@ -46,65 +49,83 @@ export class PayloadStorageService implements OnModuleInit {
     return this.bucketStatus;
   }
 
+  /** Non-secret backend label for /v1/health. */
+  getActiveBackend(): ObjectStoreBackend | "deferred" {
+    return this.store?.backend ?? "deferred";
+  }
+
   async onModuleInit() {
     if (this.store) {
       this.log.log(`payload storage backend=${this.store.backend}`);
       await this.ensureConfiguredBucket();
       return;
     }
+
     const production = (process.env.NODE_ENV ?? "development") === "production";
-    const backend = (process.env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "").toLowerCase();
-    // Production must never select or attempt local_dev (including if Dashboard still has it set).
+    const backend = resolvePayloadBackend();
+    const raw = (process.env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "").toLowerCase();
+
     if (production && (!backend || backend === "local_dev")) {
-      if (backend === "local_dev") {
+      if (raw === "local_dev") {
         this.log.log(
-          "PAYLOAD_STORAGE_BACKEND=local_dev ignored in production; set Supabase Storage s3_compatible env (see docs/PAYLOAD_STORAGE.md); evidence writes stay fail-closed",
+          "PAYLOAD_STORAGE_BACKEND=local_dev ignored in production; set PAYLOAD_STORAGE_BACKEND=supabase; evidence writes stay fail-closed",
         );
       } else {
         this.log.log(
-          "payload storage deferred until Supabase Storage is configured (PAYLOAD_STORAGE_BACKEND=s3_compatible + S3_BUCKET + S3_ENDPOINT); evidence writes stay fail-closed",
+          "payload storage deferred until Supabase Storage is configured (PAYLOAD_STORAGE_BACKEND=supabase); evidence writes stay fail-closed",
         );
       }
       this.bucketStatus = "skipped";
       return;
     }
+
+    if (raw === "s3" || raw === "s3_compatible") {
+      this.log.log(
+        "PAYLOAD_STORAGE_BACKEND legacy alias mapped to supabase (Amazon S3 SDK removed; using Supabase Storage API)",
+      );
+    }
+
     try {
-      this.store = createObjectStoreFromEnv();
+      if (backend === "local_dev") {
+        this.store = createLocalDevObjectStoreFromEnv();
+      } else if (backend === "supabase") {
+        this.store = new SupabaseStorageObjectStore(this.admin.client, resolvePayloadBucket());
+      } else if (!backend) {
+        throw new Error("PAYLOAD_STORAGE_BACKEND is not configured");
+      } else {
+        throw new Error(
+          `Unsupported PAYLOAD_STORAGE_BACKEND: ${raw}; Amazon S3 is not supported — use supabase`,
+        );
+      }
       this.log.log(`payload storage backend=${this.store.backend}`);
     } catch (error) {
-      // Allow Nest to boot for /v1/health, auth, and invites before Storage is fully wired.
-      // Evidence writes remain fail-closed via createObjectStoreFromEnv on first use.
-      // Never echo the local_dev-forbidden string as a boot WARN — that path is handled above.
       const message = error instanceof Error ? error.message : String(error);
-      if (/local_dev/i.test(message)) {
+      if (/local_dev/i.test(message) && production) {
         this.log.log(
-          "payload storage deferred (local_dev unavailable in production); configure Supabase Storage s3_compatible backend",
+          "payload storage deferred (local_dev unavailable in production); configure PAYLOAD_STORAGE_BACKEND=supabase",
         );
       } else {
         this.log.warn(`payload storage not ready at boot: ${message}`);
       }
     }
-    // Bucket ensure uses the service-role Storage API and does not need AWS_* S3 keys.
+
     await this.ensureConfiguredBucket();
   }
 
   /**
    * Create the configured private Storage bucket if missing.
-   * Uses the service-role Storage API (not Amazon S3). Idempotent.
-   * RLS policies from migration 20261127100000 remain required for authenticated browser access;
-   * Nest S3-protocol keys bypass object RLS once the bucket exists.
+   * Uses the service-role Storage API. Idempotent.
+   * RLS policies from migration remain required for authenticated browser access;
+   * Nest service-role Storage calls bypass object RLS once the bucket exists.
    */
   private async ensureConfiguredBucket(): Promise<void> {
-    const backend = (process.env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "").toLowerCase();
-    if (backend !== "s3" && backend !== "s3_compatible") {
+    const backend = resolvePayloadBackend();
+    if (backend !== "supabase") {
       this.bucketStatus = "skipped";
       return;
     }
 
-    const bucket =
-      process.env.S3_BUCKET?.trim() ||
-      process.env.PAYLOAD_S3_BUCKET?.trim() ||
-      "evidence-payloads";
+    const bucket = resolvePayloadBucket();
     if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) {
       this.bucketStatus = "failed";
       this.log.warn(`refusing storage bucket ensure: invalid bucket name`);
@@ -149,14 +170,28 @@ export class PayloadStorageService implements OnModuleInit {
     this.store = store;
   }
 
+  private ensureStore(): ObjectStore {
+    if (this.store) return this.store;
+    const backend = resolvePayloadBackend();
+    if (backend === "local_dev") {
+      this.store = createLocalDevObjectStoreFromEnv();
+      return this.store;
+    }
+    if (backend === "supabase") {
+      this.store = new SupabaseStorageObjectStore(this.admin.client, resolvePayloadBucket());
+      return this.store;
+    }
+    throw new Error(
+      "PAYLOAD_STORAGE_BACKEND is not configured; set to supabase (Supabase Storage) before evidence writes",
+    );
+  }
+
   async storeRaw(
     organisationId: string,
     payload: unknown,
     opts?: { classification?: PayloadClassification; contentType?: string },
   ): Promise<StoredPayloadMeta> {
-    if (!this.store) {
-      this.store = createObjectStoreFromEnv();
-    }
+    const store = this.ensureStore();
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(organisationId)) {
       throw new Error("organisationId must be a valid UUID");
     }
@@ -181,14 +216,14 @@ export class PayloadStorageService implements OnModuleInit {
     const objectKey = `${organisationId}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.json`;
     const contentType = opts?.contentType ?? "application/json";
 
-    await this.store.put(objectKey, bytes, contentType);
+    await store.put(objectKey, bytes, contentType);
 
     // Read-back integrity check before metadata commit (fail-closed).
-    const readBack = await this.store.get(objectKey);
+    const readBack = await store.get(objectKey);
     const readDigest = createHash("sha256").update(readBack).digest("hex");
     if (readDigest !== digest || readBack.byteLength !== bytes.byteLength) {
       try {
-        await this.store.delete(objectKey);
+        await store.delete(objectKey);
       } catch (cleanupError) {
         this.log.error(`integrity-failed object cleanup requires reconciliation key=${objectKey}: ${String(cleanupError)}`);
       }
@@ -201,7 +236,7 @@ export class PayloadStorageService implements OnModuleInit {
       content_sha256: digest,
       byte_length: bytes.byteLength,
       content_type: contentType,
-      storage_backend: this.store.backend,
+      storage_backend: store.backend,
       classification: opts?.classification ?? "real",
     };
 
@@ -212,7 +247,7 @@ export class PayloadStorageService implements OnModuleInit {
       .single();
     if (error) {
       try {
-        await this.store.delete(objectKey);
+        await store.delete(objectKey);
       } catch (cleanupError) {
         this.log.error(`orphan payload cleanup requires reconciliation key=${objectKey}: ${String(cleanupError)}`);
       }
@@ -222,9 +257,7 @@ export class PayloadStorageService implements OnModuleInit {
   }
 
   async deleteStored(organisationId: string, payloadObjectId: string): Promise<void> {
-    if (!this.store) {
-      this.store = createObjectStoreFromEnv();
-    }
+    const store = this.ensureStore();
     const { data, error } = await this.admin.client
       .from("payload_objects")
       .select("object_key")
@@ -233,7 +266,7 @@ export class PayloadStorageService implements OnModuleInit {
       .maybeSingle();
     if (error || !data) return;
     // Keep metadata if object deletion fails so operators can reconcile it.
-    await this.store.delete(data.object_key);
+    await store.delete(data.object_key);
     const { error: metadataError } = await this.admin.client
       .from("payload_objects")
       .delete()
@@ -245,9 +278,7 @@ export class PayloadStorageService implements OnModuleInit {
   }
 
   async readRaw(organisationId: string, payloadObjectId: string): Promise<Buffer> {
-    if (!this.store) {
-      this.store = createObjectStoreFromEnv();
-    }
+    const store = this.ensureStore();
     const { data, error } = await this.admin.client
       .from("payload_objects")
       .select("object_key, content_sha256, byte_length, organisation_id")
@@ -256,7 +287,7 @@ export class PayloadStorageService implements OnModuleInit {
       .maybeSingle();
     if (error || !data) throw new Error("payload object not found");
 
-    const bytes = await this.store.get(data.object_key);
+    const bytes = await store.get(data.object_key);
     const digest = createHash("sha256").update(bytes).digest("hex");
     if (digest !== data.content_sha256 || bytes.byteLength !== data.byte_length) {
       throw new Error("payload integrity check failed (digest or byte-length mismatch)");

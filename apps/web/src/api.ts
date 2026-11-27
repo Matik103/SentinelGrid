@@ -1,5 +1,6 @@
 import { loadPublicConfig, PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from "./bootstrap";
 import { authToken, organisationId } from "./auth";
+import { assertAllowedImageFile } from "./imageMagic";
 import { rememberWorkspaceLogo } from "./workspaceLogoCache";
 
 export { authToken, organisationId };
@@ -232,12 +233,12 @@ export async function canManageWorkspaceBranding(organisationIdValue: string): P
 
 export async function uploadWorkspaceLogo(organisationIdValue: string, file: File): Promise<WorkspaceBranding> {
   const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
-  if (!allowed.has(file.type)) throw new Error("Choose a JPEG, PNG, WebP or AVIF logo.");
   if (file.size > 2 * 1024 * 1024) throw new Error("Workspace logos must be 2 MB or smaller.");
-  const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" } as Record<string, string>)[file.type];
+  const detected = await assertAllowedImageFile(file, allowed);
+  const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" } as Record<string, string>)[detected];
   const storagePath = `${organisationIdValue}/${crypto.randomUUID()}.${extension}`;
   const encodedPath = storagePath.split("/").map(encodeURIComponent).join("/");
-  await supabaseRest<unknown>(`/storage/v1/object/workspace-branding/${encodedPath}`, { method: "POST", headers: { "Content-Type": file.type, "x-upsert": "false" }, body: file });
+  await supabaseRest<unknown>(`/storage/v1/object/workspace-branding/${encodedPath}`, { method: "POST", headers: { "Content-Type": detected, "x-upsert": "false" }, body: file });
   try {
     const current = await getWorkspaceBranding(organisationIdValue);
     const token = authToken();
@@ -255,6 +256,26 @@ export async function uploadWorkspaceLogo(organisationIdValue: string, file: Fil
     try { await supabaseRest<unknown>(`/storage/v1/object/workspace-branding/${encodedPath}`, { method: "DELETE" }); } catch { /* Preserve original error. */ }
     throw error;
   }
+}
+
+/** Clear the workspace logo (org.admin). Uses set_workspace_logo(null) then best-effort object delete. */
+export async function clearWorkspaceLogo(organisationIdValue: string): Promise<WorkspaceBranding> {
+  const token = authToken();
+  if (!token) throw new Error("Sign in required.");
+  const current = await getWorkspaceBranding(organisationIdValue);
+  const response = await fetch(`${PUBLIC_SUPABASE_URL}/rest/v1/rpc/set_workspace_logo`, {
+    method: "POST",
+    headers: { apikey: PUBLIC_SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_organisation_id: organisationIdValue, p_logo_path: null }),
+  });
+  if (!response.ok) throw new Error((await response.text()).slice(0, 300) || "Could not remove the workspace logo.");
+  if (current.logoPath) {
+    const oldPath = current.logoPath.split("/").map(encodeURIComponent).join("/");
+    try { await supabaseRest<unknown>(`/storage/v1/object/workspace-branding/${oldPath}`, { method: "DELETE" }); } catch { /* Best-effort cleanup. */ }
+  }
+  const branding = { logoPath: null, logoUrl: null };
+  rememberWorkspaceLogo(organisationIdValue, null);
+  return branding;
 }
 
 export async function listAssetMedia(organisationIdValue: string): Promise<AssetMediaRecord[]> {
@@ -332,14 +353,14 @@ export async function uploadAssetImage(
   verifiedMatch: boolean,
 ): Promise<AssetMediaRecord> {
   const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
-  if (!allowed.has(file.type)) throw new Error("Choose a JPEG, PNG, WebP or AVIF image.");
   if (file.size > 15 * 1024 * 1024) throw new Error("Images must be 15 MB or smaller.");
+  const detected = await assertAllowedImageFile(file, allowed);
   const cleanName = file.name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(-100) || "equipment-image";
   const storagePath = `${organisationIdValue}/${assetId}/${crypto.randomUUID()}-${cleanName}`;
   const encodedPath = storagePath.split("/").map(encodeURIComponent).join("/");
   await supabaseRest<unknown>(`/storage/v1/object/asset-media/${encodedPath}`, {
     method: "POST",
-    headers: { "Content-Type": file.type, "x-upsert": "false" },
+    headers: { "Content-Type": detected, "x-upsert": "false" },
     body: file,
   });
 

@@ -1,6 +1,7 @@
 # Phase 0 acceptance checklist (authoritative)
 
-**Branch:** `work/phase0-security-hardening`  
+**Canonical branch:** `work/sentinel-command-release-v2`  
+**Historical evidence:** older tip SHAs and run links below refer to the branch state at the time they were recorded. 
 **Rule:** Do **not** mark Phase 0 COMPLETE unless every required row is fully verified at the **ops** level with linked evidence. This document is the repo-local source of truth for gate decisions.
 
 Timezone for operator notes: America/Los_Angeles.

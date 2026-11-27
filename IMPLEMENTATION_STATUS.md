@@ -1,11 +1,11 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `e3fc54218e3f7d827e424b5fa220ffcfe0ee36b2` — auth leftovers: magic-byte image checks, logo remove, repo-only branding storage AAL2 policy  
-**Prior tip (auth port + status):** `93f8ceb847060d25d6448c8ebb7e1e8595aa29d2` (www still `main` @ `95c1ef3` until #30)  
+**Current tip:** `5b0e8fa3b563778688bc7974df70b938fc18c070` — auth leftovers + status; FE also on `main` @ `65687cc` / live www `index-BIxTJfuC.js`  
+**Prior tip (leftovers code):** `e3fc54218e3f7d827e424b5fa220ffcfe0ee36b2`  
 **Stale tip previously recorded in docs:** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
-**Last reviewed:** 2026-11-27 (America/Los_Angeles) — Issue #9 leftovers landed on work tip; AAL2 storage migration unapplied  
+**Last reviewed:** 2026-11-27 (America/Los_Angeles) — leftovers shipped to www; hosted AAL2 branding storage migration still pending apply token  
 **Overall status:** platform foundation and workbenches are in progress; not production-complete. www production tracks `main`; this branch is the shared implementation tip.
 
 Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencing, dependencies and acceptance criteria. This file is the concise status snapshot. The detailed Phase 0 gate remains in [`docs/PHASE0_ACCEPTANCE_CHECKLIST.md`](docs/PHASE0_ACCEPTANCE_CHECKLIST.md).

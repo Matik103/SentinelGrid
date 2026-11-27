@@ -105,9 +105,10 @@ export class OrgsService {
     const sb = this.users.create(user.accessToken);
 
     // Expire stale pending invites for this org inside the same request window.
-    await sb.rpc("expire_organisation_invitations", {
+    const { error: expiryError } = await sb.rpc("expire_organisation_invitations", {
       p_organisation_id: organisationId,
     });
+    if (expiryError) throw new BadRequestException(`Unable to expire previous invitations: ${expiryError.message}`);
 
     const { data, error } = await sb.rpc("create_organisation_invitation", {
       p_organisation_id: organisationId,

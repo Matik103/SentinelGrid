@@ -4,7 +4,7 @@
 
 - The single shared working branch for ongoing SentinelGrid implementation is `work/sentinel-command-release-v2`.
 - Do not create a parallel feature branch, switch to `main`, or continue work on `work/sentinel-command-integrated` / `work/sentinel-command-ui` unless the user explicitly changes this workflow.
-- Keep pull requests against `work/phase0-security-hardening` until the user changes the integration target. Do not merge directly to `main` or change production infrastructure without an explicit release decision.
+- Do not create or retarget pull requests unless the user explicitly asks. Continue implementation directly on the canonical working branch. Do not merge to `main` or change production infrastructure without an explicit release decision.
 
 ## Mandatory sync-before-work protocol
 

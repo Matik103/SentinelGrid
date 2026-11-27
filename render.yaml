@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: sentinelgrid-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8080"
+      - key: CORS_ORIGINS
+        value: https://www.sentinelgrid.tech,https://sentinelgrid.tech,https://sentinelgrid-delta.vercel.app
+      - key: SG_PUBLIC_APP_URL
+        value: https://www.sentinelgrid.tech
+      - key: SG_EMAIL_TRANSPORT
+        value: resend
+      - key: SG_EMAIL_WORKER_ENABLED
+        value: "true"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SG_EMAIL_FROM
+        sync: false

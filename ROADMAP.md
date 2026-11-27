@@ -100,103 +100,143 @@ Keep the existing tenant-scoped hierarchy and event/evidence backbone. Add acqui
 - `observed_at` and `received_at`: retain both to expose clock skew and delayed delivery.
 - `evidence_ref`: link to immutable event/payload evidence where available.
 
-## 6. Sequenced delivery plan
+## 6. Original six-phase product roadmap — retained
 
-The sequence deliberately finishes and verifies the shared platform foundation before depending on broad live integrations. Work can overlap only when its contracts and prerequisites are stable.
+The six-phase structure is the product's original organizing model. New capabilities are additions inside these phases, not replacement phases. The ordering below preserves the original phase names and incorporates the newly discussed network, IoT, wireless, electrical and physical-security requirements.
 
-### Milestone 0 — Platform foundation and operational closure
-**Status: in progress; do not mark complete.**
+### Phase 0 — Platform Foundation
+**Status: in progress; not complete.**
 
-Preserve and close the existing Phase 0 work:
-- Tenant bootstrap, membership/RBAC, MFA/AAL2 and RLS.
-- Registry, zones, asset relationships and facility scoping.
-- Connector registration, heartbeat, rotate/revoke and authenticated ingestion.
-- Event ledger, idempotency, DLQ/replay and payload preservation.
-- Evidence chain, checkpoints, verification/export and audit history.
-- Sentinel Command workbenches, auth/browser E2E and energy/asset flows.
-- Production API, Supabase migration and configuration, email delivery and backup/restore.
+Build and operationally verify the secure multi-tenant foundation on which every later capability depends:
+- Tenant bootstrap, organisations, memberships, RBAC, MFA/AAL2 and strict RLS.
+- Organisation → Facility → Zone → Asset → Device → Sensor hierarchy.
+- Connector registry, authenticated connector identity, heartbeat, credential rotation and revocation.
+- Versioned event ingestion, tenant-derived identity, validation, idempotency, deduplication, dead-letter handling and replay.
+- Evidence records, raw-payload storage, event/payload linkage, integrity checks, checkpoints, export and audit history.
+- Durable edge buffering, safe retry/recovery and connector health.
+- API, frontend, deployment, monitoring, backup and restore foundations.
+- Production auth and browser E2E for Command workbenches, registry, invitations, energy and evidence.
 
-**Exit gate:** current tip CI and disposable database security tests pass; pending migrations are reviewed and applied only to the intended environment; remote tenant isolation is verified; API/frontend E2E passes; backup/object-storage restore is demonstrated; email is either delivered end-to-end or explicitly excluded; no scaffold is reported as live acquisition.
+**Exit gate:** current-tip CI and disposable database security tests pass; pending migrations are reviewed and safely applied to the intended environment; remote tenant isolation is verified; API/frontend E2E passes; backup and object-storage restore are demonstrated; email is verified or formally excluded; no probe/scaffold is represented as live source acquisition.
 
-### Milestone 1 — Universal device inventory and network change detection
-**Priority: first new capability.**
+### Phase 1 — Infrastructure & Energy Intelligence
+Build the trusted inventory and source-backed understanding of the physical infrastructure being monitored:
+- Rich asset, device and sensor profiles, manufacturer/model/serial metadata, rated values, specifications and media provenance.
+- Facilities, zones, asset hierarchy, dependency relationships and equipment criticality.
+- Broad equipment coverage: electrical distribution, transformers, UPS, generators, solar, batteries, HVAC, refrigeration, pumps/motors, industrial equipment, BMS, data centres, cooling plant and other infrastructure.
+- Energy measurements with units, timestamps, source identity, quality, clock quality and real/simulated/replayed classification.
+- Real acquisition through documented Modbus register maps, MQTT topics, OPC UA nodes, SNMP, meters, submeters, smart plugs/outlets and vendor/BMS integrations.
+- Explainable energy baselines and anomaly findings: unexpected load, sustained demand deviation, standby consumption, abnormal power cycles, temperature/energy divergence, UPS/battery behavior and missing/stale telemetry.
+- Asset energy profiles, historical comparisons, measurement provenance and exports.
+- Device inventory foundations needed by later security work, including stable identity, source history and facility/zone/asset relationships.
 
-Deliver:
-- Router/AP connector framework and first supported router integration(s), selected by available documented APIs.
-- Discover associated clients and DHCP leases; enrich with MAC/OUI, IP, hostname, vendor and observed services when available.
-- Optional controlled LAN discovery for devices not exposed by router APIs.
-- Stable device identity resolution across IP changes, MAC randomization and multiple observation sources, with confidence and identity history.
-- First-seen/last-seen, online/offline, new/removed/changed device events.
-- Authorized/known/guest/unknown device states, user review and allow-list policy.
-- Alerts for an unknown device, new AP, unexpected network service or device appearing in a sensitive zone.
-- Device inventory view connected to existing Device Registry and incident workbench.
+**Newly consolidated requirements:** identify a new smart plug or networked bulb through its router/hub; detect a new electrical load through a smart outlet or meter; map outlets/circuits to physical locations and assets. Do not claim that a conventional non-networked bulb or charger has been individually identified from aggregate circuit consumption alone.
 
-**Acceptance:** a test network with known devices produces accurate inventory and first-seen events; DHCP/IP changes do not create duplicate physical identities without explanation; unknown devices are flagged with source and confidence; unsupported devices are reported as unknown rather than guessed; tenant boundaries and replay/idempotency tests pass.
+**Exit gate:** measurements are acquired from supported real sources with validated maps/topics/node IDs, correct units and timestamps; tenant/facility relationships and idempotency are tested; quality and classification are visible; anomaly rules have replay fixtures and false-positive controls.
 
-### Milestone 2 — Router integrity and wireless threat detection
-Deliver:
-- Router/AP uptime, reboot/reset, firmware and configuration snapshots where the vendor API exposes them.
-- Detect SSID/security-mode changes, DHCP/DNS/gateway changes, new admin accounts, changed firewall/port-forwarding rules and WAN interruptions.
-- Wireless sensor agent with monitor-mode capture support on documented compatible hardware.
-- Detect deauthentication/disassociation bursts, suspicious management-frame patterns, rogue/evil-twin AP indicators and unexpected BSSID/channel changes.
-- Distinguish observations from conclusions: a Wi-Fi outage alone is not a deauth finding.
-- Multi-sensor corroboration and confidence scoring where supported; preserve packet/metadata evidence according to privacy and retention policy.
+### Phase 2 — Operational Intelligence
+Turn infrastructure and telemetry into useful operational understanding, investigation and decisions:
+- Sentinel Command overview and facility/site workbenches.
+- Infrastructure topology based on validated relationships, not invented digital-twin links.
+- Event and measurement timelines, freshness, source health, data quality and coverage gaps.
+- Incident investigation queue, event replay, evidence navigation and audit history.
+- Explainable operational findings, anomaly review lifecycle, acknowledgement, resolution and false-positive handling.
+- Failure scenario and dependency analysis that clearly distinguishes registry-based what-if calculations from engineering-grade simulation.
+- Cross-source operational correlation and root-cause investigation using actual supporting observations.
+- Role-specific workflows, reporting and escalation.
 
-**Acceptance:** replayable lab captures trigger expected alerts; normal roaming, channel changes and router reboot scenarios are tested as false-positive controls; the UI identifies which telemetry supports each finding; monitor-mode hardware and platform limitations are documented.
+**Newly consolidated requirements:** show a coherent operational timeline when a device appears, a router changes, a camera disconnects or energy consumption changes; correlate events only when there is sufficient source evidence and expose uncertainty and alternative explanations.
 
-### Milestone 3 — Electrical and outlet-level intelligence
-Deliver:
-- Integrations for smart plugs/outlets and selected meters/submeters/circuit monitors.
-- Device/asset mapping for outlets and circuits, with location and owner/authorization metadata.
-- New-load, unexpected-load, standby-load, power-cycle and abnormal consumption detection.
-- Time-of-day and operating-schedule baselines where sufficient real history exists.
-- Explainable anomaly records with measurement, unit, baseline, deviation, rule version and review lifecycle.
-- Distinguish a detected electrical load change from a claim about the exact appliance.
+**Exit gate:** users can trace each finding to its source events and measurements, replay the sequence, understand data-quality limitations and record investigation outcomes. No AI diagnosis or engineering prediction is claimed without validated methods and evidence.
 
-**Acceptance:** known test loads are measured with correct units/timestamps/source; plug/unplug and power-cycle cases are repeatable; missing/stale/poor-quality data is not scored as a real anomaly; aggregate circuit measurements do not claim to identify a specific charger or bulb without supporting device-level evidence.
+### Phase 3 — Cyber-Physical Security
+Expand SentinelGrid from infrastructure and operational monitoring into broad cyber-physical security across homes, buildings, campuses, industrial facilities and critical infrastructure.
 
-### Milestone 4 — Smart-home, building and physical security integrations
-Deliver:
-- Hub integrations for supported Matter/Thread, Zigbee, Z-Wave and vendor systems.
-- Camera/NVR/doorbell availability, configuration and access/authentication events.
-- Smart-lock, alarm, motion, door/window, glass-break, presence and access-control events.
-- Lighting and environmental telemetry.
-- Device capability profiles, integration health and permission/consent boundaries.
-- Map device events to facility/zone/asset relationships without assuming physical placement.
+**Network and device security**
+- Router/AP integrations for associated clients, DHCP leases, connected-device inventory, AP inventory and configuration snapshots.
+- Passive network discovery and controlled, opt-in LAN discovery; endpoint and service fingerprinting.
+- First-seen/last-seen, new/removed/changed endpoint events, device identity history and confidence-aware matching across IP changes and MAC randomization.
+- Known/authorized/guest/unknown device states, review workflows and policy-based alerts.
+- Rogue devices, unexpected services, rogue access points and suspicious network changes.
+- Router integrity: reboot/reset, uptime, firmware, SSID/security changes, DNS/DHCP/gateway changes, admin-account changes, firewall and port-forwarding changes, WAN interruption and configuration drift.
 
-**Acceptance:** each integration has a published supported-device/API matrix; events retain source identity and timestamps; access/configuration events can be audited; offline state is separated from tampering; unsupported brands/protocols fail clearly.
+**Wireless security**
+- Dedicated wireless sensor support using compatible monitor-mode hardware and/or AP/controller security telemetry.
+- Deauthentication/disassociation bursts, suspicious management-frame patterns, evil-twin/rogue AP indicators, unexpected BSSID/channel changes and wireless availability anomalies.
+- Corroboration across multiple observations and sensors where supported.
+- Evidence and privacy controls for captured packet metadata/content.
 
-### Milestone 5 — Cross-domain cyber-physical correlation
-Deliver:
-- Correlation engine linking network, router, wireless, energy, OT and physical observations.
-- Incident timeline with source-backed sequence and evidence references.
-- Examples: unknown endpoint + router configuration change; camera offline + new wireless AP; deauth burst + device disconnects; new outlet load + unknown device nearby; smart-lock event + unusual network access.
-- Explainable correlation rules, confidence and alternative explanations.
-- Incident grouping, deduplication, acknowledgement, investigation and resolution lifecycle.
-- Historical replay for testing and post-incident review.
+**Smart-home, IoT and building security**
+- Cameras, doorbells, NVRs, smart locks, alarms, motion/presence sensors, door/window contacts, glass-break sensors, access control, intercoms, lighting and environmental devices.
+- Supported Matter, Thread, Zigbee, Z-Wave and vendor hub integrations.
+- Device access/authentication/configuration events, offline events and integration health.
+- Distinguish device offline or connectivity loss from confirmed physical tampering.
 
-**Acceptance:** synthetic/replay test scenarios are clearly labelled; correlated incidents show contributing events and uncertainty; one weak signal never becomes a confirmed attack; duplicate observations do not create duplicate incidents.
+**Electrical and physical context**
+- Smart plugs/outlets, circuit monitors and meters as security-relevant observations.
+- New/unexpected load, unusual power cycle or load change correlated with network and physical events.
+- Location and zone mapping for outlets, cameras, locks, sensors and unknown devices, with explicit source and confidence.
 
-### Milestone 6 — Controlled response and resilience
-Deliver:
-- Response recommendations first: investigate, verify owner, rotate credentials, disable guest access, isolate device, block endpoint or revoke integration.
-- Optional approved actions only through supported router/firewall/controller APIs.
-- Explicit policy, operator approval, role checks, dry-run preview, safety guardrails, expiry, rollback and audit evidence.
-- Preserve OT read-only defaults; no uncontrolled industrial actuation.
+**Cross-domain cyber-physical correlation**
+- Correlate network, router, wireless, energy, OT and physical observations into one incident timeline.
+- Example scenarios: unknown endpoint plus router configuration change; camera offline plus new AP; deauth pattern plus multiple device disconnects; new outlet load plus nearby unknown device; smart-lock event plus unusual network access.
+- Explainable rules, confidence, alternative explanations, deduplication and investigation lifecycle.
 
-**Acceptance:** no response executes without the configured approval policy; every action records requester, approver, target, before/after state, result and rollback status; failure leaves a safe, visible state.
+**Critical detection boundaries**
+- A Wi-Fi outage alone is not proof of deauthentication.
+- A network scan cannot identify a conventional non-networked bulb or charger.
+- Aggregate circuit power does not always identify the exact appliance.
+- A camera going offline is not proof of tampering.
+- Fingerprinting is probabilistic; unknown devices must remain unknown until evidence improves.
 
-### Milestone 7 — Broad infrastructure and enterprise maturity
-Deliver:
-- Expand tested protocol and vendor coverage for BMS, data centres, electrical systems, industrial environments and critical infrastructure.
-- Fleet/site management, connector health, source coverage and data-quality reporting.
-- Retention, export, evidence integrity and disaster recovery controls.
-- Role-specific dashboards and operational reporting.
-- Compatibility matrix, onboarding guides and deployment profiles for home, building, campus and industrial environments.
+**Exit gate:** each claimed integration has a supported-device/API matrix and real or certified-lab test evidence; replayed attacks and normal roaming/reboot/interference scenarios are both tested; every finding exposes source, confidence, evidence and limitations; privacy and tenant-isolation tests pass.
 
-**Acceptance:** each claimed protocol/device family has a tested compatibility statement, representative hardware or certified simulator evidence, operational runbook and support boundary.
+### Phase 4 — AI Agent Accountability
+Preserve the original AI-agent accountability phase as a distinct product pillar; do not let the new IoT roadmap erase it.
 
-## 7. Specific detection truth table
+The platform must make AI-assisted analysis and any future agent-initiated action inspectable and governable:
+- Explicit identity and scope for each agent, integration and tool.
+- Permission boundaries and least-privilege access to tenant data, devices and operational actions.
+- Policy evaluation before sensitive reads, writes, configuration changes or response actions.
+- Human approval for consequential actions; dry-run and preview before execution.
+- Complete action trace: initiating actor/agent, intent, policy decision, approval, target, inputs, before/after state, result and evidence.
+- Tool/API provenance, model/agent version and reproducible decision context where available.
+- Deny-by-default behavior for unknown or out-of-scope actions; revocation and emergency stop.
+- Clear separation between AI-generated hypotheses, rule-based findings, observed facts and operator-confirmed conclusions.
+
+**Newly consolidated requirements:** AI may help correlate an unknown device, wireless anomaly, energy change or physical event, but it must show the supporting evidence and uncertainty. It must not autonomously quarantine devices, change router settings, unlock/lock doors or write to OT systems without explicit policy and authorization.
+
+**Exit gate:** agent actions are permission-checked, attributable, reviewable and auditable; denied actions fail closed; approval and revocation paths are tested; AI hypotheses are never represented as confirmed observations.
+
+### Phase 5 — Managed Infrastructure Resilience
+Turn SentinelGrid into a continuous resilience and managed-infrastructure capability:
+- Fleet/site management across homes, buildings, campuses, data centres and industrial facilities.
+- Connector, sensor, device and integration health; source coverage, freshness and data-quality monitoring.
+- Resilience posture, dependency awareness, incident history, operational readiness and recovery workflows.
+- Backup, restore, evidence retention, export and disaster recovery.
+- Controlled response recommendations and, where supported, approved actions through router/firewall/controller APIs.
+- Response policy, role checks, human approval, dry-run, safety guardrails, expiry, rollback and audit evidence.
+- OT remains read-only by default; no uncontrolled industrial actuation.
+- Operational reporting, service reviews, compatibility matrices, onboarding and lifecycle management.
+- Expand tested protocols and vendors for BMS, data centres, electrical systems, industrial environments and critical infrastructure.
+
+**Exit gate:** resilience claims are based on measured coverage and tested recovery; every supported response has explicit authorization and rollback; each device/protocol family has an operational runbook and support boundary.
+
+## 7. Healthcare Revenue Validation — preserve as a separate strategic decision record
+
+The prior **Healthcare Revenue Validation** work is not a new SentinelGrid technical phase and must not be silently converted into a product feature.
+
+The retrieved decision context records:
+- The evaluated outsourced healthcare revenue-recovery opportunity was **NO-GO**, with a score of **39/100**.
+- Preserve the underlying audit findings, healthcare-facility database, payer/HMIS competitive research, rejection research and regulatory analysis as decision evidence.
+- Healthcare facilities remain a possible longer-term SentinelGrid customer/coverage vertical, but that does not reverse the NO-GO decision on the outsourced revenue-recovery business model.
+- No healthcare-specific SentinelGrid capability plan is evidenced in the retrieved original roadmap context. Do not invent one or assume that revenue-cycle automation, claims processing or payer integrations are approved product scope.
+
+If healthcare becomes a target vertical later, assess it against SentinelGrid's existing infrastructure, energy, operational intelligence, cyber-physical security, AI accountability and resilience phases. Any healthcare-specific integrations or compliance scope require a separate validated product decision.
+
+## 8. Specific detection truth table
+
+
 
 | User concern | Required evidence source | What SentinelGrid may claim |
 |---|---|---|

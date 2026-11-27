@@ -1,11 +1,12 @@
 # Hosted migration reconciliation plan (read-only)
 
-**Status:** plan only — **do not apply** until ChatGPT/owner explicit approval  
+**Status:** owner authorized apply — blocked in Cloud Agent until `SUPABASE_ACCESS_TOKEN` is available  
 **Issue:** [#9](https://github.com/Matik103/SentinelGrid/issues/9)  
 **Work tip when authored:** `2de294edc2ae1dbacfb152fd71443f777ecbc597`  
 **Canonical branch:** `work/sentinel-command-release-v2`  
 **Hosted project:** `abaeizgfsskvjklfslrh`  
 **Timezone:** America/Los_Angeles  
+**Apply command:** `node scripts/apply-pending-production.mjs` (inventory + apply missing; `--dry-run` supported)
 
 ## 1. Why this exists
 
@@ -42,8 +43,12 @@ These exist on `work/sentinel-command-release-v2`. Treat as **candidate pending*
 | `20261126120100_ensure_own_profile_jwt_email.sql` | yes | **no** |
 | `20261127100000_evidence_payloads_storage_bucket.sql` | **no** | yes |
 | `20261127120000_payload_storage_supabase_backend.sql` | **no** | yes |
+| `20261127130000_workspace_branding.sql` | via `20261126100000` | **forward-ported** |
+| `20261127140000_atomic_asset_media_primary.sql` | via `20261126110000` | **forward-ported** |
+| `20261127150000_auth_identity_assets_work_lineage.sql` | via `20261126120000` (+ DEFINER profile) | **forward-ported** |
+| `20261126120100_ensure_own_profile_jwt_email.sql` | yes (INVOKER) | **skipped** — superseded by `20261127090000` DEFINER |
 
-Timestamps between `202611261*` (main) and `2026112709*` / `202611271*` (work) interleave. A naive `db push` from either branch alone can leave production FE or Nest assumptions half-met.
+Timestamps between historical `202611261*` (main) and `2026112709*` / `202611271*` (work) interleaved. Work lineage now carries forward-ported equivalents after `20261127120000`.
 
 ## 5. Safe procedure (when authorized)
 

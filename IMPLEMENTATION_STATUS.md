@@ -82,7 +82,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 
 ## Operational blockers
 
-1. **Hosted Supabase migrations:** last checklist-documented remote point is through `20261125260000` (historical). Hosted state not re-verified. Work and `main` migration sets diverge. Plan: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md). **Do not apply** until ChatGPT/owner approve.
+1. **Hosted Supabase migrations:** owner authorized apply. Work lineage now includes forward-ported `main` branding/media/identity migrations (`20261127130000`–`20261127150000`). Apply via `node scripts/apply-pending-production.mjs` once `SUPABASE_ACCESS_TOKEN` is in the agent environment. Hosted `schema_migrations` still unread until that token is present. Plan: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md).
 2. **Backend deploy SHA correlation:** Render health is green but `monitoring.build_sha` is empty. Set `GIT_SHA` on Render only with explicit infra approval.
 3. **Email:** configuration readiness observed; delivered invite + accept path ops proof still required for Criterion G.
 4. **Backup/recovery:** disposable drill design in [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md). Execute only when authorized on a non-production project.

@@ -94,7 +94,7 @@ describe("OrgsService invitation flow", () => {
         status: "pending",
       }),
     };
-    const svc = new OrgsService({ create: () => sb } as never, outbox as never);
+    const svc = new OrgsService({ create: () => sb } as never, { client: {} } as never, outbox as never);
     svc.requirePermission = async () => undefined;
     const prev = process.env.NODE_ENV;
     const prevTransport = process.env.SG_EMAIL_TRANSPORT;

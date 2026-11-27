@@ -1,10 +1,12 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `b094207b91b5889cdc8376a853412e015c71cc80`  
+**Current tip:** auth-audit FE port (see latest commit on this branch) — web auth/recovery/MFA gate aligned with `main` closeout `95c1ef3`  
+**Prior tip (pre-auth port):** `0034a558a0edf035ff0e4541953470114ad2f63e`  
+**Stale tip previously recorded in docs:** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
-**Last reviewed:** 2026-11-26 (America/Los_Angeles) — quality gate CI + Phase 0 plans  
-**Overall status:** platform foundation and workbenches are in progress; not production-complete.
+**Last reviewed:** 2026-11-27 (America/Los_Angeles) — auth audit closeout ported onto shared work tip  
+**Overall status:** platform foundation and workbenches are in progress; not production-complete. www production tracks `main`; this branch is the shared implementation tip.
 
 Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencing, dependencies and acceptance criteria. This file is the concise status snapshot. The detailed Phase 0 gate remains in [`docs/PHASE0_ACCEPTANCE_CHECKLIST.md`](docs/PHASE0_ACCEPTANCE_CHECKLIST.md).
 

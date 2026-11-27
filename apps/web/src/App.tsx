@@ -1,10 +1,15 @@
-import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
-import { organisationId, restoreSession, setOrganisationId } from "./auth";
+import {
+  isPasswordRecoveryPending, onAuthSession, organisationId, restoreSession,
+  sessionIsRecovery, setOrganisationId,
+} from "./auth";
+import { currentAssuranceLevel } from "./mfa";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { WorkspacePersonalizeMenu } from "./WorkspacePersonalizeMenu";
 import { AuthPanel } from "./AuthPanel";
+import { WorkspaceOnboarding } from "./WorkspaceOnboarding";
 import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
 import { AssetEnergyProfile } from "./AssetEnergyProfile";
@@ -47,6 +52,7 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
   const [rows, setRows] = useState<T[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const orgId = organisationId();
 
   const reload = async () => {
     setLoading(true);
@@ -79,9 +85,9 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
 
   useEffect(() => {
     void reload();
-  }, []);
+  }, [orgId]);
 
-  return { rows, error, loading, reload, orgId: organisationId() };
+  return { rows, error, loading, reload, orgId };
 }
 
 function DataTable({
@@ -177,7 +183,7 @@ function Overview() {
     void healthCheck().then((value) => { if (active) setHealth(value); }).catch(() => { if (active) setHealth("Unavailable"); });
     if (!apiConfigured() || !org || !authToken()) {
       setLoading(false);
-      setError(!apiConfigured() ? apiConfigurationError() : "Connect a workspace and authenticated session to populate this command view. No sample telemetry is displayed.");
+      setError(!apiConfigured() ? apiConfigurationError() : "Sign in and select a workspace to populate this command view. No sample telemetry is displayed.");
       return () => { active = false; };
     }
     void Promise.all([
@@ -213,8 +219,8 @@ function Overview() {
       <div className="command-hero">
         <div className="command-hero-copy">
           <div className="eyebrow"><span className="eyebrow-pulse" /> OPERATIONS / COMMAND OVERVIEW</div>
-          <h1 className="command-title">Infrastructure,<br /><span>in focus.</span></h1>
-          <p className="command-intro">One operational picture across facilities, equipment, energy signals and recorded events — with every insight grounded in connected source data.</p>
+          <h1 className="command-title">See the whole system.<br /><span>Understand what matters.</span></h1>
+          <p className="command-intro">A clear operational picture of your facilities, equipment, energy signals and recorded events — grounded in the data your organisation has connected.</p>
           <div className="command-actions">
             <NavLink className="command-primary-action" to="/facilities">Explore facilities <span>↗</span></NavLink>
             <NavLink className="command-secondary-action" to="/assets">Open asset registry</NavLink>
@@ -234,13 +240,13 @@ function Overview() {
             />
           )}
           <span className="orbit-node node-a">POWER</span><span className="orbit-node node-b">ASSETS</span><span className="orbit-node node-c">SENSORS</span><span className="orbit-node node-d">EVIDENCE</span>
-          <div className="visual-caption">CONNECTED INFRASTRUCTURE<br /><span>Relationships · signals · evidence</span></div>
+          <div className="visual-caption">CONNECTED INFRASTRUCTURE<br /><span>Operational context layer</span></div>
         </div>
       </div>
 
       <div className="command-section-heading">
         <div><span className="eyebrow">WORKSPACE SNAPSHOT</span><h2>Operational footprint</h2></div>
-        <span className="snapshot-note">Values reflect accessible workspace records</span>
+        <span className="snapshot-note">Values reflect accessible organisation records</span>
       </div>
       <div className="command-stat-grid">
         {stats.map((item) => <article className="command-stat-card" key={item.label}>
@@ -278,7 +284,7 @@ function Overview() {
         </section>
 
         <section className="command-panel topology-panel">
-          <div className="command-panel-heading"><div><span className="eyebrow">SYSTEM MODEL / RELATIONSHIPS</span><h2>Infrastructure context</h2></div><span className="model-status">RELATIONSHIP MODEL</span></div>
+          <div className="command-panel-heading"><div><span className="eyebrow">SYSTEM MODEL / RELATIONSHIPS</span><h2>Infrastructure context</h2></div><span className="model-status">MODEL PREVIEW</span></div>
           <div className="topology-canvas">
             <svg viewBox="0 0 620 190" role="img" aria-label="Conceptual infrastructure relationship model">
               <defs><linearGradient id="topologyLine" x1="0" x2="1"><stop offset="0" stopColor="#54d6c5" stopOpacity=".18"/><stop offset="1" stopColor="#54d6c5" stopOpacity=".8"/></linearGradient></defs>
@@ -310,7 +316,14 @@ function Overview() {
   );
 }
 
-function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void } = {}) {
+function OrganisationPanel({
+  onBrandingChange,
+  mode = "settings",
+}: {
+  onBrandingChange?: () => void;
+  /** settings = branding; people = members + invitations */
+  mode?: "settings" | "people";
+} = {}) {
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<Record<string, unknown>[]>([]);
   const [invites, setInvites] = useState<Record<string, unknown>[]>([]);
@@ -324,11 +337,14 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
   const [logoBusy, setLogoBusy] = useState(false);
   const [canManageBranding, setCanManageBranding] = useState(false);
   const [logoMessage, setLogoMessage] = useState<string | null>(null);
+  const showBranding = mode === "settings";
+  const showPeople = mode === "people";
 
   const reload = async () => {
     setError(null);
+    if (!showPeople) return;
     if (!org || !authToken() || !apiConfigured()) {
-      setError("Configure the API base URL and sign in to a workspace.");
+      setError("Sign in and select a workspace above to manage its members and invitations.");
       return;
     }
     const [m, i] = await Promise.all([
@@ -343,6 +359,7 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
 
   useEffect(() => {
     void reload();
+    if (!showBranding) return;
     if (org && authToken()) {
       const cached = peekCachedWorkspaceLogo(org);
       if (cached !== undefined) setLogoUrl(cached);
@@ -353,7 +370,7 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
       setLogoUrl(null);
       setCanManageBranding(false);
     }
-  }, [org]);
+  }, [org, mode]);
 
   async function onWorkspaceLogoChange(event: { currentTarget: HTMLInputElement }) {
     const file = event.currentTarget.files?.[0];
@@ -383,12 +400,7 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
     });
     if (res.error) setMsg(`Invite failed: ${res.error.message}`);
     else {
-      const delivery = (res.data as { delivery?: { channel?: string; status?: string } })?.delivery;
-      if (delivery?.channel === "outbox_failed" || delivery?.status === "failed") {
-        setMsg("Invitation was created, but email delivery could not be queued. Check the API and email outbox logs before asking the invitee to continue.");
-      } else {
-        setMsg(`Invitation queued for email delivery (${delivery?.status ?? "pending"}). This does not mean the email has been delivered yet.`);
-      }
+      setMsg(`Invite queued (${String((res.data as { delivery?: { channel?: string } })?.delivery?.channel ?? "outbox")})`);
       setInviteEmail("");
       void reload();
       const inv = await apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/invites`);
@@ -396,71 +408,82 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
     }
   }
 
+  const title = showPeople ? "People & access" : "Workspace settings";
+  const lead = showPeople
+    ? "Review membership and send invitations for this workspace."
+    : "Personalise this workspace and manage its identity.";
+
   return (
-    <Page title="Workspace settings" lead="Tenant membership and invitation workflows.">
+    <Page title={title} lead={lead}>
       <StatusBanner error={error} />
-      <section className="workspace-branding-panel">
-        <div className="workspace-branding-copy"><h2>Workspace logo</h2><p>Personalise the centre of your command overview with your organisation’s logo. Until one is uploaded, SentinelGrid’s default emblem remains in place.</p></div>
-        <div className="workspace-branding-control">
-          <div className="workspace-branding-preview">
-            {logoUrl === undefined
-              ? <span className="workspace-branding-pending" aria-hidden="true" />
-              : logoUrl
-                ? <img src={logoUrl} alt="Current workspace logo" />
-                : <img src="/assets/sentinelgrid-logo-mark.png" alt="Default SentinelGrid emblem" />}
+      {showBranding && (
+        <section className="workspace-branding-panel">
+          <div className="workspace-branding-copy"><h2>Workspace logo</h2><p>Personalise the centre of your command overview with your organisation’s logo. Until one is uploaded, SentinelGrid’s default emblem remains in place.</p></div>
+          <div className="workspace-branding-control">
+            <div className="workspace-branding-preview">
+              {logoUrl === undefined
+                ? <span className="workspace-branding-pending" aria-hidden="true" />
+                : logoUrl
+                  ? <img src={logoUrl} alt="Current workspace logo" />
+                  : <img src="/assets/sentinelgrid-logo-mark.png" alt="Default SentinelGrid emblem" />}
+            </div>
+            {canManageBranding ? <label className="btn workspace-logo-upload">{logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload workspace logo"}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={logoBusy || logoUrl === undefined} onChange={onWorkspaceLogoChange} /></label> : <span className="workspace-branding-hint">Workspace administrator access required</span>}
           </div>
-          {canManageBranding ? <label className="btn workspace-logo-upload">{logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload workspace logo"}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={logoBusy || logoUrl === undefined} onChange={onWorkspaceLogoChange} /></label> : <span className="workspace-branding-hint">Workspace administrator access required</span>}
-        </div>
-        {logoMessage && <p className="workspace-branding-message" role="status">{logoMessage}</p>}
-      </section>
-      <h2 className="section-title">Members</h2>
-      <DataTable
-        columns={[
-          { key: "member", label: "User" },
-          { key: "status", label: "Status" },
-          { key: "roles", label: "Role" },
-        ]}
-        rows={members.map((row) => {
-          const displayName = typeof row.display_name === "string" ? row.display_name.trim() : "";
-          const email = typeof row.email === "string" ? row.email.trim() : "";
-          return {
-            ...row,
-            member: displayName || email || row.user_id || "—",
-          };
-        })}
-        emptyLabel="No members in this workspace yet."
-      />
-      <h2 className="section-title">Invitations</h2>
-      <DataTable
-        columns={[
-          { key: "email", label: "Email" },
-          { key: "status", label: "Status" },
-          { key: "expires_at", label: "Expires" },
-          { key: "roles", label: "Role" },
-        ]}
-        rows={invites}
-        emptyLabel="No pending invitations."
-      />
-      <form className="inline-form" onSubmit={onInvite}>
-        <input
-          type="email"
-          required
-          placeholder="invitee@example.com"
-          value={inviteEmail}
-          onChange={(e) => setInviteEmail(e.target.value)}
-        />
-        <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
-          <option value="read_only_viewer">Read-only viewer</option>
-          <option value="operations_manager">Operations manager</option>
-          <option value="security_analyst">Security analyst</option>
-          <option value="facility_manager">Facility manager</option>
-          <option value="organisation_administrator">Workspace administrator</option>
-        </select>
-        <button type="submit" className="btn">
-          Send invite
-        </button>
-      </form>
-      {msg && <p className="page-lead">{msg}</p>}
+          {logoMessage && <p className="workspace-branding-message" role="status">{logoMessage}</p>}
+        </section>
+      )}
+      {showPeople && (
+        <>
+          <h2 className="section-title">Members</h2>
+          <DataTable
+            columns={[
+              { key: "member", label: "User" },
+              { key: "status", label: "Status" },
+              { key: "roles", label: "Role" },
+            ]}
+            rows={members.map((row) => {
+              const displayName = typeof row.display_name === "string" ? row.display_name.trim() : "";
+              const email = typeof row.email === "string" ? row.email.trim() : "";
+              return {
+                ...row,
+                member: displayName || email || row.user_id || "—",
+              };
+            })}
+            emptyLabel="No members in this workspace yet."
+          />
+          <h2 className="section-title">Invitations</h2>
+          <DataTable
+            columns={[
+              { key: "email", label: "Email" },
+              { key: "status", label: "Status" },
+              { key: "expires_at", label: "Expires" },
+              { key: "roles", label: "Role" },
+            ]}
+            rows={invites}
+            emptyLabel="No pending invitations."
+          />
+          <form className="inline-form" onSubmit={onInvite}>
+            <input
+              type="email"
+              required
+              placeholder="invitee@example.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
+            <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
+              <option value="read_only_viewer">Read-only viewer</option>
+              <option value="operations_manager">Operations manager</option>
+              <option value="security_analyst">Security analyst</option>
+              <option value="facility_manager">Facility manager</option>
+              <option value="organisation_administrator">Workspace administrator</option>
+            </select>
+            <button type="submit" className="btn">
+              Send invite
+            </button>
+          </form>
+          {msg && <p className="page-lead">{msg}</p>}
+        </>
+      )}
     </Page>
   );
 }
@@ -524,71 +547,211 @@ export function App() {
   const [activeOrganisationId, setActiveOrganisationId] = useState<string | null>(() => organisationId());
   const [activeOrganisationName, setActiveOrganisationName] = useState("Workspace");
   const [authRefreshKey, setAuthRefreshKey] = useState(0);
-  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
-  const processedInvite = useRef<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [workspaceGate, setWorkspaceGate] = useState<"checking" | "mfa" | "required" | "ready" | "error">("checking");
+  const [gateMessage, setGateMessage] = useState<string | null>(null);
+  // Mirrored in React state so PASSWORD_RECOVERY / AMR detection triggers a re-render.
+  const [recoveryPending, setRecoveryPending] = useState(() => isPasswordRecoveryPending());
   const location = useLocation();
-  const navigate = useNavigate();
+  const workspaceGateRef = useRef(workspaceGate);
+  workspaceGateRef.current = workspaceGate;
+
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", "dark");
   }, []);
-  useEffect(() => {
-    void Promise.all([restoreSession(), ensureConfig()]).finally(() => {
+
+  const enterMfaSetup = (message = "Set up or verify your authenticator to continue. Take your time — your session stays signed in until you finish or sign out.") => {
+    setGateMessage(message);
+    setWorkspaceGate("mfa");
+  };
+
+  const refreshWorkspaceState = async (opts?: { force?: boolean }) => {
+    if (!authToken()) {
+      setOrganisationId(null);
+      setActiveOrganisationId(null);
+      setActiveOrganisationName("Workspace");
+      setWorkspaceGate("checking");
+      return;
+    }
+
+    // Password recovery must collect a new password before MFA / workspace gates run.
+    // Never bypass with force — that was dropping users into the app after MFA verify.
+    if (recoveryPending || isPasswordRecoveryPending()) return;
+
+    // Soft refresh keeps the shell mounted (no VERIFYING flash) when we are already ready.
+    // Hard refresh (boot, MFA complete, explicit force) still shows the gate.
+    const soft = workspaceGateRef.current === "ready" && !opts?.force;
+
+    // Like major apps: detect AAL1 client-side and park on MFA setup.
+    // Do not call Nest APIs (or flip back to "checking") while the user is enrolling —
+    // that remounted AuthPanel and invalidated QR codes / codes mid-setup.
+    try {
+      const level = await currentAssuranceLevel();
+      if (level !== "aal2") {
+        enterMfaSetup();
+        return;
+      }
+    } catch {
+      enterMfaSetup("We could not confirm your authenticator status. Continue MFA setup, or sign out and try again.");
+      return;
+    }
+
+    if (workspaceGateRef.current === "mfa" && !opts?.force) {
+      // AAL2 now — fall through to load workspaces after MFA verify.
+    }
+
+    if (!soft) setWorkspaceGate("checking");
+    const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>("/v1/orgs/mine");
+    if (result.error) {
+      const message = result.error.message;
+      if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || result.error.status === 403) {
+        enterMfaSetup();
+        return;
+      }
+      setGateMessage(message);
+      setWorkspaceGate("error");
+      return;
+    }
+    const memberships = (result.data ?? []).filter((row) => row.status === "active" && row.organisations?.id);
+    if (!memberships.length) {
+      setOrganisationId(null);
+      setActiveOrganisationId(null);
+      setActiveOrganisationName("Workspace");
+      // MFA is done — clear any leftover authenticator banner before workspace create.
+      setGateMessage(null);
+      setWorkspaceGate("required");
+      return;
+    }
+    const selected = memberships.find((row) => row.organisation_id === organisationId()) ?? memberships[0];
+    const nextId = selected.organisation_id;
+    const nextName = selected.organisations?.name ?? "Workspace";
+    const orgChanged = nextId !== organisationId();
+    setOrganisationId(nextId);
+    setActiveOrganisationId(nextId);
+    setActiveOrganisationName(nextName);
+    setWorkspaceGate("ready");
+    setGateMessage(null);
+    // Soft path: only remount switcher/routes when the active org actually changed.
+    if (!soft || orgChanged || opts?.force) {
       setAuthRefreshKey((value) => value + 1);
-    });
-  }, []);
+    }
+  };
+
   useEffect(() => {
-    const token = new URLSearchParams(location.search).get("invite");
-    if (!token || !authToken() || !apiConfigured() || processedInvite.current === token) return;
-    processedInvite.current = token;
+    const unsubscribe = onAuthSession((event, session) => {
+      // Token refresh / initial session fire on tab focus and boot — keep the shell mounted.
+      // The access token is already synced in auth.ts before listeners run.
+      if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+        if (sessionIsRecovery(session) || isPasswordRecoveryPending()) setRecoveryPending(true);
+        return;
+      }
+      // Recovery session: stay on the password-reset form; do not enter MFA / workspace.
+      if (event === "PASSWORD_RECOVERY" || sessionIsRecovery(session) || isPasswordRecoveryPending()) {
+        setRecoveryPending(true);
+        return;
+      }
+
+      if (!session || event === "SIGNED_OUT") {
+        setOrganisationId(null);
+        setActiveOrganisationId(null);
+        setActiveOrganisationName("Workspace");
+        setRecoveryPending(false);
+        setWorkspaceGate("checking");
+        return;
+      }
+      // Ignore session churn while the user is mid MFA enrollment/challenge.
+      if (workspaceGateRef.current === "mfa") return;
+      // SIGNED_IN / USER_UPDATED: soft-refresh if already in the shell.
+      void refreshWorkspaceState();
+    });
     let active = true;
-    void apiPost<{ organisation_id?: string; status?: string }>("/v1/orgs/invites/accept", { token })
-      .then((result) => {
-        if (!active) return;
-        if (result.error) {
-          processedInvite.current = null;
-          setInviteMessage(`Invitation could not be accepted: ${result.error.message}`);
-          return;
+    void Promise.all([restoreSession(), ensureConfig()]).then(() => {
+      if (!active) return;
+      setAuthReady(true);
+      if (isPasswordRecoveryPending()) {
+        setRecoveryPending(true);
+        setWorkspaceGate("checking");
+        return;
+      }
+      if (authToken()) void refreshWorkspaceState();
+      else setWorkspaceGate("checking");
+    }).catch(() => {
+      if (active) setAuthReady(true);
+    });
+    return () => { active = false; unsubscribe(); };
+  }, []);
+
+  // Safety net: never leave VERIFYING forever. If AAL2 already, retry workspace load;
+  // only send the user to MFA when the session is still AAL1.
+  useEffect(() => {
+    if (workspaceGate !== "checking" || !authReady || !authToken() || recoveryPending || isPasswordRecoveryPending()) return;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        if (workspaceGateRef.current !== "checking") return;
+        try {
+          const level = await currentAssuranceLevel();
+          if (level === "aal2") {
+            void refreshWorkspaceState({ force: true });
+            return;
+          }
+        } catch {
+          /* fall through to MFA */
         }
-        setInviteMessage("Invitation accepted. Your workspace access is ready.");
-        navigate({ pathname: location.pathname, search: "", hash: location.hash }, { replace: true });
-        setAuthRefreshKey((value) => value + 1);
-      })
-      .catch((error) => {
-        if (!active) return;
-        processedInvite.current = null;
-        setInviteMessage(error instanceof Error ? error.message : "Invitation acceptance failed.");
-      });
-    return () => { active = false; };
-  }, [authRefreshKey, location.pathname, location.search, location.hash, navigate]);
+        if (workspaceGateRef.current !== "checking") return;
+        enterMfaSetup("Still verifying access. Continue with authenticator setup, or sign out and try again.");
+      })();
+    }, 12_000);
+    return () => window.clearTimeout(timer);
+  }, [workspaceGate, authReady]);
+
+  const handleAuthChange = () => {
+    // Keep React recoveryPending in sync with sessionStorage (expired link / abandon reset).
+    const pending = isPasswordRecoveryPending();
+    setRecoveryPending(pending);
+
+    if (!authToken()) {
+      setOrganisationId(null);
+      setActiveOrganisationId(null);
+      setActiveOrganisationName("Workspace");
+      setWorkspaceGate("checking");
+      return;
+    }
+    // Recovery: stay on AuthPanel until the new password is saved (even after MFA step-up).
+    if (pending) return;
+    // After MFA verify / sign-in, force workspace load even if we were on mfa.
+    void refreshWorkspaceState({ force: true });
+  };
+
   const selectOrganisation = (id: string | null, name: string) => {
     if (id !== activeOrganisationId) setOrganisationId(id);
     setActiveOrganisationId(id);
     setActiveOrganisationName(name);
   };
-  const handleAuthChange = () => {
-    if (!authToken()) {
-      setOrganisationId(null);
-      setActiveOrganisationId(null);
-      setActiveOrganisationName("No workspace selected");
-    }
-    setAuthRefreshKey((value) => value + 1);
-  };
   const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
+
+  if (!authReady) return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>SECURE COMMAND INITIALISING</span></div>;
+  if (!authToken() || recoveryPending || isPasswordRecoveryPending()) {
+    // Key forces a remount when recovery begins so a prior MFA-gate AuthPanel cannot keep state.
+    return <AuthPanel key={recoveryPending || isPasswordRecoveryPending() ? "recovery" : "auth"} surface="page" onAuthChange={handleAuthChange} />;
+  }
+  // Full-screen MFA setup (QR / TOTP). Do not nest inside the tiny boot spinner layout.
+  if (workspaceGate === "mfa") return <AuthPanel key="mfa" surface="page" onAuthChange={handleAuthChange} />;
+  if (workspaceGate === "checking") return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>VERIFYING WORKSPACE ACCESS</span></div>;
+  if (workspaceGate === "required" || workspaceGate === "error") {
+    // Never forward MFA setup copy onto the workspace screen — that step is already complete.
+    const workspaceError = workspaceGate === "error" ? gateMessage : null;
+    return <WorkspaceOnboarding
+      initialError={workspaceError}
+      onComplete={() => { void refreshWorkspaceState({ force: true }); }}
+      onRetry={() => { void refreshWorkspaceState({ force: true }); }}
+    />;
+  }
 
   return (
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <img
-            className="brand-logo"
-            src="/assets/sentinelgrid-logo.jpg"
-            alt="SentinelGrid"
-            width={40}
-            height={40}
-          />
-          <div className="brand-text">
-            Sentinel <span>Command</span>
-          </div>
+          <img className="brand-wordmark" src="/assets/sentinelgrid-logo-wordmark.png" alt="SentinelGrid" width={190} height={60} />
         </div>
         <WorkspaceSwitcher activeOrganisationId={activeOrganisationId} onSelect={selectOrganisation} refreshKey={authRefreshKey} />
         <nav className="nav" aria-label="Primary">
@@ -599,16 +762,13 @@ export function App() {
             </NavLink>)}
           </div>)}
         </nav>
-        <AuthPanel onAuthChange={handleAuthChange} />
       </aside>
       <main className="main">
         <header className="topbar">
-          <div className="topbar-leading">
-            <button type="button" className="topbar-back" aria-label="Go back" title="Go back"
-              onClick={() => window.history.state?.idx > 0 ? navigate(-1) : navigate("/")}>
-              <span aria-hidden="true">←</span>
-            </button>
-            <div className="topbar-context"><span>WORKSPACE</span><b>/</b><span className="topbar-workspace-name">{activeOrganisationName}</span><b>/</b><strong>{currentPage}</strong></div>
+          <div className="topbar-context">
+            <span>WORKSPACE</span><b>/</b>
+            <span className="topbar-workspace-name">{activeOrganisationName}</span><b>/</b>
+            <strong>{currentPage}</strong>
           </div>
           <div className="topbar-tools">
             <span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
@@ -621,20 +781,19 @@ export function App() {
           </div>
         </header>
         <div className="main-content">
-        {inviteMessage && <div className="inline-notice" role="status">{inviteMessage}</div>}
         <Routes key={activeOrganisationId ?? "no-workspace"}>
           <Route path="/" element={<Overview />} />
           <Route path="/topology" element={<TopologyPage />} />
           <Route path="/incidents" element={<IncidentWorkbenchPage />} />
           <Route path="/replay" element={<EventReplayPage />} />
           <Route path="/scenarios" element={<ScenarioWorkbenchPage />} />
-          <Route path="/organisation" element={<OrganisationPanel onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
+          <Route path="/organisation" element={<OrganisationPanel mode="settings" onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
           <Route
             path="/facilities"
             element={
               <ResourcePage
                 title="Facilities"
-                lead="Register and review facilities for this workspace."
+                lead="Register and review facilities for this organisation."
                 path={(org) => `/v1/orgs/${org}/facilities`}
                 columns={[
                   { key: "name", label: "Name" },
@@ -802,7 +961,7 @@ export function App() {
             element={
               <ResourcePage
                 title="Audit logs"
-                lead="Administrative actions for this workspace."
+                lead="Administrative actions for this organisation."
                 path={(org) => `/v1/orgs/${org}/audit-logs`}
                 columns={[
                   { key: "action", label: "Action" },
@@ -813,7 +972,7 @@ export function App() {
               />
             }
           />
-          <Route path="/users" element={<OrganisationPanel onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
+          <Route path="/users" element={<OrganisationPanel mode="people" onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
         </Routes>
         </div>
       </main>

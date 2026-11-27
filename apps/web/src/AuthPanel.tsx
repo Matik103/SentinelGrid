@@ -1,280 +1,504 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { authModeLabel, authToken, getSupabase, restoreSession, signInWithPassword, signOut, signUpWithPassword } from "./auth";
+import {
+  authToken, clearPasswordRecoveryPending, isPasswordRecoveryPending,
+  requestPasswordReset, resendSignupConfirmation, restoreSession,
+  signInWithPassword, signOut, signUpWithPassword, updatePassword,
+} from "./auth";
+import {
+  beginTotpChallenge, getAssuranceLevels, listVerifiedTotpFactors,
+  prepareMfaSession, verifyTotpChallenge,
+  type MfaChallenge, type MfaFactor,
+} from "./mfa";
 
-type Props = { onAuthChange?: () => void };
-type MfaChallenge = {
-  mode: "enroll" | "challenge";
-  factorId: string;
-  challengeId: string;
-  qrCode?: string;
-  secret?: string;
+type Props = {
+  onAuthChange?: () => void;
+  /** page = full signup/MFA journey; sidebar = compact account controls only */
+  surface?: "page" | "sidebar";
 };
-type MfaFactor = { id: string; friendlyName: string };
+type View = "signin" | "signup" | "forgot" | "reset" | "verify";
 
-function errorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
+function friendlyAuthError(message: string) {
+  if (/invalid login credentials/i.test(message)) return "That email and password combination doesn't match. Try again or reset your password.";
+  if (/email not confirmed/i.test(message)) return "Verify your email address before signing in. You can request a fresh confirmation email here.";
+  if (/user already registered/i.test(message)) return "An account already exists for this email. Sign in instead, or reset your password.";
+  if (/password should be at least/i.test(message)) return "Choose a longer password and try again.";
+  if (/rate limit/i.test(message)) return "Too many attempts in a short time. Wait a moment before trying again.";
   if (/invalid.*totp|totp.*invalid|invalid.*(mfa|authenticator|verification)?\s*code|code.*(invalid|incorrect|wrong)/i.test(message)) {
     return "Wrong code. Try again.";
+  }
+  if (/friendly name|already exists/i.test(message)) {
+    return "A previous authenticator setup was left unfinished. Tap Continue MFA setup to clear it and generate a fresh QR code.";
+  }
+  if (/AAL2 session is required/i.test(message)) {
+    return "Confirm your authenticator code first, then choose a new password.";
   }
   return message;
 }
 
-export function AuthPanel({ onAuthChange }: Props) {
+export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
+  const [view, setView] = useState<View>(() => isPasswordRecoveryPending() ? "reset" : "signin");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [creatingAccount, setCreatingAccount] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [status, setStatus] = useState(authModeLabel());
-  const [error, setError] = useState<string | null>(null);
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [mfaPending, setMfaPending] = useState(false);
   const [mfa, setMfa] = useState<MfaChallenge | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [verifiedFactors, setVerifiedFactors] = useState<MfaFactor[]>([]);
-  const signedIn = Boolean(authToken()) && !mfaPending;
+  // Recovery with MFA: Supabase requires AAL2 before updateUser({ password }).
+  const [recoveryStep, setRecoveryStep] = useState<"loading" | "mfa" | "password" | null>(
+    () => (isPasswordRecoveryPending() ? "loading" : null),
+  );
+  const [recoveryMfa, setRecoveryMfa] = useState<MfaChallenge | null>(null);
+  const signedIn = Boolean(authToken()) && !mfaPending && !mfa && !isPasswordRecoveryPending();
 
-  async function beginChallenge(factorId: string, mode: "enroll" | "challenge") {
-    const { data, error: challengeError } = await getSupabase().auth.mfa.challenge({ factorId });
-    if (challengeError) throw challengeError;
-    setMfa({ mode, factorId, challengeId: data.id });
-    setMfaCode("");
-  }
-
-  async function beginEnrollment() {
-    const { data, error: enrollError } = await getSupabase().auth.mfa.enroll({
-      factorType: "totp",
-      friendlyName: "SentinelGrid authenticator",
-      issuer: "SentinelGrid",
-    });
-    if (enrollError) throw enrollError;
-    await beginChallenge(data.id, "enroll");
-    setMfa((current) => current ? {
-      ...current,
-      mode: "enroll",
-      qrCode: data.totp.qr_code,
-      secret: data.totp.secret,
-    } : current);
-  }
-
-  async function prepareMfa(): Promise<boolean> {
-    setMfaPending(true);
-    const supabase = getSupabase();
-    const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (assuranceError) throw assuranceError;
-    if (assurance.currentLevel === "aal2") {
-      setMfa(null);
-      setMfaPending(false);
-      return true;
-    }
-
-    const { data: factorData, error: factorsError } = await supabase.auth.mfa.listFactors();
-    if (factorsError) throw factorsError;
-    const factors = (factorData.totp ?? [])
-      .filter((factor) => factor.status === "verified")
-      .map((factor) => ({ id: factor.id, friendlyName: factor.friendly_name || "Authenticator app" }));
-    setVerifiedFactors(factors);
-
-    if (factors.length) {
-      await beginChallenge(factors[0].id, "challenge");
-    } else {
-      await beginEnrollment();
-    }
-    return false;
-  }
+  useEffect(() => {
+    if (isPasswordRecoveryPending()) setView("reset");
+  }, []);
 
   useEffect(() => {
     let active = true;
     void restoreSession().then(async (session) => {
       if (!active) return;
-      setStatus(authModeLabel());
-      if (!session) return;
-      try {
-        const complete = await prepareMfa();
-        if (active && complete) onAuthChange?.();
-      } catch (err) {
-        if (active) setError(errorMessage(err));
+      // Recovery: stay on reset; step up MFA first when the account has a verified factor.
+      if (isPasswordRecoveryPending()) {
+        if (!session) {
+          // D5: clear both storage flag and App recoveryPending via onAuthChange.
+          clearPasswordRecoveryPending();
+          setRecoveryStep(null);
+          setRecoveryMfa(null);
+          setError("This password reset link is invalid or has expired. Request a new one.");
+          setView("forgot");
+          onAuthChange?.();
+          return;
+        }
+        try {
+          const levels = await getAssuranceLevels();
+          if (!active) return;
+          if (levels.nextLevel === "aal2" && levels.currentLevel !== "aal2") {
+            const factors = await listVerifiedTotpFactors();
+            if (!active) return;
+            if (!factors.length) {
+              // D6: do not offer password change without a verified factor to step up.
+              clearPasswordRecoveryPending();
+              setRecoveryStep(null);
+              setRecoveryMfa(null);
+              setError("Authenticator enrollment is incomplete. Sign in normally to finish MFA setup before resetting your password.");
+              setView("forgot");
+              await signOut();
+              onAuthChange?.();
+              return;
+            }
+            setVerifiedFactors(factors);
+            setRecoveryMfa(await beginTotpChallenge(factors[0].id, "challenge"));
+            setRecoveryStep("mfa");
+            setView("reset");
+            return;
+          }
+          setRecoveryStep("password");
+          setView("reset");
+        } catch (err) {
+          if (!active) return;
+          clearPasswordRecoveryPending();
+          setRecoveryStep(null);
+          setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
+          setView("forgot");
+          onAuthChange?.();
+        }
+        return;
       }
-    }).catch((err) => {
-      if (active) setError(errorMessage(err));
-    });
-    return () => { active = false; };
-  }, []);
+      if (!session) return;
 
-  const onSignIn = async (event: FormEvent) => {
-    event.preventDefault();
+      // Sidebar: never auto-start MFA or call onAuthChange — the workspace gate already did that.
+      if (surface === "sidebar") return;
+
+      try {
+        // Re-check: recovery flag may land mid-flight after PASSWORD_RECOVERY / AMR detection.
+        if (isPasswordRecoveryPending()) return;
+        setMfaPending(true);
+        setError(null);
+        const result = await prepareMfaSession();
+        if (!active) return;
+        if (isPasswordRecoveryPending()) {
+          // Divert into the recovery reset steps instead of entering the workspace.
+          setMfa(null);
+          setMfaPending(false);
+          setVerifiedFactors(result.factors);
+          setView("reset");
+          if (result.complete) {
+            setRecoveryStep("password");
+            setNotice("Authenticator confirmed. Choose a new password.");
+          } else if (result.challenge) {
+            setRecoveryMfa(result.challenge);
+            setRecoveryStep("mfa");
+          } else {
+            setRecoveryStep("loading");
+          }
+          return;
+        }
+        setVerifiedFactors(result.factors);
+        if (result.complete) {
+          setMfa(null);
+          setMfaPending(false);
+          onAuthChange?.();
+        } else {
+          setMfa(result.challenge);
+        }
+      } catch (err) {
+        if (!active) return;
+        if (isPasswordRecoveryPending()) {
+          setMfa(null);
+          setMfaPending(false);
+          return;
+        }
+        setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
+        setMfaPending(true);
+      }
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [surface]);
+
+  const run = async (event: FormEvent, action: () => Promise<void>) => {
+    event.preventDefault(); setBusy(true); setError(null); setNotice(null);
+    try { await action(); } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (view === "signin" && /email not confirmed/i.test(message)) setView("verify");
+      setError(friendlyAuthError(message));
+    } finally { setBusy(false); }
+  };
+
+  const completePasswordAuth = async () => {
+    setMfaPending(true);
+    setError(null);
+    const result = await prepareMfaSession();
+    setVerifiedFactors(result.factors);
+    if (result.complete) {
+      setMfa(null);
+      setMfaPending(false);
+      onAuthChange?.();
+    } else {
+      setMfa(result.challenge);
+    }
+  };
+
+  const startMfaSetup = async () => {
     setBusy(true);
     setError(null);
-    setNotice(null);
     try {
-      await signInWithPassword(email.trim(), password);
-      setStatus(authModeLabel());
-      setPassword("");
-      const complete = await prepareMfa();
-      if (complete) onAuthChange?.();
+      const result = await prepareMfaSession();
+      setVerifiedFactors(result.factors);
+      if (result.complete) {
+        setMfaPending(false);
+        setMfa(null);
+        onAuthChange?.();
+      } else {
+        setMfaPending(true);
+        setMfa(result.challenge);
+      }
     } catch (err) {
-      setError(errorMessage(err));
+      setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
+      setMfaPending(true);
     } finally {
       setBusy(false);
     }
   };
 
-  const onSignUp = async (event: FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      if (password.length < 8) throw new Error("Choose a password with at least 8 characters.");
-      const result = await signUpWithPassword(email.trim(), password, displayName);
-      setPassword("");
-      if (result.session) {
-        const complete = await prepareMfa();
-        if (complete) onAuthChange?.();
-      } else {
-        setNotice("Your account was created. Check your email for the confirmation link, then sign in to set up your authenticator.");
-        setCreatingAccount(false);
-      }
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
+  const continueRecoveryAfterMfa = () => {
+    setMfa(null);
+    setMfaPending(false);
+    setMfaCode("");
+    setRecoveryMfa(null);
+    setRecoveryStep("password");
+    setView("reset");
+    setNotice("Authenticator confirmed. Choose a new password.");
   };
 
   const onVerifyMfa = async (event: FormEvent) => {
     event.preventDefault();
     const code = mfaCode.trim();
-    if (!/^\\d{6}$/.test(code)) {
+    if (!/^\d{6}$/.test(code)) {
       setError("Enter the six-digit code from your authenticator app.");
       return;
     }
     if (!mfa) return;
-    setBusy(true);
-    setError(null);
+    setBusy(true); setError(null);
     try {
-      const { error: verifyError } = await getSupabase().auth.mfa.verify({
-        factorId: mfa.factorId,
-        challengeId: mfa.challengeId,
-        code,
-      });
-      if (verifyError) throw verifyError;
-      const { data: assurance, error: assuranceError } = await getSupabase().auth.mfa.getAuthenticatorAssuranceLevel();
-      if (assuranceError) throw assuranceError;
-      if (assurance.currentLevel !== "aal2") {
-        throw new Error("The authenticator code was accepted, but the session did not reach the required security level. Try again.");
-      }
+      await verifyTotpChallenge(mfa, code);
       await restoreSession();
+      // If this MFA was part of password recovery, never enter the workspace yet.
+      if (isPasswordRecoveryPending()) {
+        continueRecoveryAfterMfa();
+        return;
+      }
       setMfa(null);
       setMfaPending(false);
       setMfaCode("");
-      setStatus(authModeLabel());
       onAuthChange?.();
     } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
+      setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
+    } finally { setBusy(false); }
   };
 
-  const onChooseFactor = async (factorId: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await beginChallenge(factorId, "challenge");
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
+  // Full MFA chrome is for normal sign-in only. Recovery uses its own step on the reset view.
+  if ((mfa || mfaPending) && !isPasswordRecoveryPending()) {
+    const enrollCopy = mfa?.mode === "enroll" || (!mfa && mfaPending);
+    return (
+      <main className="auth-experience">
+        <section className="auth-story">
+          <div className="auth-story-brand"><img src="/assets/sentinelgrid-logo-wordmark.png" alt="SentinelGrid" width="230" height="74" /></div>
+          <div className="auth-story-copy">
+            <span className="eyebrow"><i /> STEP 02 / AUTHENTICATOR</span>
+            <h1>{enrollCopy ? <>Set up your<br /><span>authenticator.</span></> : <>Verify your<br /><span>identity.</span></>}</h1>
+            <p>{enrollCopy
+              ? "Install any TOTP app, scan the QR code, then enter the six-digit code when you are ready. There is no time pressure — your sign-in stays active until you finish or sign out."
+              : "Enter the current six-digit code from your authenticator app. You can sign out and return later if you need a moment."}</p>
+          </div>
+        </section>
+        <section className="auth-form-side">
+          <div className="auth-form-card">
+            <div className="auth-form-topline"><span>SECURE ACCESS</span><span>02 / MFA</span></div>
+            <div className="auth-form-heading">
+              <h2>{mfa?.mode === "enroll" ? "Set up authenticator" : mfa ? "Enter authenticator code" : "Preparing authenticator setup"}</h2>
+              <p>{mfa?.mode === "enroll"
+                ? "Take your time. Scan the code, add SentinelGrid to your app, then enter the 6-digit code below."
+                : mfa
+                  ? "Open your authenticator app and enter the current code."
+                  : "Preparing a secure authenticator challenge. This usually takes a second."}</p>
+            </div>
+            {error && <div className="auth-feedback error" role="alert">{error}</div>}
+            {mfa ? (
+              <div className="auth-mfa">
+                {mfa.mode === "enroll" && (
+                  <div className="auth-mfa-setup">
+                    <p>Scan this QR code with Google Authenticator, Microsoft Authenticator, 1Password, 2FAS, or another TOTP app.</p>
+                    {mfa.qrCode && <img className="auth-mfa-qr" src={mfa.qrCode} alt="SentinelGrid authenticator setup QR code" />}
+                    {mfa.secret && <p className="auth-mfa-secret">Can't scan it? Enter this setup key manually: <code>{mfa.secret}</code></p>}
+                    <p className="auth-mfa-pace">No countdown. Finish when the code in your app is ready.</p>
+                  </div>
+                )}
+                {mfa.mode === "challenge" && verifiedFactors.length > 1 && (
+                  <label className="auth-mfa-label">Authenticator
+                    <select value={mfa.factorId} disabled={busy} onChange={(event) => {
+                      setBusy(true); setError(null);
+                      void beginTotpChallenge(event.target.value, "challenge")
+                        .then(setMfa)
+                        .catch((err) => setError(friendlyAuthError(err instanceof Error ? err.message : String(err))))
+                        .finally(() => setBusy(false));
+                    }}>
+                      {verifiedFactors.map((factor) => <option key={factor.id} value={factor.id}>{factor.friendlyName}</option>)}
+                    </select>
+                  </label>
+                )}
+                <form className="auth-form auth-form-modern" onSubmit={(event) => void onVerifyMfa(event)}>
+                  <label>Six-digit authenticator code
+                    <input type="text" required inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} autoFocus />
+                  </label>
+                  <button className="auth-submit" type="submit" disabled={busy || mfaCode.length !== 6}>{busy ? "Verifying…" : mfa.mode === "enroll" ? "Verify and enable MFA" : "Verify and continue"}<span>↗</span></button>
+                </form>
+              </div>
+            ) : (
+              <div className="auth-mfa">
+                <p className="auth-mfa-pace">Stay on this screen while setup prepares. If nothing appears, tap continue or sign out and retry.</p>
+                <button type="button" className="auth-submit" disabled={busy} onClick={() => void startMfaSetup()}>
+                  {busy ? "Preparing…" : "Continue MFA setup"}<span>↗</span>
+                </button>
+              </div>
+            )}
+            <div className="auth-form-bottom">
+              <button type="button" onClick={() => void signOut().then(() => { setMfa(null); setMfaPending(false); setVerifiedFactors([]); setMfaCode(""); onAuthChange?.(); })}>Sign out</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
-  const onSignOut = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await signOut();
-      setMfa(null);
-      setMfaPending(false);
-      setVerifiedFactors([]);
-      setMfaCode("");
-      setStatus(authModeLabel());
-      onAuthChange?.();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
+  // Sidebar account chrome lives in the top-right avatar menu.
+  if (signedIn && view !== "reset") {
+    if (surface === "sidebar") return null;
+    return (
+      <section className="auth-panel auth-panel-compact" aria-label="Account">
+        {error && <p className="auth-inline-error" role="alert">{error}</p>}
+      </section>
+    );
+  }
 
-  // Signed-in account chrome lives in the top-right avatar menu.
-  if (signedIn && !mfa && !mfaPending) return null;
+  const invitePending = Boolean(new URLSearchParams(window.location.search).get("invite"));
+  const resetNeedsMfa = view === "reset" && recoveryStep === "mfa";
+  const resetPreparing = view === "reset" && recoveryStep === "loading";
+  const title = view === "signin" ? "Welcome back" : view === "signup" ? "Create your account" : view === "forgot" ? "Reset your password" : view === "reset"
+    ? (resetNeedsMfa ? "Confirm your authenticator" : resetPreparing ? "Preparing password reset" : "Choose a new password")
+    : "Check your inbox";
+  const description = view === "signin" ? "Sign in to continue to your secure operations environment." :
+    view === "signup" ? "Step 1 of 3: create your identity. Next you will set up an authenticator, then create or join a workspace." :
+    view === "forgot" ? "We'll send a secure password reset link to your email address." :
+    view === "reset"
+      ? (resetNeedsMfa
+        ? "MFA is enabled on this account. Enter your authenticator code to continue, then choose a new password."
+        : resetPreparing
+          ? "Confirming your reset session. This usually takes a second."
+          : "Choose a new password to secure your SentinelGrid account.")
+      : "Your account is almost ready. Verify your email address to continue. Authenticator setup follows.";
 
   return (
-    <div className="auth-panel" aria-label="Authentication">
-      <div className="auth-status">
-        <strong>{mfa ? (mfa.mode === "enroll" ? "Set up multi-factor authentication" : "Verify your identity") : mfaPending ? "Multi-factor authentication required" : status}</strong>
-        <span className="mono">{mfa ? "SentinelGrid requires a verified authenticator before workspace access." : mfaPending ? "Complete authenticator verification to continue." : "Sign in to access your workspaces"}</span>
-      </div>
-      {error && <div className="inline-notice warning" role="alert">{error}</div>}
-      {notice && <div className="inline-notice" role="status">{notice}</div>}
+    <main className="auth-experience">
+      <section className="auth-story">
+        <div className="auth-story-brand"><img src="/assets/sentinelgrid-logo-wordmark.png" alt="SentinelGrid" width="230" height="74" /></div>
+        <div className="auth-story-copy">
+          <span className="eyebrow"><i /> STEP 01 / IDENTITY</span>
+          <h1>Know your<br /><span>system.</span><br />Secure every<br />decision.</h1>
+          <p>One trusted identity. MFA-protected workspace access. A clearer operational picture across the infrastructure that matters.</p>
+        </div>
+        <div className="auth-story-orbit" aria-hidden="true"><span className="auth-orbit auth-orbit-a" /><span className="auth-orbit auth-orbit-b" /><span className="auth-orbit-core">SG</span><span className="auth-orbit-label auth-label-a">IDENTITY</span><span className="auth-orbit-label auth-label-b">WORKSPACE</span><span className="auth-orbit-label auth-label-c">EVIDENCE</span></div>
+        <div className="auth-story-footer"><span>SECURE BY DESIGN</span><span>INFRASTRUCTURE / INTELLIGENCE / CONTROL</span></div>
+      </section>
+      <section className="auth-form-side">
+        <div className="auth-form-card">
+          <div className="auth-form-topline"><span>SECURE ACCESS</span><span>01 / IDENTITY</span></div>
+          <div className="auth-form-heading"><h2>{title}</h2><p>{description}</p></div>
+          {invitePending && <div className="auth-invite-note">You've arrived through a workspace invitation. Create or sign in to your account to continue.</div>}
+          {error && <div className="auth-feedback error" role="alert">{error}</div>}
+          {notice && <div className="auth-feedback success" role="status">{notice}</div>}
 
-      {mfa ? (
-        <div className="auth-mfa">
-          {mfa.mode === "enroll" && (
-            <div className="auth-mfa-setup">
-              <p>Scan this QR code with Google Authenticator, Microsoft Authenticator, 2FAS, or another TOTP app.</p>
-              {mfa.qrCode && <img className="auth-mfa-qr" src={mfa.qrCode} alt="SentinelGrid authenticator setup QR code" />}
-              {mfa.secret && <p className="auth-mfa-secret">Can't scan it? Enter this setup key manually: <code>{mfa.secret}</code></p>}
+          {view === "signin" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
+            await signInWithPassword(email.trim(), password); setPassword(""); await completePasswordAuth();
+          })}>
+            <label>Email address<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@company.com" required autoFocus /></label>
+            <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder="Your password" required /></label>
+            <div className="auth-form-meta"><span>Protected by SentinelGrid identity</span><button type="button" className="auth-text-button" onClick={() => { setView("forgot"); setError(null); setNotice(null); }}>Forgot password?</button></div>
+            <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Authenticating…" : "Sign in securely"}<span>↗</span></button>
+          </form>}
+
+          {view === "signup" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
+            if (password.length < 8) throw new Error("Password should be at least 8 characters.");
+            if (password !== confirmPassword) throw new Error("Your passwords do not match.");
+            const result = await signUpWithPassword(email.trim(), password, name);
+            setPassword(""); setConfirmPassword("");
+            if (result.session) await completePasswordAuth();
+            else { setView("verify"); setNotice(null); }
+          })}>
+            <label>Your name<input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Full name" required maxLength={120} /></label>
+            <label>Work email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@company.com" required /></label>
+            <label>Create password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" placeholder="At least 8 characters" minLength={8} required /></label>
+            <label>Confirm password<input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" placeholder="Repeat your password" minLength={8} required /></label>
+            <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Creating account…" : "Create secure account"}<span>↗</span></button>
+          </form>}
+
+          {view === "forgot" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
+            await requestPasswordReset(email.trim()); setNotice("If an account exists for this address, a password reset email is on its way.");
+          })}>
+            <label>Email address<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@company.com" required autoFocus /></label>
+            <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Sending link…" : "Send reset link"}<span>↗</span></button>
+          </form>}
+
+          {view === "reset" && recoveryStep === "loading" && (
+            <div className="auth-mfa">
+              <p className="auth-mfa-pace">Preparing a secure password reset. Stay on this screen.</p>
             </div>
           )}
-          {mfa.mode === "challenge" && verifiedFactors.length > 1 && (
-            <label className="auth-mfa-label">Authenticator
-              <select value={mfa.factorId} disabled={busy} onChange={(event) => void onChooseFactor(event.target.value)}>
-                {verifiedFactors.map((factor) => <option key={factor.id} value={factor.id}>{factor.friendlyName}</option>)}
-              </select>
-            </label>
+
+          {view === "reset" && recoveryStep === "mfa" && recoveryMfa && (
+            <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
+              const code = mfaCode.trim();
+              if (!/^\d{6}$/.test(code)) throw new Error("Enter the six-digit code from your authenticator app.");
+              await verifyTotpChallenge(recoveryMfa, code);
+              setMfaCode("");
+              setRecoveryMfa(null);
+              setRecoveryStep("password");
+              setNotice("Authenticator confirmed. Choose a new password.");
+            })}>
+              {verifiedFactors.length > 1 && (
+                <label className="auth-mfa-label">Authenticator
+                  <select value={recoveryMfa.factorId} disabled={busy} onChange={(event) => {
+                    setBusy(true); setError(null);
+                    void beginTotpChallenge(event.target.value, "challenge")
+                      .then(setRecoveryMfa)
+                      .catch((err) => setError(friendlyAuthError(err instanceof Error ? err.message : String(err))))
+                      .finally(() => setBusy(false));
+                  }}>
+                    {verifiedFactors.map((factor) => <option key={factor.id} value={factor.id}>{factor.friendlyName}</option>)}
+                  </select>
+                </label>
+              )}
+              <label>Six-digit authenticator code
+                <input type="text" required inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} autoFocus />
+              </label>
+              <button className="auth-submit" type="submit" disabled={busy || mfaCode.length !== 6}>{busy ? "Verifying…" : "Verify and continue"}<span>↗</span></button>
+            </form>
           )}
-          <form className="auth-form" onSubmit={(event) => void onVerifyMfa(event)}>
-            <label>Six-digit authenticator code
-              <input type="text" required inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\\D/g, "").slice(0, 6))} />
-            </label>
-            <button type="submit" disabled={busy || mfaCode.length !== 6}>{busy ? "Verifying…" : mfa.mode === "enroll" ? "Verify and enable MFA" : "Verify and continue"}</button>
-          </form>
-          <button type="button" className="btn secondary" onClick={() => void onSignOut()} disabled={busy}>Sign out</button>
+
+          {view === "reset" && recoveryStep === "password" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
+            if (password.length < 8) throw new Error("Password should be at least 8 characters.");
+            if (password !== confirmPassword) throw new Error("Your passwords do not match.");
+            // Re-check AAL in case the recovery session still needs a step-up.
+            const levels = await getAssuranceLevels();
+            if (levels.nextLevel === "aal2" && levels.currentLevel !== "aal2") {
+              const factors = await listVerifiedTotpFactors();
+              if (!factors.length) throw new Error("Authenticator enrollment is incomplete. Sign in normally to finish MFA setup.");
+              setVerifiedFactors(factors);
+              setRecoveryMfa(await beginTotpChallenge(factors[0].id, "challenge"));
+              setRecoveryStep("mfa");
+              throw new Error("Confirm your authenticator code first, then choose a new password.");
+            }
+            await updatePassword(password);
+            clearPasswordRecoveryPending();
+            setRecoveryStep(null);
+            setRecoveryMfa(null);
+            // End the recovery session so the user signs in fresh with the new password + MFA.
+            await signOut();
+            setPassword("");
+            setConfirmPassword("");
+            setNotice("Your password has been updated. Sign in with the new password, then complete MFA.");
+            window.history.replaceState({}, "", window.location.pathname);
+            setView("signin");
+            onAuthChange?.();
+          })}>
+            <label>New password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={8} required autoFocus /></label>
+            <label>Confirm new password<input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" minLength={8} required /></label>
+            <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Updating password…" : "Update password"}<span>↗</span></button>
+          </form>}
+
+          {view === "verify" && <div className="auth-verify">
+            <div className="auth-verify-icon">✉</div><strong>Verify your email</strong>
+            <p>We sent a confirmation link to <b>{email}</b>. Open it on this device to activate your account. Authenticator enrollment follows verification.</p>
+            <button type="button" className="auth-submit" disabled={busy} onClick={() => void run({ preventDefault() {} } as FormEvent, async () => { await resendSignupConfirmation(email.trim()); setNotice("A fresh confirmation email has been sent."); })}>{busy ? "Sending…" : "Resend confirmation email"}</button>
+          </div>}
+
+          <div className="auth-form-bottom">
+            {view === "signin" && <span>New to SentinelGrid? <button type="button" onClick={() => { setView("signup"); setError(null); setNotice(null); }}>Create an account</button></span>}
+            {view === "signup" && <span>Already have an account? <button type="button" onClick={() => { setView("signin"); setError(null); }}>Sign in</button></span>}
+            {(view === "forgot" || view === "reset" || view === "verify") && (
+              <span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setNotice(null);
+                    // D7: abandoning reset must clear recovery intent and end the recovery session.
+                    if (isPasswordRecoveryPending() || recoveryStep) {
+                      clearPasswordRecoveryPending();
+                      setRecoveryStep(null);
+                      setRecoveryMfa(null);
+                      void signOut().finally(() => {
+                        setView("signin");
+                        onAuthChange?.();
+                      });
+                      return;
+                    }
+                    setView("signin");
+                  }}
+                >
+                  Back to sign in
+                </button>
+              </span>
+            )}
+          </div>
+          <p className="auth-privacy-note">Journey: 1) Identity → 2) Authenticator (MFA) → 3) Workspace. Password alone is never enough for Command access.</p>
         </div>
-      ) : mfaPending ? (
-        <div className="auth-actions">
-          <button type="button" onClick={() => { setBusy(true); setError(null); void prepareMfa().catch((err) => setError(errorMessage(err))).finally(() => setBusy(false)); }} disabled={busy}>{busy ? "Preparing…" : "Continue MFA setup"}</button>
-          <button type="button" className="btn secondary" onClick={() => void onSignOut()} disabled={busy}>Sign out</button>
-        </div>
-      ) : creatingAccount ? (
-          <form onSubmit={(event) => void onSignUp(event)} className="auth-form">
-            <label>Your name
-              <input type="text" required maxLength={120} value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" />
-            </label>
-            <label>Work email
-              <input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
-            </label>
-            <label>Create password
-              <input type="password" required minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" />
-            </label>
-            <button type="submit" disabled={busy}>{busy ? "Creating account…" : "Create account"}</button>
-            <button type="button" className="btn secondary" disabled={busy} onClick={() => { setCreatingAccount(false); setError(null); setNotice(null); }}>Back to sign in</button>
-          </form>
-        ) : (
-          <form onSubmit={(event) => void onSignIn(event)} className="auth-form">
-            <label>Email
-              <input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" />
-            </label>
-            <label>Password
-              <input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
-            </label>
-            <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-            <button type="button" className="btn secondary" disabled={busy} onClick={() => { setCreatingAccount(true); setError(null); setNotice(null); }}>Create an account</button>
-            {import.meta.env.DEV && <p className="auth-dev-hint">Local development may use VITE_DEV_ACCESS_TOKEN. Production access always requires a verified Supabase MFA session.</p>}
-          </form>
-      )}
-    </div>
+      </section>
+    </main>
   );
 }

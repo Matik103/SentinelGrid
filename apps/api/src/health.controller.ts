@@ -19,7 +19,7 @@ export class HealthController {
 
     // This is a readiness check, not just a process liveness response.
     // Do not disclose database errors, project identifiers, or secret values.
-    const { error } = await this.admin.client
+    const { data, error } = await this.admin.client
       .from("app_public_config")
       .select("value")
       .eq("key", "api_base_url")

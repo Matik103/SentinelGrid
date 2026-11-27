@@ -215,12 +215,15 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
     );
   }
 
-  if (signedIn && view !== "reset") return (
-    <section className="auth-panel auth-panel-compact" aria-label="Account">
-      <div className="auth-status"><strong>Account secured</strong><span className="mono">MFA session active (AAL2)</span></div>
-      {error && <p className="auth-inline-error" role="alert">{error}</p>}
-    </section>
-  );
+  // Sidebar account chrome lives in the top-right avatar menu.
+  if (signedIn && view !== "reset") {
+    if (surface === "sidebar") return null;
+    return (
+      <section className="auth-panel auth-panel-compact" aria-label="Account">
+        {error && <p className="auth-inline-error" role="alert">{error}</p>}
+      </section>
+    );
+  }
 
   const invitePending = Boolean(new URLSearchParams(window.location.search).get("invite"));
   const title = view === "signin" ? "Welcome back" : view === "signup" ? "Create your account" : view === "forgot" ? "Reset your password" : view === "reset" ? "Choose a new password" : "Check your inbox";

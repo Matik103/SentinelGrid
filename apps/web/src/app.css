@@ -4566,3 +4566,24 @@ input, select, textarea, button, .btn, a { transition-timing-function: cubic-bez
   justify-content: center;
   margin-top: .65rem;
 }
+
+.workspace-personalize-security {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  margin: .15rem 0 .35rem;
+  padding: .55rem .65rem;
+  border: 1px solid rgba(84, 214, 197, .18);
+  border-radius: 10px;
+  background: rgba(84, 214, 197, .06);
+}
+.workspace-personalize-security strong {
+  color: #bce8df;
+  font-size: .72rem;
+  font-weight: 650;
+}
+.workspace-personalize-security span {
+  color: #6f899d;
+  font: 8px var(--sg-font-mono);
+  letter-spacing: .06em;
+}

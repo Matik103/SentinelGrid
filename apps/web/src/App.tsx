@@ -657,7 +657,6 @@ export function App() {
             </NavLink>)}
           </div>)}
         </nav>
-        <AuthPanel surface="sidebar" onAuthChange={handleAuthChange} />
       </aside>
       <main className="main">
         <header className="topbar">

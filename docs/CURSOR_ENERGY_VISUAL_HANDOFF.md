@@ -1,6 +1,6 @@
 # SentinelGrid visual assets and energy foundation — Cursor handoff
 
-Branch: `work/phase0-security-hardening`
+Canonical branch: `work/sentinel-command-release-v2` (this handoff describes the earlier energy/asset implementation packet; see `ROADMAP.md` for the current consolidated sequence).
 
 ## What is included on this branch
 

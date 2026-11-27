@@ -3,6 +3,8 @@ services:
     name: sentinelgrid-api
     runtime: docker
     plan: starter
+    branch: work/sentinel-command-release-v2
+    autoDeploy: true
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
     healthCheckPath: /v1/health

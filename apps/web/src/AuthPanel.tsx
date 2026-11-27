@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
-  authToken, requestPasswordReset, resendSignupConfirmation, restoreSession,
+  authToken, clearPasswordRecoveryPending, isPasswordRecoveryPending,
+  requestPasswordReset, resendSignupConfirmation, restoreSession,
   signInWithPassword, signOut, signUpWithPassword, updatePassword,
 } from "./auth";
 import {
@@ -31,7 +32,7 @@ function friendlyAuthError(message: string) {
 }
 
 export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
-  const [view, setView] = useState<View>(() => window.location.hash.includes("type=recovery") ? "reset" : "signin");
+  const [view, setView] = useState<View>(() => isPasswordRecoveryPending() ? "reset" : "signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,16 +44,26 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
   const [mfa, setMfa] = useState<MfaChallenge | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [verifiedFactors, setVerifiedFactors] = useState<MfaFactor[]>([]);
-  const signedIn = Boolean(authToken()) && !mfaPending && !mfa;
+  const signedIn = Boolean(authToken()) && !mfaPending && !mfa && !isPasswordRecoveryPending();
 
   useEffect(() => {
-    if (window.location.hash.includes("type=recovery")) setView("reset");
+    if (isPasswordRecoveryPending()) setView("reset");
   }, []);
 
   useEffect(() => {
     let active = true;
     void restoreSession().then(async (session) => {
-      if (!active || !session || window.location.hash.includes("type=recovery")) return;
+      if (!active) return;
+      // Recovery: keep the choose-new-password form; do not jump into MFA.
+      if (isPasswordRecoveryPending()) {
+        if (!session) {
+          clearPasswordRecoveryPending();
+          setError("This password reset link is invalid or has expired. Request a new one.");
+          setView("forgot");
+        }
+        return;
+      }
+      if (!session) return;
 
       // Sidebar: never auto-start MFA or call onAuthChange — the workspace gate already did that.
       if (surface === "sidebar") return;
@@ -290,7 +301,16 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
           {view === "reset" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
             if (password.length < 8) throw new Error("Password should be at least 8 characters.");
             if (password !== confirmPassword) throw new Error("Your passwords do not match.");
-            await updatePassword(password); setPassword(""); setConfirmPassword(""); setNotice("Your password has been updated. Sign in and complete MFA to continue."); window.history.replaceState({}, "", window.location.pathname); setView("signin");
+            await updatePassword(password);
+            clearPasswordRecoveryPending();
+            // End the recovery session so the user signs in fresh with the new password + MFA.
+            await signOut();
+            setPassword("");
+            setConfirmPassword("");
+            setNotice("Your password has been updated. Sign in with the new password, then complete MFA.");
+            window.history.replaceState({}, "", window.location.pathname);
+            setView("signin");
+            onAuthChange?.();
           })}>
             <label>New password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={8} required autoFocus /></label>
             <label>Confirm new password<input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" minLength={8} required /></label>

@@ -3,21 +3,53 @@ import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from "./bootstrap";
 
 const TOKEN_KEY = "sg_access_token";
 const ORG_KEY = "sg_organisation_id";
+const RECOVERY_FLAG = "sg_pending_password_recovery";
 let client: SupabaseClient | null = null;
 let sessionListeners: Array<(event: AuthChangeEvent, session: Session | null) => void> = [];
 
 function isDevBuild(): boolean { return Boolean(import.meta.env.DEV); }
-function authRedirectUrl(): string {
+function authRedirectUrl(kind?: "reset"): string {
+  const url = new URL(window.location.origin);
   const invite = new URLSearchParams(window.location.search).get("invite");
-  return invite ? `${window.location.origin}/?invite=${encodeURIComponent(invite)}` : window.location.origin;
+  if (kind === "reset") url.searchParams.set("reset", "1");
+  if (invite) url.searchParams.set("invite", invite);
+  return kind === "reset" || invite ? url.toString() : window.location.origin;
+}
+
+/** Persist recovery intent before Supabase strips `#type=recovery` from the URL. */
+export function capturePasswordRecoveryIntent(): void {
+  try {
+    const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+    const hashType = new URLSearchParams(hash).get("type");
+    const queryReset = new URLSearchParams(window.location.search).get("reset");
+    if (hashType === "recovery" || queryReset === "1") {
+      sessionStorage.setItem(RECOVERY_FLAG, "1");
+    }
+  } catch {
+    /* sessionStorage unavailable */
+  }
+}
+
+export function markPasswordRecoveryPending(): void {
+  try { sessionStorage.setItem(RECOVERY_FLAG, "1"); } catch { /* ignore */ }
+}
+
+export function isPasswordRecoveryPending(): boolean {
+  try { return sessionStorage.getItem(RECOVERY_FLAG) === "1"; } catch { return false; }
+}
+
+export function clearPasswordRecoveryPending(): void {
+  try { sessionStorage.removeItem(RECOVERY_FLAG); } catch { /* ignore */ }
 }
 
 export function getSupabase(): SupabaseClient {
   if (!client) {
+    capturePasswordRecoveryIntent();
     client = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: "sg-command-auth" },
     });
     client.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") markPasswordRecoveryPending();
       if (session?.access_token) localStorage.setItem(TOKEN_KEY, session.access_token);
       else if (!isDevBuild() || !import.meta.env.VITE_DEV_ACCESS_TOKEN) localStorage.removeItem(TOKEN_KEY);
       for (const listener of sessionListeners) listener(event, session);
@@ -93,7 +125,7 @@ export async function resendSignupConfirmation(email: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 export async function requestPasswordReset(email: string): Promise<void> {
-  const { error } = await getSupabase().auth.resetPasswordForEmail(email, { redirectTo: authRedirectUrl() });
+  const { error } = await getSupabase().auth.resetPasswordForEmail(email, { redirectTo: authRedirectUrl("reset") });
   if (error) throw new Error(error.message);
 }
 export async function updatePassword(password: string): Promise<void> {
@@ -105,6 +137,7 @@ export async function signOut(): Promise<void> {
   if (error) throw new Error(error.message);
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ORG_KEY);
+  clearPasswordRecoveryPending();
 }
 /**
  * Subscribe to Supabase auth lifecycle events.

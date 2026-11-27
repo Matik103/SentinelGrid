@@ -72,3 +72,19 @@ Acceptance:
 ## Redeploy
 
 Push to `main`, or Vercel → Deployments → Redeploy from `main`.
+
+## Cloudflare console noise (www)
+
+`www.sentinelgrid.tech` sits behind Cloudflare. Browser console lines about:
+
+- `static.cloudflareinsights.com/beacon.min.js` CORS / Subresource Integrity mismatches
+- `__cf_bm` cookie rejected for invalid domain (often while loading Supabase Storage images)
+
+are **not** application bugs. The Vite app does not load Cloudflare Insights. Those scripts/cookies are injected or set by the Cloudflare zone (Web Analytics / bot management) or by Cloudflare in front of Supabase.
+
+Do **not** weaken app CORS or CSP to hide them. In the Cloudflare dashboard for `sentinelgrid.tech`:
+
+1. Disable **Web Analytics** (or remove the Insights beacon) if the SRI/CORS beacon errors appear.
+2. Leave Bot Fight / Bot Management as needed for the zone; `__cf_bm` domain warnings on third-party hosts are expected browser noise and are safe to ignore.
+
+A missing hashed `/assets/index-*.js` returning Vercel `NOT_FOUND` as `text/plain` is a separate stale-deploy issue — hard-refresh after Production promotes `main`.

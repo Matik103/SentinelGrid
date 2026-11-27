@@ -12,6 +12,7 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(EmailWorkerService.name);
   private timer: NodeJS.Timeout | undefined;
   private running = false;
+  private active = false;
 
   constructor(private readonly admin: SupabaseAdminService) {}
 
@@ -25,6 +26,7 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy {
       this.log.error("Email worker not started: RESEND_API_KEY and SG_EMAIL_FROM are required");
       return;
     }
+    this.active = true;
     this.timer = setInterval(() => void this.tick(), 5000);
     this.timer.unref();
     void this.tick();
@@ -32,7 +34,12 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleDestroy() {
+    this.active = false;
     if (this.timer) clearInterval(this.timer);
+  }
+
+  isActive(): boolean {
+    return this.active;
   }
 
   private async tick() {

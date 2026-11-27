@@ -39,9 +39,10 @@ export class PayloadStorageService implements OnModuleInit {
     }
   }
 
-  onModuleInit() {
+  async onModuleInit() {
     if (this.store) {
       this.log.log(`payload storage backend=${this.store.backend}`);
+      await this.ensureConfiguredBucket();
       return;
     }
     const production = (process.env.NODE_ENV ?? "development") === "production";
@@ -62,6 +63,7 @@ export class PayloadStorageService implements OnModuleInit {
     try {
       this.store = createObjectStoreFromEnv();
       this.log.log(`payload storage backend=${this.store.backend}`);
+      await this.ensureConfiguredBucket();
     } catch (error) {
       // Allow Nest to boot for /v1/health, auth, and invites before Storage is fully wired.
       // Evidence writes remain fail-closed via createObjectStoreFromEnv on first use.
@@ -74,6 +76,54 @@ export class PayloadStorageService implements OnModuleInit {
         return;
       }
       this.log.warn(`payload storage not ready at boot: ${message}`);
+    }
+  }
+
+  /**
+   * Create the configured private Storage bucket if missing.
+   * Uses the service-role Storage API (not Amazon S3). Idempotent.
+   * RLS policies from migration 20261127100000 remain required for authenticated browser access;
+   * Nest S3-protocol keys bypass object RLS once the bucket exists.
+   */
+  private async ensureConfiguredBucket(): Promise<void> {
+    const backend = (process.env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "").toLowerCase();
+    if (backend !== "s3" && backend !== "s3_compatible") return;
+    if (!this.store || this.store.backend !== "s3_compatible") return;
+
+    const bucket =
+      process.env.S3_BUCKET?.trim() ||
+      process.env.PAYLOAD_S3_BUCKET?.trim() ||
+      "evidence-payloads";
+    if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) {
+      this.log.warn(`refusing storage bucket ensure: invalid bucket name`);
+      return;
+    }
+
+    try {
+      const existing = await this.admin.client.storage.getBucket(bucket);
+      if (!existing.error && existing.data) {
+        this.log.log(`storage bucket ready id=${bucket}`);
+        return;
+      }
+
+      const created = await this.admin.client.storage.createBucket(bucket, {
+        public: false,
+        fileSizeLimit: 10_485_760,
+        allowedMimeTypes: ["application/json", "application/octet-stream"],
+      });
+      if (created.error) {
+        const msg = created.error.message ?? String(created.error);
+        if (/already exists|duplicate|resource already/i.test(msg)) {
+          this.log.log(`storage bucket ready id=${bucket}`);
+          return;
+        }
+        this.log.warn(`storage bucket ensure failed id=${bucket}: ${msg}`);
+        return;
+      }
+      this.log.log(`storage bucket created id=${bucket}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.log.warn(`storage bucket ensure failed id=${bucket}: ${message}`);
     }
   }
 

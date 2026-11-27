@@ -42,7 +42,7 @@ Set on **Render → sentinelgrid-api → Environment** (Blueprint `sync: false` 
 
 Also **delete** `PAYLOAD_STORAGE_BACKEND=local_dev` if present.
 
-After redeploy, `GET /v1/health` should show `"payload_backend":"s3_compatible"` (not `deferred` / `local_dev`). Apply migration `20261127100000` on the remote project so the bucket exists.
+After redeploy, `GET /v1/health` should show `"payload_backend":"s3_compatible"` (not `deferred` / `local_dev`). Nest also ensures the configured private bucket exists at boot via the service-role Storage API (idempotent). Still apply migration `20261127100000` (or paste `supabase/ops/apply-pending-production.sql`) so authenticated Storage RLS policies exist alongside the bucket.
 
 ### Required env summary
 

@@ -17,22 +17,50 @@ describe("PayloadStorageService.onModuleInit production", () => {
     Object.assign(process.env, prev);
   });
 
-  it("ignores local_dev in production without selecting a store", () => {
+  it("ignores local_dev in production without selecting a store", async () => {
     process.env.NODE_ENV = "production";
     process.env.PAYLOAD_STORAGE_BACKEND = "local_dev";
     const admin = { client: {} };
     const svc = new PayloadStorageService(admin as never);
-    svc.onModuleInit();
+    await svc.onModuleInit();
     assert.equal((svc as unknown as { store?: unknown }).store, undefined);
   });
 
-  it("defers when backend unset in production", () => {
+  it("defers when backend unset in production", async () => {
     process.env.NODE_ENV = "production";
     delete process.env.PAYLOAD_STORAGE_BACKEND;
     const admin = { client: {} };
     const svc = new PayloadStorageService(admin as never);
-    svc.onModuleInit();
+    await svc.onModuleInit();
     assert.equal((svc as unknown as { store?: unknown }).store, undefined);
+  });
+
+  it("ensures configured storage bucket via service-role API", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.PAYLOAD_STORAGE_BACKEND = "s3_compatible";
+    process.env.S3_BUCKET = "evidence-payloads";
+    process.env.AWS_REGION = "us-east-1";
+    process.env.S3_ENDPOINT = "https://example.storage.supabase.co/storage/v1/s3";
+    process.env.S3_FORCE_PATH_STYLE = "true";
+    process.env.AWS_ACCESS_KEY_ID = "test-key";
+    process.env.AWS_SECRET_ACCESS_KEY = "test-secret";
+
+    let created = false;
+    const admin = {
+      client: {
+        storage: {
+          getBucket: async () => ({ data: null, error: { message: "Bucket not found" } }),
+          createBucket: async (id: string, opts: { public: boolean }) => {
+            created = id === "evidence-payloads" && opts.public === false;
+            return { data: { name: id }, error: null };
+          },
+        },
+      },
+    };
+    const svc = new PayloadStorageService(admin as never);
+    await svc.onModuleInit();
+    assert.equal(created, true);
+    assert.equal((svc as unknown as { store?: { backend: string } }).store?.backend, "s3_compatible");
   });
 });
 
@@ -96,7 +124,7 @@ describe("PayloadStorageService", () => {
     const store = new LocalDevObjectStore(root);
     const admin = adminCapturingInsert();
     const svc = new PayloadStorageService(admin as never, store);
-    svc.onModuleInit();
+    await svc.onModuleInit();
 
     const org = "22222222-2222-4222-8222-222222222222";
     const meta = await svc.storeRaw(org, { a: 1 }, { classification: "simulated" });

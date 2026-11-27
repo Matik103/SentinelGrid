@@ -104,6 +104,10 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
           <div className="workspace-personalize-header">
             <span className="eyebrow">ACCOUNT</span>
             <strong>{organisationName}</strong>
+            <div className="workspace-personalize-security" aria-label="Account security">
+              <strong>Account secured</strong>
+              <span className="mono">MFA session active (AAL2)</span>
+            </div>
             <p>Personalise this workspace logo, or sign out of SentinelGrid.</p>
           </div>
           <div className="workspace-personalize-preview">

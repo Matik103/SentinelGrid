@@ -3,14 +3,14 @@
  * Inventory hosted schema_migrations, then apply missing work-branch SQL
  * to abaeizgfsskvjklfslrh via Management API. Records each applied version.
  *
- * Auth: SUPABASE_ACCESS_TOKEN or ~/.supabase/access-token
+ * Auth: SUPABASE_ACCESS_TOKEN, ~/.supabase/access-token, or Cursor user-store secret
  * Usage: node scripts/apply-pending-production.mjs [--dry-run]
  */
 import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, existsSync, writeFileSync, unlinkSync } from "node:fs";
 import { resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { homedir } from "node:os";
+import { loadSupabaseAccessToken } from "./load-supabase-access-token.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const projectRef = "abaeizgfsskvjklfslrh";
@@ -19,10 +19,7 @@ const apply = resolve(root, "scripts/apply-remote-sql.mjs");
 const migrationsDir = resolve(root, "supabase/migrations");
 
 function loadToken() {
-  if (process.env.SUPABASE_ACCESS_TOKEN) return process.env.SUPABASE_ACCESS_TOKEN.trim();
-  const p = resolve(homedir(), ".supabase/access-token");
-  if (existsSync(p)) return readFileSync(p, "utf8").trim();
-  throw new Error("No SUPABASE_ACCESS_TOKEN or ~/.supabase/access-token");
+  return loadSupabaseAccessToken();
 }
 
 async function query(token, sql) {

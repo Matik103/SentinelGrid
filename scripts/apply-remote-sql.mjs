@@ -2,11 +2,11 @@
 /**
  * Apply a SQL file to a Supabase project via Management API, statement-by-statement.
  * Usage: node scripts/apply-remote-sql.mjs <project-ref> <path-to.sql>
- * Auth: SUPABASE_ACCESS_TOKEN env or ~/.supabase/access-token
+ * Auth: SUPABASE_ACCESS_TOKEN env, ~/.supabase/access-token, or Cursor user-store secret
  */
 import { readFileSync, existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { resolve } from "node:path";
+import { loadSupabaseAccessToken } from "./load-supabase-access-token.mjs";
 
 const projectRef = process.argv[2];
 const sqlPath = process.argv[3];
@@ -16,10 +16,7 @@ if (!projectRef || !sqlPath) {
 }
 
 function loadToken() {
-  if (process.env.SUPABASE_ACCESS_TOKEN) return process.env.SUPABASE_ACCESS_TOKEN.trim();
-  const p = resolve(homedir(), ".supabase/access-token");
-  if (existsSync(p)) return readFileSync(p, "utf8").trim();
-  throw new Error("No SUPABASE_ACCESS_TOKEN or ~/.supabase/access-token");
+  return loadSupabaseAccessToken();
 }
 
 /** Split SQL into executable statements; respect $tag$ ... $tag$ and standard quotes. */

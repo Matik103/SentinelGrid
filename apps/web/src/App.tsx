@@ -1,7 +1,8 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
 import { onAuthSession, organisationId, restoreSession, setOrganisationId } from "./auth";
+import { currentAssuranceLevel } from "./mfa";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { AuthPanel } from "./AuthPanel";
 import { WorkspaceOnboarding } from "./WorkspaceOnboarding";
@@ -486,12 +487,19 @@ export function App() {
   const [workspaceGate, setWorkspaceGate] = useState<"checking" | "mfa" | "required" | "ready" | "error">("checking");
   const [gateMessage, setGateMessage] = useState<string | null>(null);
   const location = useLocation();
+  const workspaceGateRef = useRef(workspaceGate);
+  workspaceGateRef.current = workspaceGate;
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
   }, [theme]);
 
-  const refreshWorkspaceState = async () => {
+  const enterMfaSetup = (message = "Set up or verify your authenticator to continue. Take your time — your session stays signed in until you finish or sign out.") => {
+    setGateMessage(message);
+    setWorkspaceGate("mfa");
+  };
+
+  const refreshWorkspaceState = async (opts?: { force?: boolean }) => {
     if (!authToken()) {
       setOrganisationId(null);
       setActiveOrganisationId(null);
@@ -499,15 +507,31 @@ export function App() {
       setWorkspaceGate("checking");
       return;
     }
+
+    // Like major apps: detect AAL1 client-side and park on MFA setup.
+    // Do not call Nest APIs (or flip back to "checking") while the user is enrolling —
+    // that remounted AuthPanel and invalidated QR codes / codes mid-setup.
+    try {
+      const level = await currentAssuranceLevel();
+      if (level !== "aal2") {
+        enterMfaSetup();
+        return;
+      }
+    } catch {
+      enterMfaSetup("We could not confirm your authenticator status. Continue MFA setup, or sign out and try again.");
+      return;
+    }
+
+    if (workspaceGateRef.current === "mfa" && !opts?.force) {
+      // AAL2 now — fall through to load workspaces after MFA verify.
+    }
+
     setWorkspaceGate("checking");
     const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>("/v1/orgs/mine");
     if (result.error) {
       const message = result.error.message;
-      // AAL1 sessions get 403 MFA_REQUIRED from Nest. Never leave the gate on
-      // "checking" here — that hung production on VERIFYING WORKSPACE ACCESS.
       if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || result.error.status === 403) {
-        setGateMessage("Complete authenticator verification to continue.");
-        setWorkspaceGate("mfa");
+        enterMfaSetup();
         return;
       }
       setGateMessage(message);
@@ -538,9 +562,11 @@ export function App() {
         setActiveOrganisationId(null);
         setActiveOrganisationName("Workspace");
         setWorkspaceGate("checking");
-      } else {
-        void refreshWorkspaceState();
+        return;
       }
+      // Ignore session churn while the user is mid MFA enrollment/challenge.
+      if (workspaceGateRef.current === "mfa") return;
+      void refreshWorkspaceState();
     });
     let active = true;
     void Promise.all([restoreSession(), ensureConfig()]).then(() => {
@@ -554,14 +580,26 @@ export function App() {
     return () => { active = false; unsubscribe(); };
   }, []);
 
+  // Safety net: never leave VERIFYING forever (network hang, unexpected stall).
+  useEffect(() => {
+    if (workspaceGate !== "checking" || !authReady || !authToken()) return;
+    const timer = window.setTimeout(() => {
+      if (workspaceGateRef.current !== "checking") return;
+      enterMfaSetup("Still verifying access. Continue with authenticator setup, or sign out and try again.");
+    }, 12_000);
+    return () => window.clearTimeout(timer);
+  }, [workspaceGate, authReady]);
+
   const handleAuthChange = () => {
     if (!authToken()) {
       setOrganisationId(null);
       setActiveOrganisationId(null);
       setActiveOrganisationName("Workspace");
       setWorkspaceGate("checking");
+      return;
     }
-    void refreshWorkspaceState();
+    // After MFA verify / sign-in, force workspace load even if we were on mfa.
+    void refreshWorkspaceState({ force: true });
   };
 
   const selectOrganisation = (id: string | null, name: string) => {
@@ -573,15 +611,8 @@ export function App() {
 
   if (!authReady) return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>SECURE COMMAND INITIALISING</span></div>;
   if (!authToken() || window.location.hash.includes("type=recovery")) return <AuthPanel onAuthChange={handleAuthChange} />;
-  // MFA_REQUIRED used to leave workspaceGate on "checking" forever (VERIFYING WORKSPACE ACCESS).
-  if (workspaceGate === "mfa") {
-    return (
-      <div className="auth-boot auth-boot-panel">
-        {gateMessage ? <p className="page-lead">{gateMessage}</p> : null}
-        <AuthPanel onAuthChange={handleAuthChange} />
-      </div>
-    );
-  }
+  // Full-screen MFA setup (QR / TOTP). Do not nest inside the tiny boot spinner layout.
+  if (workspaceGate === "mfa") return <AuthPanel onAuthChange={handleAuthChange} />;
   if (workspaceGate === "checking") return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>VERIFYING WORKSPACE ACCESS</span></div>;
   if (workspaceGate === "required" || workspaceGate === "error") {
     return <WorkspaceOnboarding

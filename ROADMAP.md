@@ -1,8 +1,8 @@
 # SentinelGrid — Product & Engineering Roadmap
 
 **Status:** consolidated working plan  
-**Last reviewed:** 2026-11-27  
-**Canonical implementation branch:** `work/sentinel-command-release-v2`  
+**Last reviewed:** 2026-11-26 (America/Los_Angeles) — Issue #9 design packet  
+**Canonical implementation branch:** `work/sentinel-command-release-v2` (baseline tip at packet start: `17b4af6`)  
 **Purpose:** preserve the existing infrastructure, energy, evidence and command-platform plan while extending SentinelGrid into a broad cyber-physical security and intelligence platform.
 
 This document is the single navigation point for product sequencing. It does not declare unfinished work complete. Capability status must be backed by code, tests and operational evidence.
@@ -74,11 +74,11 @@ Existing and future categories must continue to cover electrical distribution, t
 
 Keep the existing tenant-scoped hierarchy and event/evidence backbone. Add acquisition adapters as peers feeding the common normalized event pipeline.
 
-**Acquisition sources**
-1. Router/AP integrations: DHCP leases, associated clients, AP inventory, configuration snapshots, uptime, firmware, admin/account and security events.
+**Acquisition sources** (three independent families must stay distinct: **network intelligence**, **wireless security**, **electrical intelligence**)
+1. Router/AP integrations: DHCP leases, associated clients, AP inventory, configuration snapshots, uptime, firmware, admin/account and security events. Design-only first adapter: [`docs/ROUTER_AP_ADAPTER_DESIGN.md`](docs/ROUTER_AP_ADAPTER_DESIGN.md) (UniFi Network Application candidate; not implemented).
 2. Network discovery: passive observation first; controlled active discovery where explicitly enabled; endpoint fingerprinting and service inventory.
-3. Wireless security sensors: monitor-mode 802.11 telemetry, AP/controller security events, rogue AP and deauth/disassociation indicators.
-4. Energy devices: smart plugs, outlet monitors, submeters, circuit monitors and utility meters.
+3. Wireless security sensors: monitor-mode 802.11 telemetry, AP/controller security events, rogue AP and deauth/disassociation indicators — **not** inferred from router inventory alone.
+4. Energy devices: smart plugs, outlet monitors, submeters, circuit monitors and utility meters — **not** inferred from DHCP or association tables.
 5. Smart-home/building hubs: Matter, Thread, Zigbee, Z-Wave and vendor APIs where documented and supported.
 6. Physical security: camera/NVR, doorbell, lock, alarm, access-control and sensor event integrations.
 7. OT/industrial connectors: documented Modbus register maps, MQTT topics, OPC UA nodes, SNMP and vendor/BMS interfaces.
@@ -274,4 +274,4 @@ If healthcare becomes a target vertical later, assess it against SentinelGrid's 
 - Do not add vendor-specific fields to the shared core when an adapter-specific metadata envelope is sufficient.
 - Do not declare an integration supported based only on a successful TCP connection.
 
-**Recommended immediate next packet:** complete the Phase 0 operational blockers and, in parallel after the event/device contract is reviewed, implement Milestone 1's first router/AP inventory adapter and device first-seen/change pipeline. Keep wireless monitor-mode detection and electrical outlet sensing as separate acquisition adapters so their hardware prerequisites and claims remain accurate.
+**Recommended immediate next packet:** complete the Phase 0 operational blockers (migrations reconciliation, Criterion G invite proof, backup/restore drill, browser E2E, full quality gate on a Docker-capable runner). After ChatGPT/owner review of [`docs/ROUTER_AP_ADAPTER_DESIGN.md`](docs/ROUTER_AP_ADAPTER_DESIGN.md), implement Milestone 1's first router/AP inventory adapter and device first-seen/change pipeline. Keep wireless monitor-mode detection and electrical outlet sensing as separate acquisition adapters so their hardware prerequisites and claims remain accurate.

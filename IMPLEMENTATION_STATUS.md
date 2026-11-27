@@ -1,10 +1,13 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Last reviewed:** 2026-11-27  
+**Audit baseline tip:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
+**Last reviewed:** 2026-11-26 (America/Los_Angeles) — Issue #9 supervised audit  
 **Overall status:** platform foundation and workbenches are in progress; not production-complete.
 
 Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencing, dependencies and acceptance criteria. This file is the concise status snapshot. The detailed Phase 0 gate remains in [`docs/PHASE0_ACCEPTANCE_CHECKLIST.md`](docs/PHASE0_ACCEPTANCE_CHECKLIST.md).
+
+**Do not treat `origin/main` tip `7b99e49` as the working-branch baseline.** Vercel production may still track `main`; Render Nest tracks this shared work branch.
 
 ## Evidence vocabulary
 
@@ -13,45 +16,72 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 - **Operationally verified:** tested against real deployed services/hardware.
 - **Scaffold:** interface/probe/placeholder exists, not full acquisition.
 - **Open:** required work/evidence remains.
+- **Blocked:** required check could not run in the named environment.
 
 ## Current capability snapshot
 
 | Capability | Current status | Remaining proof / boundary |
 |---|---|---|
-| Auth, tenant bootstrap, RBAC, RLS | Implemented / SQL-tested | Hosted migration rollout, full signup/MFA and cross-tenant runtime E2E |
+| Auth, tenant bootstrap, RBAC, RLS | Implemented / SQL-tested | Hosted migration verification, full signup/MFA and cross-tenant runtime E2E |
 | TOTP MFA / AAL2 | Implemented in code and preview flow | Hosted rollout and browser E2E |
-| Organisation invitations | Implemented / tested | Real Resend delivery and invite acceptance in deployed environment |
+| Organisation invitations | Implemented / tested | Invite link format aligned to `/?invite=` on tip `17b4af6`. Real Resend **delivery + acceptance** still open |
 | Infrastructure registry | Implemented / API-tested | Broader real source onboarding; registry is not auto-discovery |
 | Facility/zone/asset hierarchy | Implemented / tested | Real-world mapping and validation for each integration |
 | Connector lifecycle | Implemented / tested | Operational deployment and supported source integrations |
 | Event ingest, deduplication, DLQ/replay | Implemented / tested | End-to-end source acquisition and production load/failure validation |
 | Evidence chain/checkpoints | Implemented / tested | Production restore, retention and operational verification |
-| Payload storage | Supabase Storage backend code present | Verify latest migrations and live object upload/download/restore; do not describe as Amazon S3 |
+| Payload storage | Implemented / tested (Supabase Storage API) | Live object upload/download/restore; hosted migration for bucket/RLS/backend label unverified. Not Amazon S3 |
 | Audit log | Implemented / tested | Production monitoring and retention verification |
 | Sentinel Command workbenches | Implemented UI/API surfaces | Full authenticated browser E2E and source-backed operational data |
 | Topology / failure scenario lab | Implemented | Registry-based, non-actuating what-if only; not a physical digital twin or engineering-grade simulation |
-| Asset metadata and private media | Schema/API/UI foundation present | Verify hosted migration, exact-match media provenance and full edit/upload lifecycle |
+| Asset metadata and private media | Schema/API/UI foundation present | Hosted migration divergence with `main` branding/media migrations; full edit/upload lifecycle ops |
 | Energy measurement schema/API | Implemented | Live hardware acquisition and end-to-end verification |
 | Energy connector ingestion | Code path present | Validate real source payloads, device maps, idempotency and tenant/facility references end-to-end |
 | Energy anomaly evaluation | Initial explainable rule in code | Limited initial rule set; validate with real history and false-positive controls |
-| Go edge runtime / durable buffer | Implemented / unit-tested | Deploy and verify on target edge hardware |
-| Modbus / MQTT / OPC UA | Read-only connectivity probe scaffolds | No full register polling, MQTT topic subscription or OPC UA session/tag acquisition yet |
-| Universal LAN/router discovery | Planned | First router/AP integration, endpoint identity resolution and first-seen pipeline |
-| Wireless deauth / rogue AP detection | Planned | Requires monitor-mode sensor or AP/controller telemetry; Wi-Fi outage alone is not proof |
-| Outlet/circuit device-level monitoring | Planned | Requires smart plugs, outlet monitors or meters |
+| Go edge runtime / durable buffer | Implemented / unit-tested (tip audit) | Deploy and verify on target edge hardware |
+| Modbus / MQTT / OPC UA | **Scaffold** (read-only connectivity probes) | No full register polling, MQTT topic subscription or OPC UA session/tag acquisition |
+| Network intelligence (router/AP inventory) | **Planned** — design only | See [`docs/ROUTER_AP_ADAPTER_DESIGN.md`](docs/ROUTER_AP_ADAPTER_DESIGN.md). Not implemented |
+| Wireless security (monitor-mode / rogue AP / deauth) | Planned | Separate adapter family; router inventory is **not** wireless attack proof |
+| Electrical intelligence (outlet/circuit/submeter) | Planned | Separate adapter family; not inferred from router DHCP alone |
 | Smart-home / physical security integrations | Planned | Camera/NVR, doorbell, lock, alarm, hub and sensor adapters |
 | Cross-domain cyber-physical correlation | Planned | Requires validated network, wireless, energy and physical source events |
 | Controlled mitigation | Deferred until detection is reliable | Approval, policy, safety, rollback and audit controls required |
 
+## Tip `17b4af6` verification snapshot (Issue #9)
+
+| Check | Result |
+|---|---|
+| Shared branch HEAD = origin | `17b4af6` |
+| GitHub Actions release checks | success — https://github.com/Matik103/SentinelGrid/actions/runs/45945271767 |
+| Vercel tip status | success **preview/branch** deploy (not www production SHA proof) |
+| `npm test -w @sentinelgrid/api` | 54/54 pass (Cursor audit machine) |
+| `npm run build -w @sentinelgrid/web` | pass |
+| `go test ./...` (`edge/connector`) | pass |
+| Full quality gate (`ENGINEERING_QUALITY_GATE.md`) | **blocked** — Docker + Supabase CLI unavailable on audit machine |
+| Nest `/v1/health` | HTTP 200; supabase ok; payload `supabase` / bucket ready; Resend configured+worker on; `build_sha` empty |
+| Criterion G live invite | **open** |
+| Hosted migrations vs repo | **open / unverified**; main↔work divergence |
+
 ## Operational blockers
 
-1. **Hosted Supabase migrations:** repository contains migrations beyond the last remote-applied point documented in prior status notes. The latest remote migration state has not been re-verified here. Review the pending list and apply only after the migration chain is validated.
-2. **Backend deployment:** Render Blueprint exists; deployed service health and production API origin must be verified.
-3. **Email:** worker code exists; actual provider configuration and delivered invite must be verified.
-4. **Backup/recovery:** documentation is not a restore drill. Complete a real database and object-storage recovery test.
-5. **Energy/OT acquisition:** probes are not measurements. Provide real register maps, MQTT topics, OPC UA node IDs and test fixtures before claiming live telemetry.
-6. **Frontend acceptance:** complete authenticated browser E2E for signup, MFA, workspace creation, invitations, registry, energy and evidence flows.
-7. **Production status:** a Vercel preview is not a production release. Verify deployment SHA, backend health, Supabase state and domain before making production claims.
+1. **Hosted Supabase migrations:** last checklist-documented remote point is through `20261125260000` (historical). Hosted state not re-verified at `17b4af6`. Work and `main` migration sets diverge. **Do not apply** until ChatGPT/owner approve an ordered reconciliation.
+2. **Backend deploy SHA correlation:** Render health is green but `monitoring.build_sha` is empty. Set `GIT_SHA` on Render only with explicit infra approval.
+3. **Email:** configuration readiness observed; delivered invite + accept path ops proof still required for Criterion G.
+4. **Backup/recovery:** documentation is not a restore drill. Disposable-environment drill only when authorized.
+5. **Energy/OT acquisition:** probes are not measurements. Provide real register maps, MQTT topics, OPC UA node IDs and fixtures before claiming live telemetry.
+6. **Frontend acceptance:** authenticated browser E2E for signup, MFA, workspace, invitations, registry, energy and evidence remains open.
+7. **Production FE branch:** www may still ship from `main` while Nest ships from this work branch — treat as split-brain until an explicit cutover decision.
+8. **Full quality gate:** tip Node CI ≠ full `audit.sh` DB suite. Run the documented gate on a Docker-capable runner before claiming gate green.
+
+## Acquisition capability boundaries (architectural)
+
+Keep these **independent** even when they share the event/evidence backbone:
+
+| Capability | Observes | Must not claim |
+|---|---|---|
+| Network intelligence | Router/AP inventory, DHCP/association, config/uptime changes | Wireless attacks, physical presence, circuit-level load |
+| Wireless security | Monitor-mode / controller security telemetry | Endpoint inventory completeness from RF alone; electrical load |
+| Electrical intelligence | Smart outlets, submeters, circuit monitors | Device identity from watts alone; Wi-Fi deauth proof |
 
 ## Rules
 

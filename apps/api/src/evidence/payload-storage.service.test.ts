@@ -63,6 +63,34 @@ describe("PayloadStorageService.onModuleInit production", () => {
     assert.equal((svc as unknown as { store?: { backend: string } }).store?.backend, "s3_compatible");
     assert.equal(svc.getConfiguredBucketStatus(), "created");
   });
+
+  it("ensures bucket even when S3 object-store env is incomplete", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.PAYLOAD_STORAGE_BACKEND = "s3_compatible";
+    process.env.S3_BUCKET = "evidence-payloads";
+    delete process.env.AWS_REGION;
+    delete process.env.S3_REGION;
+    delete process.env.AWS_ACCESS_KEY_ID;
+    delete process.env.AWS_SECRET_ACCESS_KEY;
+
+    let created = false;
+    const admin = {
+      client: {
+        storage: {
+          getBucket: async () => ({ data: null, error: { message: "Bucket not found" } }),
+          createBucket: async () => {
+            created = true;
+            return { data: { name: "evidence-payloads" }, error: null };
+          },
+        },
+      },
+    };
+    const svc = new PayloadStorageService(admin as never);
+    await svc.onModuleInit();
+    assert.equal(created, true);
+    assert.equal(svc.getConfiguredBucketStatus(), "created");
+    assert.equal((svc as unknown as { store?: unknown }).store, undefined);
+  });
 });
 
 function adminCapturingInsert() {

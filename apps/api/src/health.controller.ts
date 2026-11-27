@@ -1,4 +1,4 @@
-import { Controller, Get, Optional, ServiceUnavailableException } from "@nestjs/common";
+import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
 import { SupabaseAdminService } from "./common/supabase-admin.service.js";
 import { EmailWorkerService } from "./common/email-worker.service.js";
 import { PayloadStorageService } from "./evidence/payload-storage.service.js";
@@ -8,7 +8,7 @@ export class HealthController {
   constructor(
     private readonly admin: SupabaseAdminService,
     private readonly emailWorker: EmailWorkerService,
-    @Optional() private readonly payloads?: PayloadStorageService,
+    private readonly payloads: PayloadStorageService,
   ) {}
 
   @Get()
@@ -60,7 +60,7 @@ export class HealthController {
         email_transport: emailTransport,
         email_worker_enabled: emailWorkerEnabled,
         email_resend_configured: emailSecretsConfigured,
-        payload_bucket: this.payloads?.getConfiguredBucketStatus() ?? "unknown",
+        payload_bucket: this.payloads.getConfiguredBucketStatus(),
         build_sha: process.env.GIT_SHA ?? process.env.GITHUB_SHA ?? null,
       },
     };

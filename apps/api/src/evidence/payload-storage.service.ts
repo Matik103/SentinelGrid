@@ -65,12 +65,12 @@ export class PayloadStorageService implements OnModuleInit {
           "payload storage deferred until Supabase Storage is configured (PAYLOAD_STORAGE_BACKEND=s3_compatible + S3_BUCKET + S3_ENDPOINT); evidence writes stay fail-closed",
         );
       }
+      this.bucketStatus = "skipped";
       return;
     }
     try {
       this.store = createObjectStoreFromEnv();
       this.log.log(`payload storage backend=${this.store.backend}`);
-      await this.ensureConfiguredBucket();
     } catch (error) {
       // Allow Nest to boot for /v1/health, auth, and invites before Storage is fully wired.
       // Evidence writes remain fail-closed via createObjectStoreFromEnv on first use.
@@ -80,10 +80,12 @@ export class PayloadStorageService implements OnModuleInit {
         this.log.log(
           "payload storage deferred (local_dev unavailable in production); configure Supabase Storage s3_compatible backend",
         );
-        return;
+      } else {
+        this.log.warn(`payload storage not ready at boot: ${message}`);
       }
-      this.log.warn(`payload storage not ready at boot: ${message}`);
     }
+    // Bucket ensure uses the service-role Storage API and does not need AWS_* S3 keys.
+    await this.ensureConfiguredBucket();
   }
 
   /**
@@ -95,10 +97,6 @@ export class PayloadStorageService implements OnModuleInit {
   private async ensureConfiguredBucket(): Promise<void> {
     const backend = (process.env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "").toLowerCase();
     if (backend !== "s3" && backend !== "s3_compatible") {
-      this.bucketStatus = "skipped";
-      return;
-    }
-    if (!this.store || this.store.backend !== "s3_compatible") {
       this.bucketStatus = "skipped";
       return;
     }

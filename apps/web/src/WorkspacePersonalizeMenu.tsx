@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { canManageWorkspaceBranding, getWorkspaceBranding, uploadWorkspaceLogo } from "./api";
+import { signOut } from "./auth";
 
 type Props = {
   organisationId: string | null;
   organisationName: string;
   onBrandingChange?: () => void;
+  onSignOut?: () => void;
 };
 
 function initials(name: string) {
   return name.trim().slice(0, 2).toUpperCase() || "SG";
 }
 
-export function WorkspacePersonalizeMenu({ organisationId, organisationName, onBrandingChange }: Props) {
+export function WorkspacePersonalizeMenu({ organisationId, organisationName, onBrandingChange, onSignOut }: Props) {
   const [open, setOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [canManage, setCanManage] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -69,6 +72,19 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
     }
   }
 
+  async function handleSignOut() {
+    setSigningOut(true);
+    setMessage(null);
+    try {
+      await signOut();
+      setOpen(false);
+      onSignOut?.();
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : "Could not sign out.");
+      setSigningOut(false);
+    }
+  }
+
   return (
     <div className="workspace-personalize" ref={rootRef}>
       <button
@@ -76,7 +92,7 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
         className="user-orb user-orb-button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label="Personalise workspace"
+        aria-label="Account and workspace"
         onClick={() => setOpen((value) => !value)}
       >
         {logoUrl
@@ -84,11 +100,11 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
           : initials(organisationName)}
       </button>
       {open && (
-        <div className="workspace-personalize-panel" role="dialog" aria-label="Personalise workspace">
+        <div className="workspace-personalize-panel" role="dialog" aria-label="Account and workspace">
           <div className="workspace-personalize-header">
-            <span className="eyebrow">PERSONALISE</span>
+            <span className="eyebrow">ACCOUNT</span>
             <strong>{organisationName}</strong>
-            <p>Add a logo for this workspace. It shows in the left switcher when you change workspaces.</p>
+            <p>Personalise this workspace logo, or sign out of SentinelGrid.</p>
           </div>
           <div className="workspace-personalize-preview">
             {logoUrl
@@ -111,7 +127,7 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
               <button
                 type="button"
                 className="btn workspace-personalize-upload"
-                disabled={busy || !organisationId}
+                disabled={busy || signingOut || !organisationId}
                 onClick={() => fileRef.current?.click()}
               >
                 {busy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload logo"}
@@ -124,6 +140,14 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
                 : "Select a workspace first."}
             </p>
           )}
+          <button
+            type="button"
+            className="btn secondary workspace-personalize-signout"
+            disabled={busy || signingOut}
+            onClick={() => void handleSignOut()}
+          >
+            {signingOut ? "Signing out…" : "Sign out"}
+          </button>
           {message && <p className="workspace-personalize-message" role="status">{message}</p>}
         </div>
       )}

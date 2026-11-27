@@ -4560,3 +4560,9 @@ input, select, textarea, button, .btn, a { transition-timing-function: cubic-bez
 .workspace-personalize-message {
   color: #7ddacb;
 }
+
+.workspace-personalize-signout {
+  width: 100%;
+  justify-content: center;
+  margin-top: .65rem;
+}

@@ -481,7 +481,6 @@ function ResourcePage({
 }
 
 export function App() {
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [activeOrganisationId, setActiveOrganisationId] = useState<string | null>(() => organisationId());
   const [activeOrganisationName, setActiveOrganisationName] = useState("Workspace");
   const [authRefreshKey, setAuthRefreshKey] = useState(0);
@@ -493,8 +492,8 @@ export function App() {
   workspaceGateRef.current = workspaceGate;
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
-  }, [theme]);
+    document.documentElement.setAttribute("data-theme", "dark");
+  }, []);
 
   const enterMfaSetup = (message = "Set up or verify your authenticator to continue. Take your time — your session stays signed in until you finish or sign out.") => {
     setGateMessage(message);
@@ -659,11 +658,6 @@ export function App() {
           </div>)}
         </nav>
         <AuthPanel surface="sidebar" onAuthChange={handleAuthChange} />
-        <div className="toolbar">
-          <button type="button" className="btn secondary" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}>
-            {theme === "dark" ? "Light theme" : "Dark theme"}
-          </button>
-        </div>
       </aside>
       <main className="main">
         <header className="topbar">
@@ -678,6 +672,7 @@ export function App() {
               organisationId={activeOrganisationId}
               organisationName={activeOrganisationName}
               onBrandingChange={() => setAuthRefreshKey((value) => value + 1)}
+              onSignOut={handleAuthChange}
             />
           </div>
         </header>

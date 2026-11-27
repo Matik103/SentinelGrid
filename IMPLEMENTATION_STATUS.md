@@ -1,11 +1,11 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `4aac47451424a881a47641d02fe4548f8eb3b2c9` — web auth/recovery/MFA gate aligned with `main` closeout `95c1ef3`  
-**Prior tip (pre-auth port):** `0034a558a0edf035ff0e4541953470114ad2f63e`  
+**Current tip:** `e3fc54218e3f7d827e424b5fa220ffcfe0ee36b2` — auth leftovers: magic-byte image checks, logo remove, repo-only branding storage AAL2 policy  
+**Prior tip (auth port + status):** `93f8ceb847060d25d6448c8ebb7e1e8595aa29d2` (www still `main` @ `95c1ef3` until #30)  
 **Stale tip previously recorded in docs:** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
-**Last reviewed:** 2026-11-27 (America/Los_Angeles) — auth audit closeout ported onto shared work tip  
+**Last reviewed:** 2026-11-27 (America/Los_Angeles) — Issue #9 leftovers landed on work tip; AAL2 storage migration unapplied  
 **Overall status:** platform foundation and workbenches are in progress; not production-complete. www production tracks `main`; this branch is the shared implementation tip.
 
 Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencing, dependencies and acceptance criteria. This file is the concise status snapshot. The detailed Phase 0 gate remains in [`docs/PHASE0_ACCEPTANCE_CHECKLIST.md`](docs/PHASE0_ACCEPTANCE_CHECKLIST.md).
@@ -84,7 +84,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 
 ## Operational blockers
 
-1. **Hosted Supabase migrations:** **ops applied** 2026-11-26 PT on `abaeizgfsskvjklfslrh` through `20261127150000` (20 versions). Created missing `supabase_migrations.schema_migrations`; applied `supabase` payload backend constraint; re-applied late identity/storage/branding SQL. Dry-run pending=0. Plan history: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md).
+1. **Hosted Supabase migrations:** **ops applied** 2026-11-26 PT on `abaeizgfsskvjklfslrh` through `20261127150000` (20 versions). Repo tip adds unapplied `20261127160000_workspace_branding_aal2.sql` (restrictive AAL2 on `workspace-branding` storage) — **do not apply without approval**. Plan history: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md).
 2. **Backend deploy SHA correlation:** Render health is green but `monitoring.build_sha` is empty. Set `GIT_SHA` on Render only with explicit infra approval.
 3. **Email:** configuration readiness observed; delivered invite + accept path ops proof still required for Criterion G.
 4. **Backup/recovery:** disposable drill design in [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md). Execute only when authorized on a non-production project.

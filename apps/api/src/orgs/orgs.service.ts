@@ -216,7 +216,7 @@ export class OrgsService {
     token: string,
     organisationId: string,
   ): Promise<{ channel: string; outbox_id?: string; status: string }> {
-    const appUrl = (process.env.SG_PUBLIC_APP_URL ?? "https://sentinelgrid-delta.vercel.app").replace(/\/$/, "");
+    const appUrl = (process.env.SG_PUBLIC_APP_URL ?? "https://www.sentinelgrid.tech").replace(/\/$/, "");
     const inviteUrl = `${appUrl}/?invite=${encodeURIComponent(token)}`;
     const bodyText = [
       "You have been invited to a SentinelGrid workspace.",

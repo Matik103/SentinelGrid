@@ -12,9 +12,9 @@ services:
       - key: PORT
         value: "8080"
       - key: CORS_ORIGINS
-        value: https://sentinelgrid-delta.vercel.app
+        value: https://www.sentinelgrid.tech,https://sentinelgrid.tech,https://sentinelgrid-delta.vercel.app
       - key: SG_PUBLIC_APP_URL
-        value: https://sentinelgrid-delta.vercel.app
+        value: https://www.sentinelgrid.tech
       - key: SG_EMAIL_TRANSPORT
         value: resend
       - key: SG_EMAIL_WORKER_ENABLED

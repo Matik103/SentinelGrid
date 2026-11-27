@@ -36,7 +36,8 @@ describe("OrgsService invitation flow", () => {
         status: "sent",
       }),
     };
-    const svc = new OrgsService({ create: () => sb } as never, outbox as never);
+    const admin = { client: { from: () => ({ select: () => ({ in: async () => ({ data: [], error: null }) }) }) } };
+    const svc = new OrgsService({ create: () => sb } as never, admin as never, outbox as never);
     svc.requirePermission = async () => undefined;
     const prev = process.env.NODE_ENV;
     const prevTransport = process.env.SG_EMAIL_TRANSPORT;
@@ -93,7 +94,7 @@ describe("OrgsService invitation flow", () => {
         status: "pending",
       }),
     };
-    const svc = new OrgsService({ create: () => sb } as never, outbox as never);
+    const svc = new OrgsService({ create: () => sb } as never, { client: {} } as never, outbox as never);
     svc.requirePermission = async () => undefined;
     const prev = process.env.NODE_ENV;
     const prevTransport = process.env.SG_EMAIL_TRANSPORT;
@@ -134,7 +135,7 @@ describe("OrgsService invitation flow", () => {
         };
       },
     };
-    const svc = new OrgsService({ create: () => sb } as never, { enqueue: async () => ({}) } as never);
+    const svc = new OrgsService({ create: () => sb } as never, { client: {} } as never, { enqueue: async () => ({}) } as never);
     const out = await svc.acceptInvite({ id: "u", accessToken: "t" } as never, {
       token: "tokensecretvalue1234567890",
     });
@@ -180,7 +181,7 @@ describe("OrgsService invitation flow", () => {
         },
       }),
     };
-    const svc = new OrgsService({ create: () => sb } as never, { enqueue: async () => ({}) } as never);
+    const svc = new OrgsService({ create: () => sb } as never, { client: {} } as never, { enqueue: async () => ({}) } as never);
     svc.requirePermission = async (...args: unknown[]) => {
       calls.push(["perm", ...args]);
     };

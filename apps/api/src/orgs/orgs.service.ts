@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { z } from "zod";
 import { SupabaseUserFactory } from "../common/supabase-user.factory.js";
+import { SupabaseAdminService } from "../common/supabase-admin.service.js";
 import { EmailOutboxService } from "../common/email-outbox.service.js";
 import type { AuthUser } from "../auth/auth.types.js";
 
@@ -40,6 +41,7 @@ export class OrgsService {
 
   constructor(
     private readonly users: SupabaseUserFactory,
+    private readonly admin: SupabaseAdminService,
     private readonly outbox: EmailOutboxService,
   ) {}
 
@@ -208,7 +210,33 @@ export class OrgsService {
       .select("user_id, role_id, status, roles(key, name)")
       .eq("organisation_id", organisationId);
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    const members = data ?? [];
+    const userIds = [...new Set(members.map((row) => String((row as { user_id?: string }).user_id ?? "")).filter(Boolean))];
+    if (!userIds.length) return members;
+
+    const { data: profiles, error: profileError } = await this.admin.client
+      .from("profiles")
+      .select("user_id, email, display_name")
+      .in("user_id", userIds);
+    if (profileError) {
+      this.log.warn(`Could not enrich membership profiles: ${profileError.message}`);
+      return members;
+    }
+    const byUser = new Map(
+      (profiles ?? []).map((profile) => [
+        String((profile as { user_id: string }).user_id),
+        profile as { user_id: string; email?: string | null; display_name?: string | null },
+      ]),
+    );
+    return members.map((row) => {
+      const member = row as { user_id: string; role_id?: string; status?: string; roles?: unknown };
+      const profile = byUser.get(String(member.user_id));
+      return {
+        ...member,
+        email: profile?.email ?? null,
+        display_name: profile?.display_name ?? null,
+      };
+    });
   }
 
   private async deliverInviteEmail(

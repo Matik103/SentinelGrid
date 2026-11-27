@@ -196,7 +196,6 @@ export function AssetEnergyProfile() {
         >
           Export CSV
         </button>
-        <span className="data-integrity-note">NO SYNTHETIC LIVE VALUES</span>
       </div>
 
       {error && <div className="inline-notice warning">{error}</div>}

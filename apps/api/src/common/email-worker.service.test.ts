@@ -16,5 +16,6 @@ describe("EmailWorkerService surface", () => {
     assert.match(source, /claim_email_outbox/);
     assert.match(source, /finish_email_outbox/);
     assert.match(source, /Idempotency-Key/);
+    assert.match(source, /api\.resend\.com\/emails/);
   });
 });

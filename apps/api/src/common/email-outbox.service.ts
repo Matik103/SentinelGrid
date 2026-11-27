@@ -53,13 +53,22 @@ export class EmailOutboxService {
     return data as OutboxRow;
   }
 
-  /** Local transport: log and mark sent. Production leaves pending. */
+  /**
+   * Immediate drain for local_log only.
+   * `resend` and `none` leave rows pending for EmailWorkerService (or ops).
+   */
   private async drainLocal(row: OutboxRow): Promise<void> {
     const production = process.env.NODE_ENV === "production";
     const transport = process.env.SG_EMAIL_TRANSPORT ?? (production ? "none" : "local_log");
     if (transport === "none") {
       this.log.warn(
         `email outbox pending id=${row.id} template=${row.template_key} to=${row.to_email} (no transport)`,
+      );
+      return;
+    }
+    if (transport === "resend") {
+      this.log.log(
+        `email outbox queued for Resend worker id=${row.id} template=${row.template_key} to=${row.to_email}`,
       );
       return;
     }

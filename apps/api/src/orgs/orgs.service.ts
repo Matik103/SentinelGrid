@@ -236,10 +236,10 @@ export class OrgsService {
         bodyText,
         payload: { organisation_id: organisationId, accept_url: inviteUrl },
       });
-      const channel =
-        process.env.NODE_ENV === "production" && (process.env.SG_EMAIL_TRANSPORT ?? "none") === "none"
-          ? "outbox_pending"
-          : "outbox";
+      const production = process.env.NODE_ENV === "production";
+      const transport = process.env.SG_EMAIL_TRANSPORT ?? (production ? "none" : "local_log");
+      // resend/none leave the row pending for the leased worker (or ops); local_log drains inline.
+      const channel = transport === "local_log" ? "outbox" : "outbox_pending";
       return { channel, outbox_id: row.id, status: row.status };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

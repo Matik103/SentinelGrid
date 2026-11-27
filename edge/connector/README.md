@@ -31,14 +31,35 @@ SG_CONNECTOR_LIVE_PROBES=1 ./bin/connector -config config.example.yaml
 
 ## Email outbox worker
 
-The API includes an opt-in Resend worker. It is disabled by default and requires these deployment environment variables:
+Invitations enqueue into `email_outbox`. Delivery is leased (`claim_email_outbox` / `finish_email_outbox`) with Resend idempotency key = outbox UUID.
+
+### Preferred production path (Supabase Edge Function)
+
+`supabase/functions/email-outbox-worker` runs on the hosted project and reads Edge Function secrets:
+
+- `RESEND_API_KEY` (already configured on production project `abaeizgfsskvjklfslrh`)
+- `SG_EMAIL_FROM` (required; verified Resend sender, e.g. `SentinelGrid <noreply@your-domain>` — use Resend dashboard domain auth; for Resend test-only sends, `beth.t@example.com` to the account owner)
+
+Deploy (requires `SUPABASE_ACCESS_TOKEN`):
+
+```bash
+npx supabase secrets list --project-ref abaeizgfsskvjklfslrh
+# ensure SG_EMAIL_FROM is set (never commit the value)
+npx supabase functions deploy email-outbox-worker --project-ref abaeizgfsskvjklfslrh
+# invoke with service-role Authorization Bearer (cron or ops)
+```
+
+Verify secret *names* only: `node scripts/supabase-email-secrets-check.mjs abaeizgfsskvjklfslrh`
+
+### Optional Nest worker (Render / Docker host)
+
+When Nest also has the Resend secrets, set:
 
 - `SG_EMAIL_WORKER_ENABLED=true`
 - `SG_EMAIL_TRANSPORT=resend`
-- `RESEND_API_KEY` (store as a deployment secret; never commit it)
-- `SG_EMAIL_FROM` (a verified sender identity)
+- `RESEND_API_KEY` / `SG_EMAIL_FROM` (host secrets — never commit)
 
-Apply migration `20261125260000_phase0_email_worker_leases.sql` before enabling the worker. The worker claims rows with expiring leases, uses the outbox UUID as the provider idempotency key, retries transient failures with backoff, and marks exhausted messages failed. Verify provider-domain authentication and delivery in the Resend account before enabling production sending.
+Lease + Resend idempotency keep dual Nest/Edge workers safe. Apply migration `20261125260000_phase0_email_worker_leases.sql` before enabling either worker.
 
 ## Security notes
 

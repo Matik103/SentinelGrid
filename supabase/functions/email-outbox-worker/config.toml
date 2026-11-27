@@ -1,0 +1,3 @@
+# Require a JWT so anonymous callers cannot drain the outbox.
+# Invoke with the service-role key (Nest cron, Supabase scheduled function, or ops script).
+verify_jwt = true

@@ -39,7 +39,9 @@ describe("OrgsService invitation flow", () => {
     const svc = new OrgsService({ create: () => sb } as never, outbox as never);
     svc.requirePermission = async () => undefined;
     const prev = process.env.NODE_ENV;
+    const prevTransport = process.env.SG_EMAIL_TRANSPORT;
     process.env.NODE_ENV = "test";
+    delete process.env.SG_EMAIL_TRANSPORT;
     try {
       const out = await svc.invite(
         { id: "user-1", accessToken: "t" } as never,
@@ -55,6 +57,60 @@ describe("OrgsService invitation flow", () => {
       assert.equal((rpcCalls[1] as { name: string }).name, "create_organisation_invitation");
     } finally {
       process.env.NODE_ENV = prev;
+      if (prevTransport === undefined) delete process.env.SG_EMAIL_TRANSPORT;
+      else process.env.SG_EMAIL_TRANSPORT = prevTransport;
+    }
+  });
+
+  it("reports outbox_pending when Resend transport is configured", async () => {
+    const sb = {
+      rpc: async (name: string) => {
+        if (name === "expire_organisation_invitations") {
+          return { data: { expired_count: 0 }, error: null };
+        }
+        return {
+          data: {
+            id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            organisation_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            email: "invitee@example.com",
+            role_key: "read_only_viewer",
+            role_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            status: "pending",
+            token: "tokensecretvalue1234567890",
+          },
+          error: null,
+        };
+      },
+    };
+    const outbox = {
+      enqueue: async () => ({
+        id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        organisation_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        template_key: "organisation.invite",
+        to_email: "invitee@example.com",
+        subject: "SentinelGrid organisation invitation",
+        body_text: "body",
+        status: "pending",
+      }),
+    };
+    const svc = new OrgsService({ create: () => sb } as never, outbox as never);
+    svc.requirePermission = async () => undefined;
+    const prev = process.env.NODE_ENV;
+    const prevTransport = process.env.SG_EMAIL_TRANSPORT;
+    process.env.NODE_ENV = "production";
+    process.env.SG_EMAIL_TRANSPORT = "resend";
+    try {
+      const out = await svc.invite(
+        { id: "user-1", accessToken: "t" } as never,
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        { email: "invitee@example.com", role_key: "read_only_viewer" },
+      );
+      assert.equal(out.delivery.channel, "outbox_pending");
+      assert.equal(out.delivery.status, "pending");
+    } finally {
+      process.env.NODE_ENV = prev;
+      if (prevTransport === undefined) delete process.env.SG_EMAIL_TRANSPORT;
+      else process.env.SG_EMAIL_TRANSPORT = prevTransport;
     }
   });
 

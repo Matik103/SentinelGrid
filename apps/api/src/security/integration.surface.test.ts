@@ -40,10 +40,20 @@ describe("Phase 0 integration surfaces", () => {
 
     const outbox = readFileSync(join(root, "apps/api/src/common/email-outbox.service.ts"), "utf8");
     assert.match(outbox, /email_outbox/);
+    assert.match(outbox, /transport === "resend"/);
 
     const worker = readFileSync(join(root, "apps/api/src/common/email-worker.service.ts"), "utf8");
     assert.match(worker, /SG_EMAIL_WORKER_ENABLED/);
     assert.match(worker, /claim_email_outbox/);
+
+    const edgeWorker = readFileSync(
+      join(root, "supabase/functions/email-outbox-worker/index.ts"),
+      "utf8",
+    );
+    assert.match(edgeWorker, /RESEND_API_KEY/);
+    assert.match(edgeWorker, /SG_EMAIL_FROM/);
+    assert.match(edgeWorker, /claim_email_outbox/);
+    assert.match(edgeWorker, /Idempotency-Key/);
   });
 
   it("publishes OpenAPI and acceptance checklist", () => {

@@ -258,8 +258,7 @@ export function AuthPanel({ onAuthChange }: Props) {
           <button type="button" className="btn secondary" onClick={() => void onAddBackupAuthenticator()} disabled={busy}>{busy ? "Preparing…" : "Add backup authenticator"}</button>
           <button type="button" onClick={() => void onSignOut()} disabled={busy}>{busy ? "Signing out…" : "Sign out"}</button>
         </div>
-      ) : (
-        {creatingAccount ? (
+      ) : creatingAccount ? (
           <form onSubmit={(event) => void onSignUp(event)} className="auth-form">
             <label>Your name
               <input type="text" required maxLength={120} value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" />
@@ -285,7 +284,6 @@ export function AuthPanel({ onAuthChange }: Props) {
             <button type="button" className="btn secondary" disabled={busy} onClick={() => { setCreatingAccount(true); setError(null); setNotice(null); }}>Create an account</button>
             {import.meta.env.DEV && <p className="auth-dev-hint">Local development may use VITE_DEV_ACCESS_TOKEN. Production access always requires a verified Supabase MFA session.</p>}
           </form>
-        )}
       )}
     </div>
   );

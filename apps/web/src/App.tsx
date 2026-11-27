@@ -4,6 +4,7 @@ import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canMa
 import { onAuthSession, organisationId, restoreSession, setOrganisationId } from "./auth";
 import { currentAssuranceLevel } from "./mfa";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { WorkspacePersonalizeMenu } from "./WorkspacePersonalizeMenu";
 import { AuthPanel } from "./AuthPanel";
 import { WorkspaceOnboarding } from "./WorkspaceOnboarding";
 import { AssetRegistryPage } from "./AssetRegistryPage";
@@ -294,7 +295,7 @@ function Overview() {
   );
 }
 
-function OrganisationPanel() {
+function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void } = {}) {
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<Record<string, unknown>[]>([]);
   const [invites, setInvites] = useState<Record<string, unknown>[]>([]);
@@ -343,7 +344,8 @@ function OrganisationPanel() {
     try {
       const branding = await uploadWorkspaceLogo(org, file);
       setLogoUrl(branding.logoUrl);
-      setLogoMessage("Workspace logo saved. The command centre now uses your organisation’s identity.");
+      setLogoMessage("Workspace logo saved. It appears in the workspace switcher and command overview.");
+      onBrandingChange?.();
     } catch (cause) {
       setLogoMessage(cause instanceof Error ? cause.message : "Could not upload the workspace logo.");
     } finally {
@@ -664,7 +666,21 @@ export function App() {
         </div>
       </aside>
       <main className="main">
-        <header className="topbar"><div className="topbar-context"><span>WORKSPACE</span><b>/</b><span className="topbar-workspace-name">{activeOrganisationName}</span><b>/</b><strong>{currentPage}</strong></div><div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
+        <header className="topbar">
+          <div className="topbar-context">
+            <span>WORKSPACE</span><b>/</b>
+            <span className="topbar-workspace-name">{activeOrganisationName}</span><b>/</b>
+            <strong>{currentPage}</strong>
+          </div>
+          <div className="topbar-tools">
+            <span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
+            <WorkspacePersonalizeMenu
+              organisationId={activeOrganisationId}
+              organisationName={activeOrganisationName}
+              onBrandingChange={() => setAuthRefreshKey((value) => value + 1)}
+            />
+          </div>
+        </header>
         <div className="main-content">
         <Routes key={activeOrganisationId ?? "no-workspace"}>
           <Route path="/" element={<Overview />} />
@@ -672,7 +688,7 @@ export function App() {
           <Route path="/incidents" element={<IncidentWorkbenchPage />} />
           <Route path="/replay" element={<EventReplayPage />} />
           <Route path="/scenarios" element={<ScenarioWorkbenchPage />} />
-          <Route path="/organisation" element={<OrganisationPanel />} />
+          <Route path="/organisation" element={<OrganisationPanel onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
           <Route
             path="/facilities"
             element={
@@ -857,7 +873,7 @@ export function App() {
               />
             }
           />
-          <Route path="/users" element={<OrganisationPanel />} />
+          <Route path="/users" element={<OrganisationPanel onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
         </Routes>
         </div>
       </main>

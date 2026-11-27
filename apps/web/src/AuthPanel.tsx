@@ -4,7 +4,7 @@ import {
   signInWithPassword, signOut, signUpWithPassword, updatePassword,
 } from "./auth";
 import {
-  beginTotpChallenge, beginTotpEnrollment, prepareMfaSession, verifyTotpChallenge,
+  beginTotpChallenge, prepareMfaSession, verifyTotpChallenge,
   type MfaChallenge, type MfaFactor,
 } from "./mfa";
 
@@ -218,18 +218,6 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
   if (signedIn && view !== "reset") return (
     <section className="auth-panel auth-panel-compact" aria-label="Account">
       <div className="auth-status"><strong>Account secured</strong><span className="mono">MFA session active (AAL2)</span></div>
-      {surface === "sidebar" && (
-        <button type="button" className="btn secondary" disabled={busy} onClick={() => {
-          setBusy(true); setError(null);
-          void beginTotpEnrollment()
-            .then((challenge) => { setMfaPending(true); setMfa(challenge); })
-            .catch((err) => setError(friendlyAuthError(err instanceof Error ? err.message : String(err))))
-            .finally(() => setBusy(false));
-        }}>{busy ? "Preparing…" : "Add backup authenticator"}</button>
-      )}
-      <button type="button" onClick={() => void signOut().then(() => onAuthChange?.()).catch((err) => setError(String(err)))} disabled={busy}>
-        {busy ? "Signing out…" : "Sign out"}
-      </button>
       {error && <p className="auth-inline-error" role="alert">{error}</p>}
     </section>
   );

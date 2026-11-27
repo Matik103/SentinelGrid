@@ -543,6 +543,8 @@ export function App() {
       setOrganisationId(null);
       setActiveOrganisationId(null);
       setActiveOrganisationName("Workspace");
+      // MFA is done — clear any leftover authenticator banner before workspace create.
+      setGateMessage(null);
       setWorkspaceGate("required");
       return;
     }
@@ -630,8 +632,10 @@ export function App() {
   if (workspaceGate === "mfa") return <AuthPanel surface="page" onAuthChange={handleAuthChange} />;
   if (workspaceGate === "checking") return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>VERIFYING WORKSPACE ACCESS</span></div>;
   if (workspaceGate === "required" || workspaceGate === "error") {
+    // Never forward MFA setup copy onto the workspace screen — that step is already complete.
+    const workspaceError = workspaceGate === "error" ? gateMessage : null;
     return <WorkspaceOnboarding
-      initialError={gateMessage}
+      initialError={workspaceError}
       onComplete={() => { void refreshWorkspaceState({ force: true }); }}
       onRetry={() => { void refreshWorkspaceState({ force: true }); }}
     />;

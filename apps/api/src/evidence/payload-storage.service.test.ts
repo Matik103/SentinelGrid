@@ -42,7 +42,7 @@ describe("PayloadStorageService.onModuleInit production", () => {
     process.env.PAYLOAD_STORAGE_BACKEND = "supabase";
     process.env.PAYLOAD_STORAGE_BUCKET = "evidence-payloads";
 
-    let created = false;
+    const created = new Set<string>();
     const admin = {
       client: {
         storage: {
@@ -53,7 +53,8 @@ describe("PayloadStorageService.onModuleInit production", () => {
           }),
           getBucket: async () => ({ data: null, error: { message: "Bucket not found" } }),
           createBucket: async (id: string, opts: { public: boolean }) => {
-            created = id === "evidence-payloads" && opts.public === false;
+            if (id === "evidence-payloads" && opts.public === false) created.add(id);
+            if (id === "workspace-branding" && opts.public === true) created.add(id);
             return { data: { name: id }, error: null };
           },
         },
@@ -61,9 +62,11 @@ describe("PayloadStorageService.onModuleInit production", () => {
     };
     const svc = new PayloadStorageService(admin as never);
     await svc.onModuleInit();
-    assert.equal(created, true);
+    assert.equal(created.has("evidence-payloads"), true);
+    assert.equal(created.has("workspace-branding"), true);
     assert.equal(svc.getActiveBackend(), "supabase");
     assert.equal(svc.getConfiguredBucketStatus(), "created");
+    assert.equal(svc.getWorkspaceBrandingBucketStatus(), "created");
   });
 
   it("maps legacy s3_compatible env to Supabase Storage", async () => {
@@ -74,21 +77,22 @@ describe("PayloadStorageService.onModuleInit production", () => {
     delete process.env.AWS_ACCESS_KEY_ID;
     delete process.env.AWS_SECRET_ACCESS_KEY;
 
-    let created = false;
+    const created = new Set<string>();
     const admin = {
       client: {
         storage: {
           getBucket: async () => ({ data: null, error: { message: "Bucket not found" } }),
-          createBucket: async () => {
-            created = true;
-            return { data: { name: "evidence-payloads" }, error: null };
+          createBucket: async (id: string) => {
+            created.add(id);
+            return { data: { name: id }, error: null };
           },
         },
       },
     };
     const svc = new PayloadStorageService(admin as never);
     await svc.onModuleInit();
-    assert.equal(created, true);
+    assert.equal(created.has("evidence-payloads"), true);
+    assert.equal(created.has("workspace-branding"), true);
     assert.equal(svc.getActiveBackend(), "supabase");
     assert.equal(svc.getConfiguredBucketStatus(), "created");
   });

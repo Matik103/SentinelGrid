@@ -56,6 +56,7 @@ export class HealthController {
         email_worker_enabled: emailWorkerEnabled,
         email_resend_configured: emailSecretsConfigured,
         payload_bucket: this.payloads.getConfiguredBucketStatus(),
+        workspace_branding_bucket: this.payloads.getWorkspaceBrandingBucketStatus(),
         build_sha: process.env.GIT_SHA ?? process.env.GITHUB_SHA ?? null,
       },
     };

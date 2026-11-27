@@ -33,6 +33,8 @@ export class PayloadStorageService implements OnModuleInit {
   private store!: ObjectStore;
   /** Boot-time Storage bucket ensure result for /v1/health (no secrets). */
   private bucketStatus: "ready" | "created" | "skipped" | "failed" | "unknown" = "unknown";
+  /** Public workspace logo bucket (browser uploads). */
+  private workspaceBrandingBucketStatus: "ready" | "created" | "failed" | "unknown" = "unknown";
 
   constructor(
     private readonly admin: SupabaseAdminService,
@@ -49,6 +51,11 @@ export class PayloadStorageService implements OnModuleInit {
     return this.bucketStatus;
   }
 
+  /** Non-secret readiness for the public workspace logo bucket. */
+  getWorkspaceBrandingBucketStatus(): string {
+    return this.workspaceBrandingBucketStatus;
+  }
+
   /** Non-secret backend label for /v1/health. */
   getActiveBackend(): ObjectStoreBackend | "deferred" {
     return this.store?.backend ?? "deferred";
@@ -58,6 +65,7 @@ export class PayloadStorageService implements OnModuleInit {
     if (this.store) {
       this.log.log(`payload storage backend=${this.store.backend}`);
       await this.ensureConfiguredBucket();
+      await this.ensureWorkspaceBrandingBucket();
       return;
     }
 
@@ -110,6 +118,50 @@ export class PayloadStorageService implements OnModuleInit {
     }
 
     await this.ensureConfiguredBucket();
+    await this.ensureWorkspaceBrandingBucket();
+  }
+
+  /**
+   * Create the public workspace-branding bucket used for organisation logos.
+   * Browser uploads still require the migration RLS policies; this only creates the bucket.
+   */
+  private async ensureWorkspaceBrandingBucket(): Promise<void> {
+    const bucket = "workspace-branding";
+    if (typeof this.admin?.client?.storage?.getBucket !== "function") {
+      this.workspaceBrandingBucketStatus = "unknown";
+      return;
+    }
+    try {
+      const existing = await this.admin.client.storage.getBucket(bucket);
+      if (!existing.error && existing.data) {
+        this.workspaceBrandingBucketStatus = "ready";
+        this.log.log(`workspace branding bucket ready id=${bucket}`);
+        return;
+      }
+
+      const created = await this.admin.client.storage.createBucket(bucket, {
+        public: true,
+        fileSizeLimit: 2_097_152,
+        allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/avif"],
+      });
+      if (created.error) {
+        const msg = created.error.message ?? String(created.error);
+        if (/already exists|duplicate|resource already/i.test(msg)) {
+          this.workspaceBrandingBucketStatus = "ready";
+          this.log.log(`workspace branding bucket ready id=${bucket}`);
+          return;
+        }
+        this.workspaceBrandingBucketStatus = "failed";
+        this.log.warn(`workspace branding bucket ensure failed id=${bucket}: ${msg}`);
+        return;
+      }
+      this.workspaceBrandingBucketStatus = "created";
+      this.log.log(`workspace branding bucket created id=${bucket}`);
+    } catch (error) {
+      this.workspaceBrandingBucketStatus = "failed";
+      const message = error instanceof Error ? error.message : String(error);
+      this.log.warn(`workspace branding bucket ensure failed id=${bucket}: ${message}`);
+    }
   }
 
   /**

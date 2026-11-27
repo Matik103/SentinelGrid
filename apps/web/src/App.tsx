@@ -11,6 +11,7 @@ import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
 import { AssetEnergyProfile } from "./AssetEnergyProfile";
 import { TopologyPage, IncidentWorkbenchPage, EventReplayPage, ScenarioWorkbenchPage } from "./OperationsWorkbench";
+import { peekCachedWorkspaceLogo } from "./workspaceLogoCache";
 
 const NAV_GROUPS = [
   { section: "COMMAND", items: [{ to: "/", label: "Overview", glyph: "◈" }, { to: "/incidents", label: "Incident investigation", glyph: "⌁" }, { to: "/replay", label: "Event replay", glyph: "↶" }] },
@@ -31,7 +32,6 @@ function Page({
   return (
     <section className="workspace-page">
       <header className="workspace-page-header">
-        <div className="eyebrow">SENTINEL COMMAND / WORKSPACE</div>
         <h1 className="page-title">{title}</h1>
         <p className="page-lead">{lead}</p>
       </header>
@@ -90,17 +90,14 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
 function DataTable({
   columns,
   rows,
+  emptyLabel = "Nothing here yet.",
 }: {
   columns: { key: string; label: string }[];
   rows: Record<string, unknown>[];
+  emptyLabel?: string;
 }) {
   if (!rows.length) {
-    return (
-      <div className="empty">
-        No rows returned from the API for this organisation.
-        <div className="badge-sim">LIVE API — empty result (not fabricated OT)</div>
-      </div>
-    );
+    return <div className="empty">{emptyLabel}</div>;
   }
   return (
     <div className="table-wrap">
@@ -114,9 +111,9 @@ function DataTable({
         </thead>
         <tbody>
           {rows.map((row, idx) => (
-            <tr key={String(row.id ?? idx)}>
+            <tr key={String(row.id ?? row.user_id ?? idx)}>
               {columns.map((c) => (
-                <td key={c.key} className="mono">
+                <td key={c.key} className={c.key === "user_id" || c.key.endsWith("_at") ? "mono" : undefined}>
                   {formatCell(row[c.key])}
                 </td>
               ))}
@@ -130,7 +127,19 @@ function DataTable({
 
 function formatCell(value: unknown): string {
   if (value == null) return "—";
-  if (typeof value === "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    if (!value.length) return "—";
+    return value.map((item) => formatCell(item)).join(", ");
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (typeof record.name === "string" && record.name.trim()) return record.name;
+    if (typeof record.email === "string" && record.email.trim()) return record.email;
+    if (typeof record.key === "string" && record.key.trim()) {
+      return record.key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+    return "—";
+  }
   return String(value);
 }
 
@@ -152,13 +161,18 @@ function Overview() {
   const [events, setEvents] = useState<OverviewEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [workspaceLogoUrl, setWorkspaceLogoUrl] = useState<string | null>(null);
   const org = organisationId();
+  const [workspaceLogoUrl, setWorkspaceLogoUrl] = useState<string | null | undefined>(() =>
+    organisationId() ? peekCachedWorkspaceLogo(organisationId()!) : null,
+  );
   const configured = apiConfigured() && Boolean(org) && Boolean(authToken());
 
   useEffect(() => {
     let active = true;
     if (org && authToken()) {
+      const cached = peekCachedWorkspaceLogo(org);
+      if (cached !== undefined) setWorkspaceLogoUrl(cached);
+      else setWorkspaceLogoUrl(undefined);
       void getWorkspaceBranding(org).then((branding) => { if (active) setWorkspaceLogoUrl(branding.logoUrl); }).catch(() => { if (active) setWorkspaceLogoUrl(null); });
     } else {
       setWorkspaceLogoUrl(null);
@@ -211,13 +225,17 @@ function Overview() {
         </div>
         <div className="command-hero-visual" aria-label="Infrastructure network illustration">
           <div className="orbital orbital-one" /><div className="orbital orbital-two" />
-          <img
-            className="hero-core-logo"
-            src={workspaceLogoUrl || "/assets/sentinelgrid-logo-mark.png"}
-            alt={workspaceLogoUrl ? "Workspace logo" : "SentinelGrid"}
-            width={128}
-            height={128}
-          />
+          {workspaceLogoUrl === undefined ? (
+            <div className="hero-core-logo hero-core-logo-pending" aria-hidden="true" />
+          ) : (
+            <img
+              className="hero-core-logo"
+              src={workspaceLogoUrl || "/assets/sentinelgrid-logo-mark.png"}
+              alt={workspaceLogoUrl ? "Workspace logo" : "SentinelGrid"}
+              width={128}
+              height={128}
+            />
+          )}
           <span className="orbit-node node-a">POWER</span><span className="orbit-node node-b">ASSETS</span><span className="orbit-node node-c">SENSORS</span><span className="orbit-node node-d">EVIDENCE</span>
           <div className="visual-caption">CONNECTED INFRASTRUCTURE<br /><span>Operational context layer</span></div>
         </div>
@@ -290,7 +308,7 @@ function Overview() {
           </div>
         </section>
       </div>
-      <div className="command-footer"><span>SENTINEL COMMAND / INFRASTRUCTURE INTELLIGENCE</span><span>API HEALTH: {health.toUpperCase()} · {configured ? "AUTHENTICATED WORKSPACE" : "AWAITING WORKSPACE CONNECTION"} · READ-ONLY BY DEFAULT</span></div>
+      <div className="command-footer"><span>Infrastructure intelligence</span><span>{configured ? "Workspace connected" : "Awaiting workspace"} · {health}</span></div>
     </section>
   );
 }
@@ -302,11 +320,13 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("read_only_viewer");
   const [msg, setMsg] = useState<string | null>(null);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const org = organisationId();
+  const [logoUrl, setLogoUrl] = useState<string | null | undefined>(() =>
+    organisationId() ? peekCachedWorkspaceLogo(organisationId()!) : null,
+  );
   const [logoBusy, setLogoBusy] = useState(false);
   const [canManageBranding, setCanManageBranding] = useState(false);
   const [logoMessage, setLogoMessage] = useState<string | null>(null);
-  const org = organisationId();
 
   const reload = async () => {
     setError(null);
@@ -327,6 +347,9 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
   useEffect(() => {
     void reload();
     if (org && authToken()) {
+      const cached = peekCachedWorkspaceLogo(org);
+      if (cached !== undefined) setLogoUrl(cached);
+      else setLogoUrl(undefined);
       void getWorkspaceBranding(org).then((branding) => setLogoUrl(branding.logoUrl)).catch(() => setLogoUrl(null));
       void canManageWorkspaceBranding(org).then(setCanManageBranding).catch(() => setCanManageBranding(false));
     } else {
@@ -375,10 +398,16 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
     <Page title="Workspace settings" lead="Manage this workspace’s membership and invitations.">
       <StatusBanner error={error} />
       <section className="workspace-branding-panel">
-        <div className="workspace-branding-copy"><span className="eyebrow">COMMAND IDENTITY</span><h2>Workspace logo</h2><p>Personalise the centre of your command overview with your organisation’s logo. Until one is uploaded, SentinelGrid’s default emblem remains in place.</p></div>
+        <div className="workspace-branding-copy"><h2>Workspace logo</h2><p>Personalise the centre of your command overview with your organisation’s logo. Until one is uploaded, SentinelGrid’s default emblem remains in place.</p></div>
         <div className="workspace-branding-control">
-          <div className="workspace-branding-preview">{logoUrl ? <img src={logoUrl} alt="Current workspace logo" /> : <img src="/assets/sentinelgrid-logo-mark.png" alt="Default SentinelGrid emblem" />}</div>
-          {canManageBranding ? <label className="btn workspace-logo-upload">{logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload workspace logo"}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={logoBusy} onChange={onWorkspaceLogoChange} /></label> : <span className="workspace-branding-hint">Workspace administrator access required</span>}
+          <div className="workspace-branding-preview">
+            {logoUrl === undefined
+              ? <span className="workspace-branding-pending" aria-hidden="true" />
+              : logoUrl
+                ? <img src={logoUrl} alt="Current workspace logo" />
+                : <img src="/assets/sentinelgrid-logo-mark.png" alt="Default SentinelGrid emblem" />}
+          </div>
+          {canManageBranding ? <label className="btn workspace-logo-upload">{logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload workspace logo"}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={logoBusy || logoUrl === undefined} onChange={onWorkspaceLogoChange} /></label> : <span className="workspace-branding-hint">Workspace administrator access required</span>}
         </div>
         {logoMessage && <p className="workspace-branding-message" role="status">{logoMessage}</p>}
       </section>
@@ -390,6 +419,7 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
           { key: "roles", label: "Role" },
         ]}
         rows={members}
+        emptyLabel="No members in this workspace yet."
       />
       <h2 className="section-title">Invitations</h2>
       <DataTable
@@ -400,6 +430,7 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
           { key: "roles", label: "Role" },
         ]}
         rows={invites}
+        emptyLabel="No pending invitations."
       />
       <form className="inline-form" onSubmit={onInvite}>
         <input
@@ -466,7 +497,7 @@ function ResourcePage({
   return (
     <Page title={title} lead={lead}>
       <StatusBanner error={error} />
-      {loading ? <p className="page-lead">Loading…</p> : <DataTable columns={columns} rows={rows} />}
+      {loading ? <p className="page-lead">Loading…</p> : <DataTable columns={columns} rows={rows} emptyLabel={`No ${title.toLowerCase()} recorded for this workspace yet.`} />}
       {create && orgId && (
         <form className="inline-form" onSubmit={onCreate}>
           {create.fields}

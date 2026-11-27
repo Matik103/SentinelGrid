@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { apiGet, apiPost, authToken, getWorkspaceBranding } from "./api";
+import { peekCachedWorkspaceLogo, rememberWorkspaceLogo } from "./workspaceLogoCache";
 
 type OrganisationMembership = {
   organisation_id: string;
@@ -24,6 +25,11 @@ function initials(name: string) {
   return name.trim().slice(0, 2).toUpperCase() || "SG";
 }
 
+function slugDiffersFromName(name: string, slug: string) {
+  const normalizedName = makeSlug(name);
+  return Boolean(slug) && slug.toLowerCase() !== normalizedName && slug.toLowerCase() !== name.trim().toLowerCase();
+}
+
 export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }: Props) {
   const [organisations, setOrganisations] = useState<Organisation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,10 +49,13 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
 
   async function withLogos(rows: Array<{ id: string; name: string; slug: string }>): Promise<Organisation[]> {
     const branded = await Promise.all(rows.map(async (row) => {
+      const cached = peekCachedWorkspaceLogo(row.id);
       try {
         const branding = await getWorkspaceBranding(row.id);
         return { ...row, logoUrl: branding.logoUrl };
       } catch {
+        if (cached !== undefined) return { ...row, logoUrl: cached };
+        rememberWorkspaceLogo(row.id, null);
         return { ...row, logoUrl: null };
       }
     }));
@@ -75,6 +84,10 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
           name: row.organisations!.name,
           slug: row.organisations!.slug,
         }));
+      setOrganisations(rows.map((row) => ({
+        ...row,
+        logoUrl: peekCachedWorkspaceLogo(row.id) ?? null,
+      })));
       const withBrand = await withLogos(rows);
       setOrganisations(withBrand);
       if (!opts?.quiet) {
@@ -171,7 +184,6 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
         </span>
         <span className="workspace-picker-copy">
           <strong>{loading ? "Loading workspaces…" : active?.name ?? (authToken() ? "No workspace selected" : "Sign in to continue")}</strong>
-          <small>{active ? active.slug : error ? "Workspace list unavailable" : "Organisation environment"}</small>
         </span>
         <span className="workspace-chevron" aria-hidden="true">⌄</span>
       </button>
@@ -179,6 +191,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
         <ul className="workspace-picker-menu" role="listbox" aria-label="Switch workspace">
           {organisations.map((item) => {
             const selected = item.id === activeOrganisationId;
+            const showSlug = slugDiffersFromName(item.name, item.slug);
             return (
               <li key={item.id}>
                 <button
@@ -196,7 +209,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
                   </span>
                   <span className="workspace-picker-copy">
                     <strong>{item.name}</strong>
-                    <small>{item.slug}</small>
+                    {showSlug ? <small>{item.slug}</small> : null}
                   </span>
                 </button>
               </li>

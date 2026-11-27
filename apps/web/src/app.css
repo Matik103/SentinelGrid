@@ -4651,3 +4651,31 @@ input, select, textarea, button, .btn, a { transition-timing-function: cubic-bez
   line-height: 1.4;
 }
 
+
+/* Workspace UI polish — logo load placeholders + single-line switcher name */
+.hero-core-logo-pending {
+  display: block;
+  box-sizing: border-box;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(84, 214, 197, .12), transparent 58%),
+    radial-gradient(circle, rgba(20, 66, 78, .94), rgba(5, 19, 32, .96) 72%);
+  animation: sg-logo-pending 1.1s ease-in-out infinite;
+}
+.workspace-branding-pending {
+  display: block;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(84, 214, 197, .12);
+  animation: sg-logo-pending 1.1s ease-in-out infinite;
+}
+@keyframes sg-logo-pending {
+  0%, 100% { opacity: .45; }
+  50% { opacity: .9; }
+}
+.workspace-picker-trigger .workspace-picker-copy {
+  justify-content: center;
+}
+.workspace-picker-trigger .workspace-picker-copy strong {
+  font-size: .88rem;
+}

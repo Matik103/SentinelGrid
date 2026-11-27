@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { canManageWorkspaceBranding, getWorkspaceBranding, uploadWorkspaceLogo } from "./api";
 import { getSupabase, restoreSession, signOut } from "./auth";
+import { peekCachedWorkspaceLogo } from "./workspaceLogoCache";
 
 type Props = {
   organisationId: string | null;
@@ -34,7 +35,9 @@ async function loadAccountIdentity(): Promise<AccountIdentity> {
 
 export function WorkspacePersonalizeMenu({ organisationId, organisationName, onBrandingChange, onSignOut }: Props) {
   const [open, setOpen] = useState(false);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(() =>
+    organisationId ? (peekCachedWorkspaceLogo(organisationId) ?? null) : null,
+  );
   const [canManage, setCanManage] = useState(false);
   const [busy, setBusy] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -54,9 +57,11 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
       setCanManage(false);
       return () => { active = false; };
     }
+    const cached = peekCachedWorkspaceLogo(organisationId);
+    setLogoUrl(cached ?? null);
     void getWorkspaceBranding(organisationId)
       .then((branding) => { if (active) setLogoUrl(branding.logoUrl); })
-      .catch(() => { if (active) setLogoUrl(null); });
+      .catch(() => { if (active && cached === undefined) setLogoUrl(null); });
     void canManageWorkspaceBranding(organisationId)
       .then((allowed) => { if (active) setCanManage(allowed); })
       .catch(() => { if (active) setCanManage(false); });

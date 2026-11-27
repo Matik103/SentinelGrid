@@ -56,7 +56,10 @@ export function AuthPanel({ onAuthChange }: Props) {
           setMfa(result.challenge);
         }
       } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : String(err));
+        if (!active) return;
+        setError(err instanceof Error ? err.message : String(err));
+        // Keep the MFA shell visible with Sign out / Continue — never bounce to VERIFYING.
+        setMfaPending(true);
       }
     }).catch(() => undefined);
     return () => { active = false; };
@@ -106,31 +109,39 @@ export function AuthPanel({ onAuthChange }: Props) {
   };
 
   if (mfa || mfaPending) {
+    const enrollCopy = mfa?.mode === "enroll";
     return (
       <main className="auth-experience">
         <section className="auth-story">
           <div className="auth-story-brand"><img src="/assets/sentinelgrid-logo-wordmark.png" alt="SentinelGrid" width="230" height="74" /></div>
           <div className="auth-story-copy">
             <span className="eyebrow"><i /> TRUSTED ACCESS / MULTI-FACTOR</span>
-            <h1>Verify your<br /><span>identity.</span></h1>
-            <p>Authenticator-app MFA protects every workspace decision. Enrollment uses free TOTP — no SMS provider required.</p>
+            <h1>{enrollCopy ? <>Set up your<br /><span>authenticator.</span></> : <>Verify your<br /><span>identity.</span></>}</h1>
+            <p>{enrollCopy
+              ? "Install any TOTP app, scan the QR code, then enter the six-digit code when you are ready. There is no time pressure — your sign-in stays active until you finish or sign out."
+              : "Enter the current six-digit code from your authenticator app. You can sign out and return later if you need a moment."}</p>
           </div>
         </section>
         <section className="auth-form-side">
           <div className="auth-form-card">
             <div className="auth-form-topline"><span>SECURE ACCESS</span><span>MFA / AAL2</span></div>
             <div className="auth-form-heading">
-              <h2>{mfa?.mode === "enroll" ? "Set up authenticator" : mfa ? "Enter authenticator code" : "Multi-factor authentication required"}</h2>
-              <p>SentinelGrid requires a verified authenticator before workspace access.</p>
+              <h2>{mfa?.mode === "enroll" ? "Set up authenticator" : mfa ? "Enter authenticator code" : "Preparing authenticator setup"}</h2>
+              <p>{mfa?.mode === "enroll"
+                ? "Take your time. Scan the code, add SentinelGrid to your app, then enter the 6-digit code below."
+                : mfa
+                  ? "Open your authenticator app and enter the current code."
+                  : "Preparing a secure authenticator challenge. This usually takes a second."}</p>
             </div>
             {error && <div className="auth-feedback error" role="alert">{error}</div>}
             {mfa ? (
               <div className="auth-mfa">
                 {mfa.mode === "enroll" && (
                   <div className="auth-mfa-setup">
-                    <p>Scan this QR code with Google Authenticator, Microsoft Authenticator, 2FAS, or another TOTP app.</p>
+                    <p>Scan this QR code with Google Authenticator, Microsoft Authenticator, 1Password, 2FAS, or another TOTP app.</p>
                     {mfa.qrCode && <img className="auth-mfa-qr" src={mfa.qrCode} alt="SentinelGrid authenticator setup QR code" />}
                     {mfa.secret && <p className="auth-mfa-secret">Can't scan it? Enter this setup key manually: <code>{mfa.secret}</code></p>}
+                    <p className="auth-mfa-pace">No countdown. Finish when the code in your app is ready.</p>
                   </div>
                 )}
                 {mfa.mode === "challenge" && verifiedFactors.length > 1 && (
@@ -154,13 +165,16 @@ export function AuthPanel({ onAuthChange }: Props) {
                 </form>
               </div>
             ) : (
-              <button type="button" className="auth-submit" disabled={busy} onClick={() => {
-                setBusy(true); setError(null);
-                void prepareMfaSession()
-                  .then((result) => { setVerifiedFactors(result.factors); if (result.complete) { setMfaPending(false); onAuthChange?.(); } else setMfa(result.challenge); })
-                  .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-                  .finally(() => setBusy(false));
-              }}>{busy ? "Preparing…" : "Continue MFA setup"}</button>
+              <div className="auth-mfa">
+                <p className="auth-mfa-pace">Stay on this screen while setup prepares. If nothing appears, tap continue or sign out and retry.</p>
+                <button type="button" className="auth-submit" disabled={busy} onClick={() => {
+                  setBusy(true); setError(null);
+                  void prepareMfaSession()
+                    .then((result) => { setVerifiedFactors(result.factors); if (result.complete) { setMfaPending(false); onAuthChange?.(); } else setMfa(result.challenge); })
+                    .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+                    .finally(() => setBusy(false));
+                }}>{busy ? "Preparing…" : "Continue MFA setup"}<span>↗</span></button>
+              </div>
             )}
             <div className="auth-form-bottom">
               <button type="button" onClick={() => void signOut().then(() => { setMfa(null); setMfaPending(false); setVerifiedFactors([]); setMfaCode(""); onAuthChange?.(); })}>Sign out</button>

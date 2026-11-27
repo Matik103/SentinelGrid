@@ -4313,6 +4313,8 @@ input, select, textarea, button, .btn, a { transition-timing-function: cubic-bez
 /* SentinelGrid identity and workspace onboarding — dark command aesthetic, calm and trustworthy. */
 .auth-boot { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1rem; background:radial-gradient(ellipse at 50% 42%,rgba(43,140,151,.16),transparent 38%),#071321; color:#7e9eae; font:9px var(--sg-font-mono); letter-spacing:.18em; }
 .auth-boot-mark { display:grid; place-items:center; width:54px; height:54px; border:1px solid rgba(84,214,197,.42); border-radius:17px; color:#70e4d4; font:700 17px var(--sg-font-heading); box-shadow:0 0 38px rgba(84,214,197,.13); }
+.auth-boot-panel { letter-spacing:normal; font:inherit; color:inherit; width:min(420px, calc(100vw - 2rem)); }
+.auth-boot-panel .page-lead { text-align:center; letter-spacing:.04em; color:#9eb6c4; }
 .auth-experience { min-height:100vh; display:grid; grid-template-columns:minmax(0,1.12fr) minmax(430px,.88fr); background:#071321; color:#e7f0f5; }
 .auth-story { position:relative; min-height:100vh; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; padding:clamp(2rem,5vw,5.5rem); border-right:1px solid rgba(127,172,195,.1); background:radial-gradient(ellipse at 76% 56%,rgba(23,130,143,.2),transparent 42%),linear-gradient(145deg,#0b1c2c,#071321 68%); }
 .auth-story::before { content:""; position:absolute; inset:0; pointer-events:none; opacity:.16; background-image:linear-gradient(rgba(110,180,195,.13) 1px,transparent 1px),linear-gradient(90deg,rgba(110,180,195,.13) 1px,transparent 1px); background-size:48px 48px; mask-image:linear-gradient(90deg,black,transparent 88%); }
@@ -4393,6 +4395,7 @@ input, select, textarea, button, .btn, a { transition-timing-function: cubic-bez
 .auth-mfa { display:flex; flex-direction:column; gap:.65rem; margin:.35rem 0 0; }
 .auth-mfa-setup { display:flex; flex-direction:column; gap:.55rem; color:var(--sg-muted,#9db0c3); font-size:.78rem; line-height:1.45; }
 .auth-mfa-setup p { margin:0; }
+.auth-mfa-pace { margin:.35rem 0 0; color:var(--sg-muted,#9db0c3); font-size:.72rem; line-height:1.4; }
 .auth-mfa-qr { display:block; width:min(100%,176px); aspect-ratio:1; margin:0 auto; padding:.45rem; border-radius:8px; background:#fff; }
 .auth-mfa-secret { overflow-wrap:anywhere; }
 .auth-mfa-secret code { display:block; margin-top:.25rem; padding:.45rem; border:1px solid var(--sg-border); border-radius:6px; color:var(--sg-text); font-size:.7rem; user-select:all; }

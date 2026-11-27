@@ -7,6 +7,35 @@ import { afterEach, describe, it } from "node:test";
 import { LocalDevObjectStore } from "./object-store.js";
 import { PayloadStorageService } from "./payload-storage.service.js";
 
+describe("PayloadStorageService.onModuleInit production", () => {
+  const prev = { ...process.env };
+
+  afterEach(() => {
+    for (const k of Object.keys(process.env)) {
+      if (!(k in prev)) delete process.env[k];
+    }
+    Object.assign(process.env, prev);
+  });
+
+  it("ignores local_dev in production without selecting a store", () => {
+    process.env.NODE_ENV = "production";
+    process.env.PAYLOAD_STORAGE_BACKEND = "local_dev";
+    const admin = { client: {} };
+    const svc = new PayloadStorageService(admin as never);
+    svc.onModuleInit();
+    assert.equal((svc as unknown as { store?: unknown }).store, undefined);
+  });
+
+  it("defers when backend unset in production", () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.PAYLOAD_STORAGE_BACKEND;
+    const admin = { client: {} };
+    const svc = new PayloadStorageService(admin as never);
+    svc.onModuleInit();
+    assert.equal((svc as unknown as { store?: unknown }).store, undefined);
+  });
+});
+
 function adminCapturingInsert() {
   let lastInsert: Record<string, unknown> | null = null;
   return {

@@ -45,23 +45,35 @@ export class PayloadStorageService implements OnModuleInit {
       return;
     }
     const production = (process.env.NODE_ENV ?? "development") === "production";
-    const backend = process.env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "";
-    // Production must never select local_dev. Defer until S3 is configured.
-    if (production && !backend) {
-      this.log.log(
-        "payload storage deferred until PAYLOAD_STORAGE_BACKEND=s3 (S3_BUCKET + AWS_REGION) is set; evidence writes stay fail-closed",
-      );
+    const backend = (process.env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "").toLowerCase();
+    // Production must never select or attempt local_dev (including if Dashboard still has it set).
+    if (production && (!backend || backend === "local_dev")) {
+      if (backend === "local_dev") {
+        this.log.log(
+          "PAYLOAD_STORAGE_BACKEND=local_dev ignored in production; set Supabase Storage s3_compatible env (see docs/PAYLOAD_STORAGE.md); evidence writes stay fail-closed",
+        );
+      } else {
+        this.log.log(
+          "payload storage deferred until Supabase Storage is configured (PAYLOAD_STORAGE_BACKEND=s3_compatible + S3_BUCKET + S3_ENDPOINT); evidence writes stay fail-closed",
+        );
+      }
       return;
     }
     try {
       this.store = createObjectStoreFromEnv();
       this.log.log(`payload storage backend=${this.store.backend}`);
     } catch (error) {
-      // Allow Nest to boot for /v1/health, auth, and invites before S3 is fully wired.
+      // Allow Nest to boot for /v1/health, auth, and invites before Storage is fully wired.
       // Evidence writes remain fail-closed via createObjectStoreFromEnv on first use.
-      this.log.warn(
-        `payload storage not ready at boot: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      // Never echo the local_dev-forbidden string as a boot WARN — that path is handled above.
+      const message = error instanceof Error ? error.message : String(error);
+      if (/local_dev/i.test(message)) {
+        this.log.log(
+          "payload storage deferred (local_dev unavailable in production); configure Supabase Storage s3_compatible backend",
+        );
+        return;
+      }
+      this.log.warn(`payload storage not ready at boot: ${message}`);
     }
   }
 

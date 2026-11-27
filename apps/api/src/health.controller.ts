@@ -45,9 +45,12 @@ export class HealthController {
       monitoring: {
         uptime_ms: Date.now() - started,
         node_env: process.env.NODE_ENV ?? "development",
-        payload_backend:
-          process.env.PAYLOAD_STORAGE_BACKEND?.trim() ||
-          (process.env.NODE_ENV === "production" ? "deferred" : "local_dev"),
+        payload_backend: (() => {
+          const raw = process.env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "";
+          const production = process.env.NODE_ENV === "production";
+          if (production && (!raw || raw.toLowerCase() === "local_dev")) return "deferred";
+          return raw || "local_dev";
+        })(),
         rate_limit_backend:
           process.env.REDIS_URL || process.env.RATE_LIMIT_REDIS_URL
             ? "redis"

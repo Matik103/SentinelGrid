@@ -37,27 +37,26 @@ services:
         sync: false
       - key: SG_EMAIL_FROM
         sync: false
-      # Evidence payloads: leave unset until S3 is ready (production never selects local_dev).
-      # When enabling evidence ingest, set in Dashboard:
-      #   PAYLOAD_STORAGE_BACKEND=s3
-      #   S3_BUCKET=...
-      #   AWS_REGION=...
-      # Optional: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_ENDPOINT, S3_FORCE_PATH_STYLE
+      # Evidence payloads → Supabase Storage (S3 protocol), NOT Amazon S3.
+      # Project abaeizgfsskvjklfslrh, private bucket evidence-payloads.
+      # Production never selects local_dev (even if Dashboard still has it — Nest ignores it).
+      # Blueprint sync often skips existing services — set secrets in Dashboard if needed.
       - key: PAYLOAD_STORAGE_BACKEND
-        sync: false
+        value: s3_compatible
       - key: S3_BUCKET
-        sync: false
+        value: evidence-payloads
+      - key: S3_ENDPOINT
+        value: https://abaeizgfsskvjklfslrh.storage.supabase.co/storage/v1/s3
+      - key: S3_FORCE_PATH_STYLE
+        value: "true"
+      # From Supabase Dashboard → Storage → S3 connection / access keys (server-only).
       - key: AWS_REGION
         sync: false
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
         sync: false
-      - key: S3_ENDPOINT
-        sync: false
-      - key: S3_FORCE_PATH_STYLE
-        sync: false
-      # Optional: REDIS_URL for multi-instance rate limiting
+      # Optional: REDIS_URL for multi-instance rate limiting (then RATE_LIMIT_ALLOW_MEMORY can go)
       - key: REDIS_URL
         sync: false
       # Optional: set in Render to the deployed git SHA for /v1/health monitoring.build_sha

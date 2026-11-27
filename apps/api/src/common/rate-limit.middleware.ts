@@ -56,7 +56,8 @@ class RedisCounterStore implements CounterStore {
 /**
  * Distributed-ready rate limiter.
  * - Prefer Redis when RATE_LIMIT_BACKEND=redis or REDIS_URL is set.
- * - In production, memory backend is fail-closed unless RATE_LIMIT_ALLOW_MEMORY=1.
+ * - Starter / single-instance: in-memory is allowed unless RATE_LIMIT_ALLOW_MEMORY=0.
+ * - Set REDIS_URL for multi-instance production.
  */
 @Injectable()
 export class RateLimitMiddleware implements NestMiddleware {
@@ -108,14 +109,20 @@ export class RateLimitMiddleware implements NestMiddleware {
       }
     }
 
-    if (process.env.NODE_ENV === "production" && process.env.RATE_LIMIT_ALLOW_MEMORY !== "1") {
+    if (process.env.NODE_ENV === "production" && process.env.RATE_LIMIT_ALLOW_MEMORY === "0") {
       this.initError = new Error(
-        "In-memory rate limiting is forbidden in production without RATE_LIMIT_ALLOW_MEMORY=1; set REDIS_URL",
+        "In-memory rate limiting disabled (RATE_LIMIT_ALLOW_MEMORY=0); set REDIS_URL",
       );
       throw this.initError;
     }
     this.store = new MemoryCounterStore();
-    this.log.log("rate limit backend=memory");
+    if (process.env.NODE_ENV === "production") {
+      this.log.warn(
+        "rate limit backend=memory (starter); set REDIS_URL for multi-instance, or RATE_LIMIT_ALLOW_MEMORY=0 to fail-closed without Redis",
+      );
+    } else {
+      this.log.log("rate limit backend=memory");
+    }
     return this.store;
   }
 

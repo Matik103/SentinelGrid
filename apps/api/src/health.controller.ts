@@ -45,8 +45,13 @@ export class HealthController {
       monitoring: {
         uptime_ms: Date.now() - started,
         node_env: process.env.NODE_ENV ?? "development",
-        payload_backend: process.env.PAYLOAD_STORAGE_BACKEND ?? "local_dev",
-        rate_limit_backend: process.env.RATE_LIMIT_REDIS_URL ? "redis" : "memory",
+        payload_backend:
+          process.env.PAYLOAD_STORAGE_BACKEND?.trim() ||
+          (process.env.NODE_ENV === "production" ? "deferred" : "local_dev"),
+        rate_limit_backend:
+          process.env.REDIS_URL || process.env.RATE_LIMIT_REDIS_URL
+            ? "redis"
+            : "memory",
         email_transport: emailTransport,
         email_worker_enabled: emailWorkerEnabled,
         email_resend_configured: emailSecretsConfigured,

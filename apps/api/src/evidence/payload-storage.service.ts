@@ -44,11 +44,20 @@ export class PayloadStorageService implements OnModuleInit {
       this.log.log(`payload storage backend=${this.store.backend}`);
       return;
     }
+    const production = (process.env.NODE_ENV ?? "development") === "production";
+    const backend = process.env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "";
+    // Production must never select local_dev. Defer until S3 is configured.
+    if (production && !backend) {
+      this.log.log(
+        "payload storage deferred until PAYLOAD_STORAGE_BACKEND=s3 (S3_BUCKET + AWS_REGION) is set; evidence writes stay fail-closed",
+      );
+      return;
+    }
     try {
       this.store = createObjectStoreFromEnv();
       this.log.log(`payload storage backend=${this.store.backend}`);
     } catch (error) {
-      // Allow Nest to boot for /v1/health, auth, and invites before S3 is wired.
+      // Allow Nest to boot for /v1/health, auth, and invites before S3 is fully wired.
       // Evidence writes remain fail-closed via createObjectStoreFromEnv on first use.
       this.log.warn(
         `payload storage not ready at boot: ${error instanceof Error ? error.message : String(error)}`,

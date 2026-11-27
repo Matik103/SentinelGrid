@@ -32,6 +32,12 @@ describe("createObjectStoreFromEnv", () => {
     assert.throws(() => createObjectStoreFromEnv(), /forbidden in production/);
   });
 
+  it("does not default to local_dev when unset in production", () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.PAYLOAD_STORAGE_BACKEND;
+    assert.throws(() => createObjectStoreFromEnv(), /PAYLOAD_STORAGE_BACKEND is not configured/);
+  });
+
   it("fail-closes when s3 is selected without bucket/region", () => {
     process.env.NODE_ENV = "production";
     process.env.PAYLOAD_STORAGE_BACKEND = "s3";

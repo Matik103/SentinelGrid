@@ -118,14 +118,22 @@ async function streamToBuffer(body: Readable | Uint8Array | string | Blob): Prom
 
 /**
  * Resolve object store from environment. Fail-closed when misconfigured.
+ * - Production never defaults to local_dev (unset backend → explicit configure error)
  * - local_dev forbidden when NODE_ENV=production
  * - s3 / s3_compatible requires bucket + region; credentials or default provider chain
  */
 export function createObjectStoreFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): ObjectStore {
-  const requested = (env.PAYLOAD_STORAGE_BACKEND ?? "local_dev").trim().toLowerCase();
   const nodeEnv = env.NODE_ENV ?? "development";
+  const rawBackend = env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "";
+  const requested = (rawBackend || (nodeEnv === "production" ? "" : "local_dev")).toLowerCase();
+
+  if (!requested) {
+    throw new Error(
+      "PAYLOAD_STORAGE_BACKEND is not configured; set to s3 (or s3_compatible) with S3_BUCKET and AWS_REGION before evidence writes",
+    );
+  }
 
   if (requested === "local_dev") {
     if (nodeEnv === "production") {

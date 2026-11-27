@@ -5,7 +5,8 @@ import {
   signInWithPassword, signOut, signUpWithPassword, updatePassword,
 } from "./auth";
 import {
-  beginTotpChallenge, prepareMfaSession, verifyTotpChallenge,
+  beginTotpChallenge, getAssuranceLevels, listVerifiedTotpFactors,
+  prepareMfaSession, verifyTotpChallenge,
   type MfaChallenge, type MfaFactor,
 } from "./mfa";
 
@@ -28,6 +29,9 @@ function friendlyAuthError(message: string) {
   if (/friendly name|already exists/i.test(message)) {
     return "A previous authenticator setup was left unfinished. Tap Continue MFA setup to clear it and generate a fresh QR code.";
   }
+  if (/AAL2 session is required/i.test(message)) {
+    return "Confirm your authenticator code first, then choose a new password.";
+  }
   return message;
 }
 
@@ -44,6 +48,11 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
   const [mfa, setMfa] = useState<MfaChallenge | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [verifiedFactors, setVerifiedFactors] = useState<MfaFactor[]>([]);
+  // Recovery with MFA: Supabase requires AAL2 before updateUser({ password }).
+  const [recoveryStep, setRecoveryStep] = useState<"loading" | "mfa" | "password" | null>(
+    () => (isPasswordRecoveryPending() ? "loading" : null),
+  );
+  const [recoveryMfa, setRecoveryMfa] = useState<MfaChallenge | null>(null);
   const signedIn = Boolean(authToken()) && !mfaPending && !mfa && !isPasswordRecoveryPending();
 
   useEffect(() => {
@@ -54,12 +63,39 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
     let active = true;
     void restoreSession().then(async (session) => {
       if (!active) return;
-      // Recovery: keep the choose-new-password form; do not jump into MFA.
+      // Recovery: stay on reset; step up MFA first when the account has a verified factor.
       if (isPasswordRecoveryPending()) {
         if (!session) {
           clearPasswordRecoveryPending();
+          setRecoveryStep(null);
+          setRecoveryMfa(null);
           setError("This password reset link is invalid or has expired. Request a new one.");
           setView("forgot");
+          return;
+        }
+        try {
+          const levels = await getAssuranceLevels();
+          if (!active) return;
+          if (levels.nextLevel === "aal2" && levels.currentLevel !== "aal2") {
+            const factors = await listVerifiedTotpFactors();
+            if (!active) return;
+            if (!factors.length) {
+              setError("Authenticator enrollment is incomplete. Sign in normally to finish MFA setup, or contact support.");
+              setRecoveryStep("password");
+              return;
+            }
+            setVerifiedFactors(factors);
+            setRecoveryMfa(await beginTotpChallenge(factors[0].id, "challenge"));
+            setRecoveryStep("mfa");
+            setView("reset");
+            return;
+          }
+          setRecoveryStep("password");
+          setView("reset");
+        } catch (err) {
+          if (!active) return;
+          setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
+          setRecoveryStep("password");
         }
         return;
       }
@@ -240,12 +276,21 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
   }
 
   const invitePending = Boolean(new URLSearchParams(window.location.search).get("invite"));
-  const title = view === "signin" ? "Welcome back" : view === "signup" ? "Create your account" : view === "forgot" ? "Reset your password" : view === "reset" ? "Choose a new password" : "Check your inbox";
+  const resetNeedsMfa = view === "reset" && recoveryStep === "mfa";
+  const resetPreparing = view === "reset" && recoveryStep === "loading";
+  const title = view === "signin" ? "Welcome back" : view === "signup" ? "Create your account" : view === "forgot" ? "Reset your password" : view === "reset"
+    ? (resetNeedsMfa ? "Confirm your authenticator" : resetPreparing ? "Preparing password reset" : "Choose a new password")
+    : "Check your inbox";
   const description = view === "signin" ? "Sign in to continue to your secure operations environment." :
     view === "signup" ? "Step 1 of 3: create your identity. Next you will set up an authenticator, then create or join a workspace." :
     view === "forgot" ? "We'll send a secure password reset link to your email address." :
-    view === "reset" ? "Choose a new password to secure your SentinelGrid account." :
-    "Your account is almost ready. Verify your email address to continue. Authenticator setup follows.";
+    view === "reset"
+      ? (resetNeedsMfa
+        ? "MFA is enabled on this account. Enter your authenticator code to continue, then choose a new password."
+        : resetPreparing
+          ? "Confirming your reset session. This usually takes a second."
+          : "Choose a new password to secure your SentinelGrid account.")
+      : "Your account is almost ready. Verify your email address to continue. Authenticator setup follows.";
 
   return (
     <main className="auth-experience">
@@ -298,11 +343,59 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
             <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Sending link…" : "Send reset link"}<span>↗</span></button>
           </form>}
 
-          {view === "reset" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
+          {view === "reset" && recoveryStep === "loading" && (
+            <div className="auth-mfa">
+              <p className="auth-mfa-pace">Preparing a secure password reset. Stay on this screen.</p>
+            </div>
+          )}
+
+          {view === "reset" && recoveryStep === "mfa" && recoveryMfa && (
+            <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
+              const code = mfaCode.trim();
+              if (!/^\d{6}$/.test(code)) throw new Error("Enter the six-digit code from your authenticator app.");
+              await verifyTotpChallenge(recoveryMfa, code);
+              setMfaCode("");
+              setRecoveryMfa(null);
+              setRecoveryStep("password");
+              setNotice("Authenticator confirmed. Choose a new password.");
+            })}>
+              {verifiedFactors.length > 1 && (
+                <label className="auth-mfa-label">Authenticator
+                  <select value={recoveryMfa.factorId} disabled={busy} onChange={(event) => {
+                    setBusy(true); setError(null);
+                    void beginTotpChallenge(event.target.value, "challenge")
+                      .then(setRecoveryMfa)
+                      .catch((err) => setError(friendlyAuthError(err instanceof Error ? err.message : String(err))))
+                      .finally(() => setBusy(false));
+                  }}>
+                    {verifiedFactors.map((factor) => <option key={factor.id} value={factor.id}>{factor.friendlyName}</option>)}
+                  </select>
+                </label>
+              )}
+              <label>Six-digit authenticator code
+                <input type="text" required inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} autoFocus />
+              </label>
+              <button className="auth-submit" type="submit" disabled={busy || mfaCode.length !== 6}>{busy ? "Verifying…" : "Verify and continue"}<span>↗</span></button>
+            </form>
+          )}
+
+          {view === "reset" && recoveryStep === "password" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
             if (password.length < 8) throw new Error("Password should be at least 8 characters.");
             if (password !== confirmPassword) throw new Error("Your passwords do not match.");
+            // Re-check AAL in case the recovery session still needs a step-up.
+            const levels = await getAssuranceLevels();
+            if (levels.nextLevel === "aal2" && levels.currentLevel !== "aal2") {
+              const factors = await listVerifiedTotpFactors();
+              if (!factors.length) throw new Error("Authenticator enrollment is incomplete. Sign in normally to finish MFA setup.");
+              setVerifiedFactors(factors);
+              setRecoveryMfa(await beginTotpChallenge(factors[0].id, "challenge"));
+              setRecoveryStep("mfa");
+              throw new Error("Confirm your authenticator code first, then choose a new password.");
+            }
             await updatePassword(password);
             clearPasswordRecoveryPending();
+            setRecoveryStep(null);
+            setRecoveryMfa(null);
             // End the recovery session so the user signs in fresh with the new password + MFA.
             await signOut();
             setPassword("");

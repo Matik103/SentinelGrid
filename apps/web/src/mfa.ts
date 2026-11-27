@@ -18,6 +18,16 @@ export async function currentAssuranceLevel(): Promise<"aal1" | "aal2" | string>
   return data.currentLevel ?? "aal1";
 }
 
+/** currentLevel vs nextLevel — used to detect MFA step-up (e.g. recovery sessions at AAL1). */
+export async function getAssuranceLevels(): Promise<{ currentLevel: string; nextLevel: string }> {
+  const { data, error } = await getSupabase().auth.mfa.getAuthenticatorAssuranceLevel();
+  if (error) throw error;
+  return {
+    currentLevel: data.currentLevel ?? "aal1",
+    nextLevel: data.nextLevel ?? "aal1",
+  };
+}
+
 export async function listVerifiedTotpFactors(): Promise<MfaFactor[]> {
   const { data, error } = await getSupabase().auth.mfa.listFactors();
   if (error) throw error;

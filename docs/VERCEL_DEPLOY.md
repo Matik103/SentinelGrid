@@ -48,6 +48,13 @@ Required API environment:
 - `PORT` (host-provided)
 - `NODE_ENV=production`
 - CORS allowlist including `https://sentinelgrid-delta.vercel.app`
+- `SG_PUBLIC_APP_URL` (invitation accept links; defaults to the Vercel production origin)
+
+Email (Resend):
+- **Preferred:** Supabase Edge Function `email-outbox-worker` using Edge secrets `RESEND_API_KEY` + `SG_EMAIL_FROM` on project `abaeizgfsskvjklfslrh` (see `edge/connector/README.md`).
+- **Optional Nest host** (Render/`render.yaml`): `SG_EMAIL_TRANSPORT=resend`, `SG_EMAIL_WORKER_ENABLED=true`, plus host secrets `RESEND_API_KEY` / `SG_EMAIL_FROM`. Never put these in Vercel `VITE_` vars.
+
+`GET /v1/health` reports `monitoring.email_transport`, `email_worker_enabled`, and `email_resend_configured` (boolean only; no secret values).
 
 Acceptance:
 1. `npm run build -w @sentinelgrid/api`
@@ -55,6 +62,7 @@ Acceptance:
 3. `GET /v1/health` → 200
 4. AAL2 MFA guard + tenant RLS verified against hosted Supabase
 5. Configure `api_base_url` only after health passes
+6. With Resend secrets present, enqueue an invite/outbox row and confirm Resend accepts delivery
 
 ## Brand assets
 

@@ -111,6 +111,9 @@ Migrations present on `main` but **not** on this work tip: `20261126100000_works
 
 **Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip `17b4af6` Node CI green; full quality gate blocked on audit machine; migrations/email/restore/E2E still open — **not COMPLETE**.
 
-## Related design (not Phase 0 exit)
+## Related plans (not Phase 0 exit / not authorized to execute)
 
-First router/AP inventory adapter design (implementation **not** authorized yet): [`docs/ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md). Keep network intelligence separate from wireless security sensors and electrical outlet/circuit sensing.
+- Router/AP inventory adapter design (implementation **not** authorized yet): [`ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md). Keep network intelligence separate from wireless security sensors and electrical outlet/circuit sensing.
+- Hosted migration reconciliation (**do not apply** until approved): [`MIGRATION_RECONCILIATION_PLAN.md`](MIGRATION_RECONCILIATION_PLAN.md).
+- Disposable backup/restore drill design: [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md).
+- Full DB quality gate CI: `.github/workflows/audit.yml` must run on this canonical branch (Node release checks alone are insufficient).

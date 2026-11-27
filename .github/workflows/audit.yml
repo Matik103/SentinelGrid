@@ -2,9 +2,15 @@ name: Engineering Quality Gate
 
 on:
   push:
-    branches: [work/phase0-security-hardening, main]
+    branches:
+      - work/sentinel-command-release-v2
+      - work/phase0-security-hardening
+      - main
   pull_request:
-    branches: [work/phase0-security-hardening, main]
+    branches:
+      - work/sentinel-command-release-v2
+      - work/phase0-security-hardening
+      - main
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:

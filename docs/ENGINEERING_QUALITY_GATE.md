@@ -10,11 +10,13 @@ The security test runner targets the local Supabase database only. It never link
 
 ## CI behavior
 
-- Runs on pushes and pull requests to main and the working branch, daily at 06:00 UTC, and manually.
-- Uses a pinned Supabase CLI version.
+- Workflow: `.github/workflows/audit.yml` (**Engineering Quality Gate**).
+- Runs on pushes and pull requests to `work/sentinel-command-release-v2` (canonical), `main`, and legacy `work/phase0-security-hardening`; daily at 06:00 UTC; and `workflow_dispatch`.
+- Node-only release checks (`.github/workflows/sentinelgrid-release-checks.yml`) are **not** a substitute for this gate.
+- Uses a pinned Supabase CLI version (`2.75.0` in the workflow).
 - Uses the runner's Docker endpoint; scripts do not hard-code a Colima socket.
 - Startup and reset failures stop the workflow.
-- CI sets REQUIRE_DB_CHECKS=1. Database readiness, SQL lint and tenant-isolation failures fail CI.
+- CI sets `REQUIRE_DB_CHECKS=1`. Database readiness, SQL lint and tenant-isolation failures fail CI.
 - ShellCheck validates shell scripts.
 - Gitleaks scans repository content for secrets.
 - Audit JSON is uploaded as a workflow artifact and ignored by Git.

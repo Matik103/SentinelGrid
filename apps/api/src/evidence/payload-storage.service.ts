@@ -28,6 +28,8 @@ export type StoredPayloadMeta = {
 export class PayloadStorageService implements OnModuleInit {
   private readonly log = new Logger(PayloadStorageService.name);
   private store!: ObjectStore;
+  /** Boot-time Storage bucket ensure result for /v1/health (no secrets). */
+  private bucketStatus: "ready" | "created" | "skipped" | "failed" | "unknown" = "unknown";
 
   constructor(
     private readonly admin: SupabaseAdminService,
@@ -37,6 +39,11 @@ export class PayloadStorageService implements OnModuleInit {
     if (store) {
       this.store = store;
     }
+  }
+
+  /** Non-secret readiness signal for operators. */
+  getConfiguredBucketStatus(): string {
+    return this.bucketStatus;
   }
 
   async onModuleInit() {
@@ -87,14 +94,21 @@ export class PayloadStorageService implements OnModuleInit {
    */
   private async ensureConfiguredBucket(): Promise<void> {
     const backend = (process.env.PAYLOAD_STORAGE_BACKEND?.trim() ?? "").toLowerCase();
-    if (backend !== "s3" && backend !== "s3_compatible") return;
-    if (!this.store || this.store.backend !== "s3_compatible") return;
+    if (backend !== "s3" && backend !== "s3_compatible") {
+      this.bucketStatus = "skipped";
+      return;
+    }
+    if (!this.store || this.store.backend !== "s3_compatible") {
+      this.bucketStatus = "skipped";
+      return;
+    }
 
     const bucket =
       process.env.S3_BUCKET?.trim() ||
       process.env.PAYLOAD_S3_BUCKET?.trim() ||
       "evidence-payloads";
     if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) {
+      this.bucketStatus = "failed";
       this.log.warn(`refusing storage bucket ensure: invalid bucket name`);
       return;
     }
@@ -102,6 +116,7 @@ export class PayloadStorageService implements OnModuleInit {
     try {
       const existing = await this.admin.client.storage.getBucket(bucket);
       if (!existing.error && existing.data) {
+        this.bucketStatus = "ready";
         this.log.log(`storage bucket ready id=${bucket}`);
         return;
       }
@@ -114,14 +129,18 @@ export class PayloadStorageService implements OnModuleInit {
       if (created.error) {
         const msg = created.error.message ?? String(created.error);
         if (/already exists|duplicate|resource already/i.test(msg)) {
+          this.bucketStatus = "ready";
           this.log.log(`storage bucket ready id=${bucket}`);
           return;
         }
+        this.bucketStatus = "failed";
         this.log.warn(`storage bucket ensure failed id=${bucket}: ${msg}`);
         return;
       }
+      this.bucketStatus = "created";
       this.log.log(`storage bucket created id=${bucket}`);
     } catch (error) {
+      this.bucketStatus = "failed";
       const message = error instanceof Error ? error.message : String(error);
       this.log.warn(`storage bucket ensure failed id=${bucket}: ${message}`);
     }

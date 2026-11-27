@@ -61,6 +61,7 @@ describe("PayloadStorageService.onModuleInit production", () => {
     await svc.onModuleInit();
     assert.equal(created, true);
     assert.equal((svc as unknown as { store?: { backend: string } }).store?.backend, "s3_compatible");
+    assert.equal(svc.getConfiguredBucketStatus(), "created");
   });
 });
 

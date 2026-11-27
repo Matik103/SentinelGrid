@@ -39,10 +39,20 @@ export class PayloadStorageService implements OnModuleInit {
   }
 
   onModuleInit() {
-    if (!this.store) {
-      this.store = createObjectStoreFromEnv();
+    if (this.store) {
+      this.log.log(`payload storage backend=${this.store.backend}`);
+      return;
     }
-    this.log.log(`payload storage backend=${this.store.backend}`);
+    try {
+      this.store = createObjectStoreFromEnv();
+      this.log.log(`payload storage backend=${this.store.backend}`);
+    } catch (error) {
+      // Allow Nest to boot for /v1/health, auth, and invites before S3 is wired.
+      // Evidence writes remain fail-closed via createObjectStoreFromEnv on first use.
+      this.log.warn(
+        `payload storage not ready at boot: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /** Test / DI helper — bind a store without env. */

@@ -3,6 +3,7 @@ services:
     name: sentinelgrid-api
     runtime: docker
     plan: starter
+    # Deploy Nest from the shared working branch (Vercel FE production stays on main).
     branch: work/sentinel-command-release-v2
     autoDeploy: true
     dockerfilePath: ./apps/api/Dockerfile
@@ -21,6 +22,7 @@ services:
         value: resend
       - key: SG_EMAIL_WORKER_ENABLED
         value: "true"
+      # Required secrets — set in the Render Dashboard (sync:false). Never commit values.
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
@@ -30,4 +32,22 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: SG_EMAIL_FROM
+        sync: false
+      # Evidence/object payloads — set when enabling evidence ingest (local_dev forbidden in production).
+      - key: PAYLOAD_STORAGE_BACKEND
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_FORCE_PATH_STYLE
+        sync: false
+      # Optional: set in Render to the deployed git SHA for /v1/health monitoring.build_sha
+      - key: GIT_SHA
         sync: false

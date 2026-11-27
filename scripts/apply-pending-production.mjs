@@ -65,6 +65,15 @@ const repo = listRepoMigrations();
 console.log(`Project: ${projectRef}`);
 console.log(`Repo migrations: ${repo.length}`);
 
+// Hosts that were migrated via raw Management SQL may lack this table.
+await query(
+  token,
+  `create schema if not exists supabase_migrations;
+create table if not exists supabase_migrations.schema_migrations (
+  version text primary key
+);`,
+);
+
 const appliedRows = await query(
   token,
   "select version from supabase_migrations.schema_migrations order by version;",

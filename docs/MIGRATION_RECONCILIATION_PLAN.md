@@ -1,6 +1,6 @@
 # Hosted migration reconciliation plan (read-only)
 
-**Status:** owner authorized apply — blocked in Cloud Agent until `SUPABASE_ACCESS_TOKEN` is available  
+**Status:** **applied** 2026-11-26 PT (America/Los_Angeles) — hosted matches work tip through `20261127150000` (pending=0)  
 **Issue:** [#9](https://github.com/Matik103/SentinelGrid/issues/9)  
 **Work tip when authored:** `2de294edc2ae1dbacfb152fd71443f777ecbc597`  
 **Canonical branch:** `work/sentinel-command-release-v2`  
@@ -74,13 +74,23 @@ Recommended product decision (subject to lead approval):
 2. Apply via `node scripts/apply-remote-sql.mjs` **or** linked `supabase db push` — never from Nest Render env.
 3. Re-run verify SQL; update `PHASE0_ACCEPTANCE_CHECKLIST.md` tip evidence in the same follow-up commit.
 
-## 6. Explicit non-actions
+## 6. Apply record (2026-11-26 PT)
 
-- No production apply in this document’s authorizing packet.
+| Action | Result |
+|---|---|
+| Created `supabase_migrations.schema_migrations` | Host previously had no table (raw Management SQL history) |
+| Applied `20261127120000_payload_storage_supabase_backend.sql` | Constraint now allows `supabase`; default `supabase` |
+| Re-applied `20261127090000`, `20261127100000`, `20261127130000`–`20261127150000` | Idempotent identity/storage/branding parity |
+| Recorded all 20 work-tip versions | Dry-run pending=0 |
+| `api_base_url` | `https://sentinelgrid-fpzo.onrender.com` |
+
+## 7. Explicit non-actions
+
 - No dropping or rewriting applied remote versions without a lead-approved rollback plan.
 - No mixing Amazon S3 assumptions; payload path is Supabase Storage.
+- Rotate any Personal Access Token pasted into chat.
 
-## 7. Owner / revisit
+## 8. Owner / revisit
 
 | Item | Owner | Revisit trigger |
 |---|---|---|

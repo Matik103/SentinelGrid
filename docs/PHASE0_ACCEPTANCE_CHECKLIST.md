@@ -42,7 +42,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | # | Criterion | Level | Status |
 |---|---|---|---|
 | A | Cross-tenant isolation | tested | `supabase/tests/phase0_tenant_isolation.sql` (local/CI historically). Hosted runtime cross-tenant E2E **OPEN** |
-| B | Forward migrations on remote `abaeizgfsskvjklfslrh` | **OPEN** (unverified) | Historical claim: through `20261125260000` as of tip `07b06ee`. Hosted `schema_migrations` **not re-read** in tip `17b4af6` audit. Repo has later migrations; **main↔work migration sets diverge** — do not apply without an approved reconciliation plan |
+| B | Forward migrations on remote `abaeizgfsskvjklfslrh` | **ops** (2026-11-26 PT) | Hosted `supabase_migrations.schema_migrations` created and recorded through `20261127150000` (20 versions = work tip). Applied missing `payload_objects` `supabase` backend check + re-applied late identity/storage/branding migrations via Management API. Dry-run pending=0 |
 | C | Real backup + object-store restore drill | **OPEN** | Marker script ≠ restore. Design only until authorized on a disposable environment |
 | D | OpenAPI contract | code | `docs/openapi.yaml` |
 | E | Monitoring hooks on `/v1/health` | code / partial ops | Live HTTP 200 with supabase/email/storage signals (below). `monitoring.build_sha` empty — cannot correlate Render process to git SHA from health alone |
@@ -98,7 +98,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Tip CI release checks | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/45947732132 |
 | Full Engineering Quality Gate | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/45947732146 — Docker + Supabase CLI 2.75.0; `db.lint`, upgrade path (17 migrations), `security.tenant_isolation`, npm/go checks, gitleaks |
 | Vercel status on tip | **success** (branch/preview) | https://vercel.com/excel-11ea67ae/sentinelgrid/4jKNtLkmNYp2aKUMNu2D7WAtnDbm — **preview ≠ www production** |
-| Hosted migrations | **unverified** | Plan only: [`MIGRATION_RECONCILIATION_PLAN.md`](MIGRATION_RECONCILIATION_PLAN.md). **Do not apply** |
+| Hosted migrations | **ops applied** through `20261127150000` | Management API apply 2026-11-26 PT; constraint allows `supabase` backend; tracking table seeded; dry-run pending=0. See [`MIGRATION_RECONCILIATION_PLAN.md`](MIGRATION_RECONCILIATION_PLAN.md) |
 | Criterion G live invite | **OPEN** | No mailbox delivery proof |
 | Backup/restore | **OPEN** (design ready) | Disposable drill in [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md) — not executed |
 | Browser E2E | **OPEN** (plan ready) | [`BROWSER_E2E_PLAN.md`](BROWSER_E2E_PLAN.md) — not executed |
@@ -118,13 +118,12 @@ Repo migrations after historical remote claim `20261125260000` (may or may not a
 Migrations present on `main` but **not** on this work tip: `20261126100000_workspace_branding.sql`, `20261126110000_atomic_asset_media_primary.sql`, `20261126120000_auth_identity_assets.sql`, `20261126120100_ensure_own_profile_jwt_email.sql`.
 
 **Still OPEN (do not close Phase 0):**
-- Hosted migration inventory + reconciliation + verified apply (**ops**, approved plan required)
 - Production email delivery proof (**ops**)
 - Full OT protocol acquisition or formal deferral (**ops** — needs maps/node IDs/topics)
 - Real backup + object-storage restore drill (**ops** — design ready; execute only when authorized)
 - Authenticated browser E2E (signup/MFA/invite/registry/energy/evidence) (**ops** — plan ready)
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip `b094207` Node release checks + full Engineering Quality Gate green on CI; hosted migrations/email/restore/E2E still open — **not COMPLETE**.
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip quality gate green; hosted migrations through `20261127150000` recorded/applied; email/restore/E2E still open — **not COMPLETE**.
 
 ## Related plans (not Phase 0 exit / not authorized to execute)
 

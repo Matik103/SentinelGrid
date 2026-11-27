@@ -134,7 +134,7 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
             ) : null}
             <p className="account-menu-mfa" aria-label="Account security">
               <i aria-hidden="true" />
-              MFA active · AAL2
+              MFA active
             </p>
           </header>
 

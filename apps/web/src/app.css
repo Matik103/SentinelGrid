@@ -2743,16 +2743,22 @@ button:disabled,.btn:disabled { cursor:not-allowed; opacity:.48; transform:none;
 
 
 
-/* Workspace logo in overview + settings */
+/* Workspace logo in overview + settings — ~75–80% of the hub circle */
 .hero-core-logo {
-  width: 104px;
-  height: 104px;
-  padding: 9px;
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 118px;
+  height: 118px;
+  padding: 5px;
   border: 1px solid rgba(109, 231, 216, .42);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(20, 66, 78, .94), rgba(5, 19, 32, .96) 72%);
   box-shadow: 0 0 42px rgba(67, 219, 201, .2), inset 0 0 22px rgba(84, 214, 197, .1);
   object-fit: contain;
+  transform: translate(-50%, -50%);
 }
 .command-hero-visual .hero-core-logo {
   animation: sg-core-breathe 5.8s ease-in-out infinite;

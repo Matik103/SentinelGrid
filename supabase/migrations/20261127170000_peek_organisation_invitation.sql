@@ -8,7 +8,7 @@ CREATE OR REPLACE FUNCTION public.peek_organisation_invitation(p_token text)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, public
+SET search_path = pg_catalog, public, extensions
 AS $$
 DECLARE
   v_hash text;

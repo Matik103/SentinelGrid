@@ -4367,6 +4367,8 @@ input, select, textarea, button, .btn, a { transition-timing-function: cubic-bez
 .auth-form-bottom > span { display:flex; gap:.3rem; align-items:center; }
 .auth-privacy-note { margin-top:1.6rem; padding-top:1rem; border-top:1px solid rgba(127,172,195,.1); color:#627e91; font-size:9px; line-height:1.6; }
 .auth-invite-note,.auth-feedback { margin:0 0 1rem; padding:.75rem .85rem; border:1px solid rgba(91,169,232,.22); border-radius:8px; background:rgba(91,169,232,.07); color:#b4d2e5; font-size:11px; line-height:1.6; }
+.auth-field-hint { margin:-.35rem 0 .85rem; color:#7e9eae; font-size:11px; line-height:1.45; }
+.auth-form-modern input[readonly] { opacity:.92; cursor:default; color:#d5e6ef; }
 .auth-feedback.error { border-color:rgba(224,126,126,.28); background:rgba(224,126,126,.07); color:#e7b4b4; }
 .auth-feedback.success { border-color:rgba(84,214,197,.24); background:rgba(84,214,197,.07); color:#a7e5dc; }
 .auth-verify { display:flex; flex-direction:column; align-items:flex-start; gap:.7rem; color:#91a9b9; font-size:12px; line-height:1.7; }

@@ -1,6 +1,7 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, clearWorkspaceLogo, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
+import { readInviteFromLocation } from "./invitePeek";
 import {
   isPasswordRecoveryPending, onAuthSession, organisationId, restoreSession,
   sessionIsRecovery, setOrganisationId, signOut,
@@ -644,6 +645,31 @@ export function App() {
     }
 
     if (!soft) setWorkspaceGate("checking");
+
+    // After MFA, accept a pending invite from the URL before loading memberships.
+    const { token: inviteToken } = readInviteFromLocation();
+    if (inviteToken) {
+      const accepted = await apiPost<unknown>("/v1/orgs/invites/accept", { token: inviteToken });
+      if (!isCurrent()) return;
+      if (accepted.error) {
+        const message = accepted.error.message;
+        if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || accepted.error.status === 403) {
+          enterMfaSetup();
+          return;
+        }
+        // Keep the token in the URL so WorkspaceOnboarding can retry / show the error.
+        if (!/already|accepted|not found|expired|does not match/i.test(message)) {
+          setGateMessage(message);
+        }
+      } else {
+        const next = new URL(window.location.href);
+        next.searchParams.delete("invite");
+        next.searchParams.delete("token");
+        next.searchParams.delete("email");
+        window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
+      }
+    }
+
     const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>("/v1/orgs/mine");
     if (!isCurrent()) return;
     if (result.error) {

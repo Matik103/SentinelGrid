@@ -12,15 +12,39 @@ export type MfaFactor = { id: string; friendlyName: string };
 
 const DEFAULT_FRIENDLY_NAME = "SentinelGrid authenticator";
 
+const ASSURANCE_TIMEOUT_MS = 8_000;
+
+async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 export async function currentAssuranceLevel(): Promise<"aal1" | "aal2" | string> {
-  const { data, error } = await getSupabase().auth.mfa.getAuthenticatorAssuranceLevel();
+  const { data, error } = await withTimeout(
+    getSupabase().auth.mfa.getAuthenticatorAssuranceLevel(),
+    ASSURANCE_TIMEOUT_MS,
+    "Authenticator assurance check",
+  );
   if (error) throw error;
   return data.currentLevel ?? "aal1";
 }
 
 /** currentLevel vs nextLevel — used to detect MFA step-up (e.g. recovery sessions at AAL1). */
 export async function getAssuranceLevels(): Promise<{ currentLevel: string; nextLevel: string }> {
-  const { data, error } = await getSupabase().auth.mfa.getAuthenticatorAssuranceLevel();
+  const { data, error } = await withTimeout(
+    getSupabase().auth.mfa.getAuthenticatorAssuranceLevel(),
+    ASSURANCE_TIMEOUT_MS,
+    "Authenticator assurance check",
+  );
   if (error) throw error;
   return {
     currentLevel: data.currentLevel ?? "aal1",

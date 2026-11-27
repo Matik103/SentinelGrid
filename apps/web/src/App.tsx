@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, clearWorkspaceLogo, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
 import {
   isPasswordRecoveryPending, onAuthSession, organisationId, restoreSession,
-  sessionIsRecovery, setOrganisationId,
+  sessionIsRecovery, setOrganisationId, signOut,
 } from "./auth";
 import { currentAssuranceLevel } from "./mfa";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
@@ -580,6 +580,7 @@ export function App() {
   const location = useLocation();
   const workspaceGateRef = useRef(workspaceGate);
   workspaceGateRef.current = workspaceGate;
+  const refreshGenerationRef = useRef(0);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", "dark");
@@ -591,6 +592,9 @@ export function App() {
   };
 
   const refreshWorkspaceState = async (opts?: { force?: boolean }) => {
+    const generation = ++refreshGenerationRef.current;
+    const isCurrent = () => refreshGenerationRef.current === generation;
+
     if (!authToken()) {
       setOrganisationId(null);
       setActiveOrganisationId(null);
@@ -612,11 +616,19 @@ export function App() {
     // that remounted AuthPanel and invalidated QR codes / codes mid-setup.
     try {
       const level = await currentAssuranceLevel();
+      if (!isCurrent()) return;
       if (level !== "aal2") {
         enterMfaSetup();
         return;
       }
-    } catch {
+    } catch (cause) {
+      if (!isCurrent()) return;
+      const timedOut = cause instanceof Error && /timed out/i.test(cause.message);
+      if (timedOut) {
+        setGateMessage("Authenticator status check timed out. Retry, or sign out and sign back in.");
+        setWorkspaceGate("error");
+        return;
+      }
       enterMfaSetup("We could not confirm your authenticator status. Continue MFA setup, or sign out and try again.");
       return;
     }
@@ -627,6 +639,7 @@ export function App() {
 
     if (!soft) setWorkspaceGate("checking");
     const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>("/v1/orgs/mine");
+    if (!isCurrent()) return;
     if (result.error) {
       const message = result.error.message;
       if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || result.error.status === 403) {
@@ -668,6 +681,17 @@ export function App() {
       // The access token is already synced in auth.ts before listeners run.
       if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
         if (sessionIsRecovery(session) || isPasswordRecoveryPending()) setRecoveryPending(true);
+        // If we are still on VERIFYING with a live session, kick a soft refresh once —
+        // restores can race INITIAL_SESSION and leave the gate spinning with no in-flight load.
+        if (
+          event === "INITIAL_SESSION"
+          && session?.access_token
+          && workspaceGateRef.current === "checking"
+          && !isPasswordRecoveryPending()
+          && !sessionIsRecovery(session)
+        ) {
+          void refreshWorkspaceState();
+        }
         return;
       }
       // Recovery session: stay on the password-reset form; do not enter MFA / workspace.
@@ -706,8 +730,8 @@ export function App() {
     return () => { active = false; unsubscribe(); };
   }, []);
 
-  // Safety net: never leave VERIFYING forever. If AAL2 already, retry workspace load;
-  // only send the user to MFA when the session is still AAL1.
+  // Safety net: never leave VERIFYING forever. Prefer a timed retry, then surface an error
+  // with Retry (WorkspaceOnboarding) instead of spinning past a hung Nest/Supabase call.
   useEffect(() => {
     if (workspaceGate !== "checking" || !authReady || !authToken() || recoveryPending || isPasswordRecoveryPending()) return;
     const timer = window.setTimeout(() => {
@@ -715,17 +739,22 @@ export function App() {
         if (workspaceGateRef.current !== "checking") return;
         try {
           const level = await currentAssuranceLevel();
+          if (workspaceGateRef.current !== "checking") return;
           if (level === "aal2") {
             void refreshWorkspaceState({ force: true });
             return;
           }
-        } catch {
-          /* fall through to MFA */
+          enterMfaSetup("Still verifying access. Continue with authenticator setup, or sign out and try again.");
+        } catch (cause) {
+          if (workspaceGateRef.current !== "checking") return;
+          const message = cause instanceof Error && /timed out/i.test(cause.message)
+            ? "Workspace verification timed out. The API or authenticator check may be slow — retry in a moment."
+            : "Still verifying access. Retry, continue authenticator setup, or sign out.";
+          setGateMessage(message);
+          setWorkspaceGate("error");
         }
-        if (workspaceGateRef.current !== "checking") return;
-        enterMfaSetup("Still verifying access. Continue with authenticator setup, or sign out and try again.");
       })();
-    }, 12_000);
+    }, 6_000);
     return () => window.clearTimeout(timer);
   }, [workspaceGate, authReady]);
 
@@ -762,6 +791,33 @@ export function App() {
   // Full-screen MFA setup (QR / TOTP). Do not nest inside the tiny boot spinner layout.
   if (workspaceGate === "mfa") return <AuthPanel key="mfa" surface="page" onAuthChange={handleAuthChange} />;
   if (workspaceGate === "checking") return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>VERIFYING WORKSPACE ACCESS</span></div>;
+  if (workspaceGate === "error" && gateMessage && /timed out|too long to respond|waking up|slow/i.test(gateMessage)) {
+    return (
+      <div className="auth-boot auth-boot-action">
+        <span className="auth-boot-mark">SG</span>
+        <span>WORKSPACE CHECK DELAYED</span>
+        <p className="auth-boot-copy">{gateMessage}</p>
+        <div className="auth-boot-actions">
+          <button type="button" className="btn" onClick={() => { void refreshWorkspaceState({ force: true }); }}>Retry</button>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => {
+              void signOut().finally(() => {
+                setOrganisationId(null);
+                setActiveOrganisationId(null);
+                setRecoveryPending(false);
+                setGateMessage(null);
+                setWorkspaceGate("checking");
+              });
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (workspaceGate === "required" || workspaceGate === "error") {
     // Never forward MFA setup copy onto the workspace screen — that step is already complete.
     const workspaceError = workspaceGate === "error" ? gateMessage : null;

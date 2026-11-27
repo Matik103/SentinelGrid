@@ -31,6 +31,20 @@ export function apiConfigurationError(): string {
 
 export type ApiError = { status: number; message: string };
 
+/** Nest / workspace calls should fail closed instead of spinning forever on cold starts. */
+const API_FETCH_TIMEOUT_MS = 15_000;
+
+function apiFetchTimeoutSignal(): AbortSignal {
+  return AbortSignal.timeout(API_FETCH_TIMEOUT_MS);
+}
+
+function formatApiFetchError(err: unknown): string {
+  if (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError")) {
+    return "The API took too long to respond. The backend may be waking up — retry in a moment.";
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 export async function apiGet<T>(path: string): Promise<{ data?: T; error?: ApiError }> {
   await ensureConfig();
   const root = base();
@@ -52,6 +66,7 @@ export async function apiGet<T>(path: string): Promise<{ data?: T; error?: ApiEr
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
       },
+      signal: apiFetchTimeoutSignal(),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -59,7 +74,7 @@ export async function apiGet<T>(path: string): Promise<{ data?: T; error?: ApiEr
     }
     return { data: (await res.json()) as T };
   } catch (err) {
-    return { error: { status: 0, message: err instanceof Error ? err.message : String(err) } };
+    return { error: { status: 0, message: formatApiFetchError(err) } };
   }
 }
 
@@ -103,6 +118,7 @@ async function apiMutate<T>(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: apiFetchTimeoutSignal(),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -110,7 +126,7 @@ async function apiMutate<T>(
     }
     return { data: (await res.json()) as T };
   } catch (err) {
-    return { error: { status: 0, message: err instanceof Error ? err.message : String(err) } };
+    return { error: { status: 0, message: formatApiFetchError(err) } };
   }
 }
 
@@ -119,10 +135,10 @@ export async function healthCheck(): Promise<string> {
   const root = base();
   if (!root) return apiConfigurationError();
   try {
-    const res = await fetch(`${root}/v1/health`);
+    const res = await fetch(`${root}/v1/health`, { signal: apiFetchTimeoutSignal() });
     return res.ok ? "API reachable" : `API HTTP ${res.status}`;
-  } catch {
-    return "API unreachable";
+  } catch (err) {
+    return formatApiFetchError(err) === String(err) ? "API unreachable" : formatApiFetchError(err);
   }
 }
 

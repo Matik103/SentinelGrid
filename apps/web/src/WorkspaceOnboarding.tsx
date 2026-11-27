@@ -8,7 +8,8 @@ function slugify(value: string) {
 }
 
 function isMfaBanner(message: string | null | undefined) {
-  return Boolean(message && /authenticator|mfa|aal2|multi-factor/i.test(message));
+  // Only suppress leftover MFA-setup copy — keep API timeout / latency errors visible.
+  return Boolean(message && /set up or verify your authenticator|continue mfa|continue with authenticator|authenticator session expired|could not confirm your authenticator/i.test(message));
 }
 
 export function WorkspaceOnboarding({ initialError, onComplete, onRetry }: Props) {

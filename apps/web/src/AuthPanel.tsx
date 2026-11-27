@@ -12,7 +12,11 @@ type MfaChallenge = {
 type MfaFactor = { id: string; friendlyName: string };
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error ? error.message : String(error);
+  if (/invalid.*totp|totp.*invalid|invalid.*(mfa|authenticator|verification)?\s*code|code.*(invalid|incorrect|wrong)/i.test(message)) {
+    return "Wrong code. Try again.";
+  }
+  return message;
 }
 
 export function AuthPanel({ onAuthChange }: Props) {

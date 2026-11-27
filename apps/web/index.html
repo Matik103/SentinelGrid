@@ -12,9 +12,42 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Inter:wght@400;500&family=Manrope:wght@600;700&display=swap"
       rel="stylesheet"
     />
+    <!-- Critical first-paint shell so reload is never a blank dark page before the module bundle runs. -->
+    <style>
+      html, body { margin: 0; min-height: 100%; background: #071321; }
+      #root { min-height: 100vh; }
+      .sg-boot-shell {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        background: radial-gradient(ellipse at 50% 42%, rgba(43, 140, 151, 0.16), transparent 38%), #071321;
+        color: #7e9eae;
+        font: 9px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        letter-spacing: 0.18em;
+      }
+      .sg-boot-shell__mark {
+        display: grid;
+        place-items: center;
+        width: 54px;
+        height: 54px;
+        border: 1px solid rgba(84, 214, 197, 0.42);
+        border-radius: 17px;
+        color: #70e4d4;
+        font: 700 17px Manrope, system-ui, sans-serif;
+        box-shadow: 0 0 38px rgba(84, 214, 197, 0.13);
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="sg-boot-shell" role="status" aria-live="polite">
+        <span class="sg-boot-shell__mark">SG</span>
+        <span>SECURE COMMAND INITIALISING</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

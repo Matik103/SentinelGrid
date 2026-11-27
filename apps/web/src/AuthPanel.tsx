@@ -21,6 +21,9 @@ function friendlyAuthError(message: string) {
   if (/user already registered/i.test(message)) return "An account already exists for this email. Sign in instead, or reset your password.";
   if (/password should be at least/i.test(message)) return "Choose a longer password and try again.";
   if (/rate limit/i.test(message)) return "Too many attempts in a short time. Wait a moment before trying again.";
+  if (/invalid.*totp|totp.*invalid|invalid.*(mfa|authenticator|verification)?\s*code|code.*(invalid|incorrect|wrong)/i.test(message)) {
+    return "Wrong code. Try again.";
+  }
   if (/friendly name|already exists/i.test(message)) {
     return "A previous authenticator setup was left unfinished. Tap Continue MFA setup to clear it and generate a fresh QR code.";
   }

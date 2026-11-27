@@ -318,7 +318,12 @@ function OrganisationPanel() {
     });
     if (res.error) setMsg(`Invite failed: ${res.error.message}`);
     else {
-      setMsg(`Invite queued (${String((res.data as { delivery?: { channel?: string } })?.delivery?.channel ?? "outbox")})`);
+      const delivery = (res.data as { delivery?: { channel?: string; status?: string } })?.delivery;
+      if (delivery?.channel === "outbox_failed" || delivery?.status === "failed") {
+        setMsg("Invitation was created, but email delivery could not be queued. Check the API and email outbox logs before asking the invitee to continue.");
+      } else {
+        setMsg(`Invitation queued for email delivery (${delivery?.status ?? "pending"}). This does not mean the email has been delivered yet.`);
+      }
       setInviteEmail("");
       void reload();
       const inv = await apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/invites`);

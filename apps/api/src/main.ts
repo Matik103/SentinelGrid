@@ -18,7 +18,8 @@ async function bootstrap() {
   );
   app.setGlobalPrefix("v1");
 
-  const corsOrigins = (process.env.CORS_ORIGINS ?? "https://sentinelgrid-delta.vercel.app,http://127.0.0.1:5173,http://localhost:5173")
+  const corsOrigins = (process.env.CORS_ORIGINS ??
+    "https://www.sentinelgrid.tech,https://sentinelgrid.tech,https://sentinelgrid-delta.vercel.app,http://127.0.0.1:5173,http://localhost:5173")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);

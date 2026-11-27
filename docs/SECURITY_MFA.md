@@ -8,6 +8,7 @@ SentinelGrid uses Supabase Auth's built-in TOTP authenticator factors. This does
 - The browser only reports successful MFA after Supabase confirms the session has reached assurance level `aal2`.
 - `SupabaseAuthGuard` validates the access token with Supabase Auth, checks that the signed token subject matches the validated user, and rejects sessions below `aal2`.
 - A forward-only migration adds restrictive AAL2 policies to every existing RLS-enabled table in the `public` schema. Existing tenant and role policies remain in place and are still required.
+- First-session profile bootstrap uses `ensure_own_profile` as a tightly scoped `SECURITY DEFINER` RPC (own `auth.uid()` row only) so AAL1 sessions can create/update the caller profile before TOTP reaches `aal2`. Direct `profiles` DML from the client remains AAL2-gated.
 - Service-role requests bypass PostgreSQL RLS. They are protected by the API guard only when they enter through guarded API routes; never expose the service-role key to a client.
 
 ## Local development

@@ -47,7 +47,7 @@ Required API environment:
 - `SUPABASE_SERVICE_ROLE_KEY` (server-side only)
 - `PORT` (host-provided)
 - `NODE_ENV=production`
-- CORS allowlist including `https://sentinelgrid-delta.vercel.app`
+- CORS allowlist including `https://www.sentinelgrid.tech`, `https://sentinelgrid.tech`, and `https://sentinelgrid-delta.vercel.app`
 - `SG_PUBLIC_APP_URL` (invitation accept links; defaults to the Vercel production origin)
 
 Email (Resend):

@@ -880,6 +880,26 @@ BEGIN
     PERFORM pg_temp.pass('ensure_own_profile updates own profile');
     PERFORM pg_temp.clear_auth();
 
+    -- AAL1 bootstrap must succeed via DEFINER RPC; direct DML stays AAL2-gated.
+    PERFORM pg_temp.set_auth(u_profile, 'aal1');
+    ensured := public.ensure_own_profile('AAL1 Name');
+    IF ensured.display_name IS DISTINCT FROM 'AAL1 Name' THEN
+      PERFORM pg_temp.fail('ensure_own_profile failed under aal1');
+    END IF;
+    BEGIN
+      INSERT INTO public.profiles (user_id, email, status)
+      VALUES (u_profile, 'should-fail@example.test', 'active')
+      ON CONFLICT (user_id) DO UPDATE SET email = EXCLUDED.email;
+      PERFORM pg_temp.fail('direct profiles upsert unexpectedly allowed at aal1');
+    EXCEPTION WHEN insufficient_privilege OR check_violation OR others THEN
+      IF SQLERRM ILIKE '%aal2%' OR SQLERRM ILIKE '%row-level security%' OR SQLERRM ILIKE '%policy%' THEN
+        PERFORM pg_temp.pass('direct profiles DML blocked at aal1 by restrictive AAL2 policy');
+      ELSE
+        RAISE;
+      END IF;
+    END;
+    PERFORM pg_temp.clear_auth();
+
     SELECT EXISTS (
       SELECT 1 FROM information_schema.role_table_grants
       WHERE table_schema = 'public' AND table_name = 'profiles'

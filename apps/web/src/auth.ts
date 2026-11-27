@@ -44,18 +44,14 @@ export function setOrganisationId(id: string | null) {
 async function ensureUserProfile(session: Session): Promise<void> {
   const user = session.user;
   const displayName = typeof user.user_metadata?.display_name === "string" ? user.user_metadata.display_name.trim() : "";
+  // Must use ensure_own_profile (SECURITY DEFINER). Direct profiles upsert is blocked at AAL1 by
+  // restrictive require_aal2_* RLS and must not be used as a fallback before MFA.
   const { error: rpcError } = await getSupabase().rpc("ensure_own_profile", {
     p_display_name: displayName || null,
   });
-  if (!rpcError) return;
-  // Fallback path for environments that have table grants but not the RPC yet.
-  const profile: { user_id: string; email: string | null; display_name?: string } = {
-    user_id: user.id,
-    email: user.email ?? null,
-  };
-  if (displayName) profile.display_name = displayName;
-  const { error } = await getSupabase().from("profiles").upsert(profile, { onConflict: "user_id" });
-  if (error) console.warn("SentinelGrid profile initialisation deferred:", error.message);
+  if (rpcError) {
+    console.warn("SentinelGrid profile initialisation deferred:", rpcError.message);
+  }
 }
 export async function restoreSession(): Promise<Session | null> {
   const { data, error } = await getSupabase().auth.getSession();

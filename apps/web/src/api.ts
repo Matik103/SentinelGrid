@@ -1,5 +1,6 @@
 import { loadPublicConfig, PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from "./bootstrap";
 import { authToken, organisationId } from "./auth";
+import { rememberWorkspaceLogo } from "./workspaceLogoCache";
 
 export { authToken, organisationId };
 
@@ -209,7 +210,12 @@ export async function getWorkspaceBranding(organisationIdValue: string): Promise
   const query = new URLSearchParams({ select: "settings", id: `eq.${organisationIdValue}`, limit: "1" });
   const rows = await supabaseRest<Array<{ settings?: Record<string, unknown> }>>(`/rest/v1/organisations?${query.toString()}`);
   const path = typeof rows[0]?.settings?.logo_path === "string" ? rows[0].settings.logo_path : null;
-  return { logoPath: path, logoUrl: path ? `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/workspace-branding/${path.split("/").map(encodeURIComponent).join("/")}` : null };
+  const branding: WorkspaceBranding = {
+    logoPath: path,
+    logoUrl: path ? `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/workspace-branding/${path.split("/").map(encodeURIComponent).join("/")}` : null,
+  };
+  rememberWorkspaceLogo(organisationIdValue, branding.logoUrl);
+  return branding;
 }
 
 export async function canManageWorkspaceBranding(organisationIdValue: string): Promise<boolean> {
@@ -242,7 +248,9 @@ export async function uploadWorkspaceLogo(organisationIdValue: string, file: Fil
       const oldPath = current.logoPath.split("/").map(encodeURIComponent).join("/");
       try { await supabaseRest<unknown>(`/storage/v1/object/workspace-branding/${oldPath}`, { method: "DELETE" }); } catch { /* Best-effort cleanup. */ }
     }
-    return { logoPath: storagePath, logoUrl: `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/workspace-branding/${encodedPath}` };
+    const branding = { logoPath: storagePath, logoUrl: `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/workspace-branding/${encodedPath}` };
+    rememberWorkspaceLogo(organisationIdValue, branding.logoUrl);
+    return branding;
   } catch (error) {
     try { await supabaseRest<unknown>(`/storage/v1/object/workspace-branding/${encodedPath}`, { method: "DELETE" }); } catch { /* Preserve original error. */ }
     throw error;

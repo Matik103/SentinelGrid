@@ -179,9 +179,8 @@ export function EnergyDashboard() {
     <section className="energy-panel telemetry-panel">
       <div className="panel-heading"><div><span className="eyebrow">SOURCE OBSERVATIONS</span><h2>Recent measurements</h2></div><span className="unit-chip">{real.length} RECORDS</span></div>
       {loading ? <div className="profile-empty">Loading measurements…</div> : real.length === 0 ? <div className="empty">
-        <strong>No real energy measurements received.</strong>
-        <p>Connect approved meters, inverter telemetry, BMS/SCADA data or equipment sensors. The platform will display readings only after they are ingested and tenant-scoped.</p>
-        <span className="badge-sim">NO SYNTHETIC LIVE VALUES</span>
+        <strong>No energy measurements received.</strong>
+        <p>Connect approved meters, inverter telemetry, BMS/SCADA data or equipment sensors. Readings appear here after they are ingested for this workspace.</p>
       </div> : <div className="table-wrap">
         <table className="data-table"><thead><tr><th>Measured at</th><th>Metric</th><th>Value</th><th>Asset</th><th>Facility</th><th>Source</th><th>Quality</th></tr></thead>
           <tbody>{real.slice(0, 30).map((item) => <tr key={item.id}>

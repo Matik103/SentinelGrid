@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, ensureConfig, healthCheck } from "./api";
+import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
 import { organisationId, restoreSession, setOrganisationId } from "./auth";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { WorkspacePersonalizeMenu } from "./WorkspacePersonalizeMenu";
@@ -9,6 +9,7 @@ import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
 import { AssetEnergyProfile } from "./AssetEnergyProfile";
 import { TopologyPage, IncidentWorkbenchPage, EventReplayPage, ScenarioWorkbenchPage } from "./OperationsWorkbench";
+import { peekCachedWorkspaceLogo } from "./workspaceLogoCache";
 
 const NAV_GROUPS = [
   { section: "COMMAND", items: [{ to: "/", label: "Overview", glyph: "◈" }, { to: "/incidents", label: "Incident investigation", glyph: "⌁" }, { to: "/replay", label: "Event replay", glyph: "↶" }] },
@@ -29,7 +30,6 @@ function Page({
   return (
     <section className="workspace-page">
       <header className="workspace-page-header">
-        <div className="eyebrow">SENTINEL COMMAND / WORKSPACE</div>
         <h1 className="page-title">{title}</h1>
         <p className="page-lead">{lead}</p>
       </header>
@@ -87,17 +87,14 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
 function DataTable({
   columns,
   rows,
+  emptyLabel = "Nothing here yet.",
 }: {
   columns: { key: string; label: string }[];
   rows: Record<string, unknown>[];
+  emptyLabel?: string;
 }) {
   if (!rows.length) {
-    return (
-      <div className="empty">
-        No rows returned from the API for this workspace.
-        <div className="badge-sim">LIVE API — empty result (not fabricated OT)</div>
-      </div>
-    );
+    return <div className="empty">{emptyLabel}</div>;
   }
   return (
     <div className="table-wrap">
@@ -111,9 +108,9 @@ function DataTable({
         </thead>
         <tbody>
           {rows.map((row, idx) => (
-            <tr key={String(row.id ?? idx)}>
+            <tr key={String(row.id ?? row.user_id ?? idx)}>
               {columns.map((c) => (
-                <td key={c.key} className="mono">
+                <td key={c.key} className={c.key === "user_id" || c.key.endsWith("_at") ? "mono" : undefined}>
                   {formatCell(row[c.key])}
                 </td>
               ))}
@@ -127,7 +124,19 @@ function DataTable({
 
 function formatCell(value: unknown): string {
   if (value == null) return "—";
-  if (typeof value === "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    if (!value.length) return "—";
+    return value.map((item) => formatCell(item)).join(", ");
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (typeof record.name === "string" && record.name.trim()) return record.name;
+    if (typeof record.email === "string" && record.email.trim()) return record.email;
+    if (typeof record.key === "string" && record.key.trim()) {
+      return record.key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+    return "—";
+  }
   return String(value);
 }
 
@@ -149,12 +158,23 @@ function Overview() {
   const [events, setEvents] = useState<OverviewEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const configured = apiConfigured() && Boolean(organisationId()) && Boolean(authToken());
+  const org = organisationId();
+  const [workspaceLogoUrl, setWorkspaceLogoUrl] = useState<string | null | undefined>(() =>
+    organisationId() ? peekCachedWorkspaceLogo(organisationId()!) : null,
+  );
+  const configured = apiConfigured() && Boolean(org) && Boolean(authToken());
 
   useEffect(() => {
     let active = true;
+    if (org && authToken()) {
+      const cached = peekCachedWorkspaceLogo(org);
+      if (cached !== undefined) setWorkspaceLogoUrl(cached);
+      else setWorkspaceLogoUrl(undefined);
+      void getWorkspaceBranding(org).then((branding) => { if (active) setWorkspaceLogoUrl(branding.logoUrl); }).catch(() => { if (active) setWorkspaceLogoUrl(null); });
+    } else {
+      setWorkspaceLogoUrl(null);
+    }
     void healthCheck().then((value) => { if (active) setHealth(value); }).catch(() => { if (active) setHealth("Unavailable"); });
-    const org = organisationId();
     if (!apiConfigured() || !org || !authToken()) {
       setLoading(false);
       setError(!apiConfigured() ? apiConfigurationError() : "Connect a workspace and authenticated session to populate this command view. No sample telemetry is displayed.");
@@ -178,7 +198,7 @@ function Overview() {
       if (active) { setError("The command view could not retrieve workspace data."); setLoading(false); }
     });
     return () => { active = false; };
-  }, []);
+  }, [org]);
 
   const criticalEvents = events.filter((event) => event.integrity_status === "failed" || event.data_quality === "poor" || /critical|failure|fault|alarm|offline|trip|overheat/i.test(String(event.event_type ?? ""))).length;
   const stats = [
@@ -202,7 +222,17 @@ function Overview() {
         </div>
         <div className="command-hero-visual" aria-label="Infrastructure network illustration">
           <div className="orbital orbital-one" /><div className="orbital orbital-two" />
-          <div className="hero-core"><span className="core-cross">+</span><strong>CORE</strong><small>SYSTEM MODEL</small></div>
+          {workspaceLogoUrl === undefined ? (
+            <div className="hero-core-logo hero-core-logo-pending" aria-hidden="true" />
+          ) : (
+            <img
+              className="hero-core-logo"
+              src={workspaceLogoUrl || "/assets/sentinelgrid-logo-mark.png"}
+              alt={workspaceLogoUrl ? "Workspace logo" : "SentinelGrid"}
+              width={128}
+              height={128}
+            />
+          )}
           <span className="orbit-node node-a">POWER</span><span className="orbit-node node-b">ASSETS</span><span className="orbit-node node-c">SENSORS</span><span className="orbit-node node-d">EVIDENCE</span>
           <div className="visual-caption">CONNECTED INFRASTRUCTURE<br /><span>Relationships · signals · evidence</span></div>
         </div>
@@ -275,12 +305,12 @@ function Overview() {
           </div>
         </section>
       </div>
-      <div className="command-footer"><span>SENTINEL COMMAND / INFRASTRUCTURE INTELLIGENCE</span><span>API HEALTH: {health.toUpperCase()} · {configured ? "AUTHENTICATED WORKSPACE" : "AWAITING WORKSPACE CONNECTION"} · READ-ONLY BY DEFAULT</span></div>
+      <div className="command-footer"><span>Infrastructure intelligence</span><span>{configured ? "Workspace connected" : "Awaiting workspace"} · {health}</span></div>
     </section>
   );
 }
 
-function OrganisationPanel() {
+function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void } = {}) {
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<Record<string, unknown>[]>([]);
   const [invites, setInvites] = useState<Record<string, unknown>[]>([]);
@@ -288,6 +318,12 @@ function OrganisationPanel() {
   const [inviteRole, setInviteRole] = useState("read_only_viewer");
   const [msg, setMsg] = useState<string | null>(null);
   const org = organisationId();
+  const [logoUrl, setLogoUrl] = useState<string | null | undefined>(() =>
+    organisationId() ? peekCachedWorkspaceLogo(organisationId()!) : null,
+  );
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [canManageBranding, setCanManageBranding] = useState(false);
+  const [logoMessage, setLogoMessage] = useState<string | null>(null);
 
   const reload = async () => {
     setError(null);
@@ -307,7 +343,35 @@ function OrganisationPanel() {
 
   useEffect(() => {
     void reload();
+    if (org && authToken()) {
+      const cached = peekCachedWorkspaceLogo(org);
+      if (cached !== undefined) setLogoUrl(cached);
+      else setLogoUrl(undefined);
+      void getWorkspaceBranding(org).then((branding) => setLogoUrl(branding.logoUrl)).catch(() => setLogoUrl(null));
+      void canManageWorkspaceBranding(org).then(setCanManageBranding).catch(() => setCanManageBranding(false));
+    } else {
+      setLogoUrl(null);
+      setCanManageBranding(false);
+    }
   }, [org]);
+
+  async function onWorkspaceLogoChange(event: { currentTarget: HTMLInputElement }) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file || !org) return;
+    setLogoBusy(true);
+    setLogoMessage(null);
+    try {
+      const branding = await uploadWorkspaceLogo(org, file);
+      setLogoUrl(branding.logoUrl);
+      setLogoMessage("Workspace logo saved. It appears in the workspace switcher and command overview.");
+      onBrandingChange?.();
+    } catch (cause) {
+      setLogoMessage(cause instanceof Error ? cause.message : "Could not upload the workspace logo.");
+    } finally {
+      setLogoBusy(false);
+    }
+  }
 
   async function onInvite(e: FormEvent) {
     e.preventDefault();
@@ -335,6 +399,20 @@ function OrganisationPanel() {
   return (
     <Page title="Workspace settings" lead="Tenant membership and invitation workflows.">
       <StatusBanner error={error} />
+      <section className="workspace-branding-panel">
+        <div className="workspace-branding-copy"><h2>Workspace logo</h2><p>Personalise the centre of your command overview with your organisation’s logo. Until one is uploaded, SentinelGrid’s default emblem remains in place.</p></div>
+        <div className="workspace-branding-control">
+          <div className="workspace-branding-preview">
+            {logoUrl === undefined
+              ? <span className="workspace-branding-pending" aria-hidden="true" />
+              : logoUrl
+                ? <img src={logoUrl} alt="Current workspace logo" />
+                : <img src="/assets/sentinelgrid-logo-mark.png" alt="Default SentinelGrid emblem" />}
+          </div>
+          {canManageBranding ? <label className="btn workspace-logo-upload">{logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload workspace logo"}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={logoBusy || logoUrl === undefined} onChange={onWorkspaceLogoChange} /></label> : <span className="workspace-branding-hint">Workspace administrator access required</span>}
+        </div>
+        {logoMessage && <p className="workspace-branding-message" role="status">{logoMessage}</p>}
+      </section>
       <h2 className="section-title">Members</h2>
       <DataTable
         columns={[
@@ -343,6 +421,7 @@ function OrganisationPanel() {
           { key: "roles", label: "Role" },
         ]}
         rows={members}
+        emptyLabel="No members in this workspace yet."
       />
       <h2 className="section-title">Invitations</h2>
       <DataTable
@@ -353,6 +432,7 @@ function OrganisationPanel() {
           { key: "roles", label: "Role" },
         ]}
         rows={invites}
+        emptyLabel="No pending invitations."
       />
       <form className="inline-form" onSubmit={onInvite}>
         <input
@@ -363,11 +443,11 @@ function OrganisationPanel() {
           onChange={(e) => setInviteEmail(e.target.value)}
         />
         <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
-          <option value="read_only_viewer">read_only_viewer</option>
-          <option value="operations_manager">operations_manager</option>
-          <option value="security_analyst">security_analyst</option>
-          <option value="facility_manager">facility_manager</option>
-          <option value="organisation_administrator">organisation_administrator</option>
+          <option value="read_only_viewer">Read-only viewer</option>
+          <option value="operations_manager">Operations manager</option>
+          <option value="security_analyst">Security analyst</option>
+          <option value="facility_manager">Facility manager</option>
+          <option value="organisation_administrator">Workspace administrator</option>
         </select>
         <button type="submit" className="btn">
           Send invite
@@ -419,7 +499,7 @@ function ResourcePage({
   return (
     <Page title={title} lead={lead}>
       <StatusBanner error={error} />
-      {loading ? <p className="page-lead">Loading…</p> : <DataTable columns={columns} rows={rows} />}
+      {loading ? <p className="page-lead">Loading…</p> : <DataTable columns={columns} rows={rows} emptyLabel={`No ${title.toLowerCase()} recorded for this workspace yet.`} />}
       {create && orgId && (
         <form className="inline-form" onSubmit={onCreate}>
           {create.fields}
@@ -541,7 +621,7 @@ export function App() {
           <Route path="/incidents" element={<IncidentWorkbenchPage />} />
           <Route path="/replay" element={<EventReplayPage />} />
           <Route path="/scenarios" element={<ScenarioWorkbenchPage />} />
-          <Route path="/organisation" element={<OrganisationPanel />} />
+          <Route path="/organisation" element={<OrganisationPanel onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
           <Route
             path="/facilities"
             element={
@@ -726,7 +806,7 @@ export function App() {
               />
             }
           />
-          <Route path="/users" element={<OrganisationPanel />} />
+          <Route path="/users" element={<OrganisationPanel onBrandingChange={() => setAuthRefreshKey((value) => value + 1)} />} />
         </Routes>
         </div>
       </main>

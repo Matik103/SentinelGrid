@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { authModeLabel, authToken, getSupabase, restoreSession, signInWithPassword, signOut } from "./auth";
+import { authModeLabel, authToken, getSupabase, restoreSession, signInWithPassword, signOut, signUpWithPassword } from "./auth";
 
 type Props = { onAuthChange?: () => void };
 type MfaChallenge = {
@@ -18,6 +18,9 @@ function errorMessage(error: unknown) {
 export function AuthPanel({ onAuthChange }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [creatingAccount, setCreatingAccount] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [status, setStatus] = useState(authModeLabel());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -98,12 +101,36 @@ export function AuthPanel({ onAuthChange }: Props) {
     event.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await signInWithPassword(email.trim(), password);
       setStatus(authModeLabel());
       setPassword("");
       const complete = await prepareMfa();
       if (complete) onAuthChange?.();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onSignUp = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      if (password.length < 8) throw new Error("Choose a password with at least 8 characters.");
+      const result = await signUpWithPassword(email.trim(), password, displayName);
+      setPassword("");
+      if (result.session) {
+        const complete = await prepareMfa();
+        if (complete) onAuthChange?.();
+      } else {
+        setNotice("Your account was created. Check your email for the confirmation link, then sign in to set up your authenticator.");
+        setCreatingAccount(false);
+      }
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -195,6 +222,7 @@ export function AuthPanel({ onAuthChange }: Props) {
         <span className="mono">{mfa ? "SentinelGrid requires a verified authenticator before workspace access." : mfaPending ? "Complete authenticator verification to continue." : signedIn ? "Workspace access is protected by MFA" : "Sign in to access your workspaces"}</span>
       </div>
       {error && <div className="inline-notice warning" role="alert">{error}</div>}
+      {notice && <div className="inline-notice" role="status">{notice}</div>}
 
       {mfa ? (
         <div className="auth-mfa">
@@ -231,18 +259,33 @@ export function AuthPanel({ onAuthChange }: Props) {
           <button type="button" onClick={() => void onSignOut()} disabled={busy}>{busy ? "Signing out…" : "Sign out"}</button>
         </div>
       ) : (
-        <form onSubmit={(event) => void onSignIn(event)} className="auth-form">
-          <label>Email
-            <input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" />
-          </label>
-          <label>Password
-            <input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
-          </label>
-          <button type="submit" disabled={busy}>
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
-          {import.meta.env.DEV && <p className="auth-dev-hint">Local development may use VITE_DEV_ACCESS_TOKEN. Production access always requires a verified Supabase MFA session.</p>}
-        </form>
+        {creatingAccount ? (
+          <form onSubmit={(event) => void onSignUp(event)} className="auth-form">
+            <label>Your name
+              <input type="text" required maxLength={120} value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" />
+            </label>
+            <label>Work email
+              <input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+            </label>
+            <label>Create password
+              <input type="password" required minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" />
+            </label>
+            <button type="submit" disabled={busy}>{busy ? "Creating account…" : "Create account"}</button>
+            <button type="button" className="btn secondary" disabled={busy} onClick={() => { setCreatingAccount(false); setError(null); setNotice(null); }}>Back to sign in</button>
+          </form>
+        ) : (
+          <form onSubmit={(event) => void onSignIn(event)} className="auth-form">
+            <label>Email
+              <input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" />
+            </label>
+            <label>Password
+              <input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
+            </label>
+            <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+            <button type="button" className="btn secondary" disabled={busy} onClick={() => { setCreatingAccount(true); setError(null); setNotice(null); }}>Create an account</button>
+            {import.meta.env.DEV && <p className="auth-dev-hint">Local development may use VITE_DEV_ACCESS_TOKEN. Production access always requires a verified Supabase MFA session.</p>}
+          </form>
+        )}
       )}
     </div>
   );

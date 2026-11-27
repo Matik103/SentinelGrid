@@ -48,6 +48,3 @@ services:
       # Optional: set in Render to the deployed git SHA for /v1/health monitoring.build_sha
       - key: GIT_SHA
         sync: false
-      # Optional: Management API token so Nest/ops scripts can apply SQL on boot if desired
-      - key: SUPABASE_ACCESS_TOKEN
-        sync: false

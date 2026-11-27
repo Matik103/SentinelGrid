@@ -1,20 +1,25 @@
 # SentinelGrid deployment and production readiness
 
-## Deployment topology
+## Deployment topology (normal production path)
 
-- Frontend: Vercel project `sentinelgrid`, custom domains `https://www.sentinelgrid.tech` and `https://sentinelgrid.tech`.
-- API: NestJS service in `apps/api`, deployed separately using the root `render.yaml` Blueprint and `apps/api/Dockerfile`.
-- Database and identity: hosted Supabase project `abaeizgfsskvjklfslrh`.
-- Invitation delivery: the NestJS `EmailWorkerService` drains `email_outbox` through Resend when explicitly configured.
+Production is three hosted services — not a Cloud Agent VM:
 
-The shared implementation branch is `work/sentinel-command-release-v2`. The Vercel project currently has a production deployment sourced from `main`; pushes to the shared work branch produce previews unless the Vercel production branch setting is deliberately changed. Do not treat a preview build as a production release.
+| Layer | Host | Role |
+| --- | --- | --- |
+| UI | Vercel → `https://www.sentinelgrid.tech` | Browser app + Supabase Auth (anon key + RLS) |
+| API | Render Nest → `https://sentinelgrid-fpzo.onrender.com` | `/v1/*`, Resend outbox worker, Supabase Storage via service role |
+| Data/Auth | Supabase `abaeizgfsskvjklfslrh` | Postgres, Auth/MFA, Storage buckets, `app_public_config` |
+
+Invitation emails must link to `https://www.sentinelgrid.tech/?invite=<token>` (FE accept flow). Do not email raw tokens or `/accept-invite`.
+
+The shared implementation branch is `work/sentinel-command-release-v2` (Render auto-deploys this). Vercel production is still sourced from `main` until an explicit cutover — keep invite/auth/API contracts aligned across both, and do not treat a preview build as a production release.
 
 ## Frontend API configuration
 
 The browser calls the NestJS API under `/v1`. Configuration precedence:
 
-1. Vercel build-time variable `VITE_API_BASE_URL`.
-2. Supabase public runtime config row `public.app_public_config.key = 'api_base_url'`, value shape `{"url":"https://<api-origin>"}`.
+1. Supabase public runtime config row `public.app_public_config.key = 'api_base_url'`, value shape `{"url":"https://<api-origin>"}` (production default).
+2. Vercel build-time `VITE_API_BASE_URL` only when `VITE_API_BASE_URL_FORCE=1` or during local Vite DEV.
 
 The public config migration deliberately inserts an empty URL. Do not fill it with a guessed hostname. Deploy the API first and verify `GET /v1/health` returns HTTP 200 with `dependencies.supabase = "ok"`. Then run:
 
@@ -53,21 +58,17 @@ After the Blueprint deploys:
 
 ## Supabase migrations and authentication
 
-Apply pending migrations to the hosted project from the repository root (Management API path used by agents):
+Apply pending migrations on the hosted Supabase project (operator machine or CI — not the Render Nest service):
 
 ```sh
-# requires SUPABASE_ACCESS_TOKEN or ~/.supabase/access-token
+# Supabase personal access token (Management API), or linked CLI session:
 node scripts/apply-pending-production.mjs
-# or statement-by-statement:
+# or:
 node scripts/apply-remote-sql.mjs abaeizgfsskvjklfslrh supabase/migrations/<file>.sql
+npx supabase link --project-ref abaeizgfsskvjklfslrh && npx supabase db push
 ```
 
-Linked CLI alternative when the project is already linked locally:
-
-```sh
-npx supabase link --project-ref abaeizgfsskvjklfslrh
-npx supabase db push
-```
+Do not put a Management API token on Render. Nest only needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (+ Resend secrets).
 
 Review the pending migration list before confirming `db push`. Important pending migrations on the shared branch include:
 

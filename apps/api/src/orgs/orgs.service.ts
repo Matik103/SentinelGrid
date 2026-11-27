@@ -217,13 +217,17 @@ export class OrgsService {
     token: string,
     organisationId: string,
   ): Promise<{ channel: string; outbox_id?: string; status: string }> {
-    const acceptPath = process.env.SG_INVITE_ACCEPT_URL ?? "/accept-invite";
+    // Must match the FE accept flow on www.sentinelgrid.tech: /?invite=<token>
+    // (see apps/web/src/App.tsx + auth.ts). Do not email raw tokens or /accept-invite.
+    const appUrl = (process.env.SG_PUBLIC_APP_URL ?? "https://www.sentinelgrid.tech").replace(/\/$/, "");
+    const inviteUrl = `${appUrl}/?invite=${encodeURIComponent(token)}`;
     const bodyText = [
-      "You have been invited to a SentinelGrid organisation.",
-      `Accept path: ${acceptPath}`,
-      `Token: ${token}`,
+      "You have been invited to a SentinelGrid workspace.",
       "",
-      "If you did not expect this email, ignore it.",
+      `Accept your invitation: ${inviteUrl}`,
+      "",
+      "Sign in or create your account with the invited email address to join the workspace.",
+      "If you did not expect this email, you can ignore it.",
     ].join("\n");
 
     try {
@@ -233,12 +237,12 @@ export class OrgsService {
         toEmail: email,
         subject: "SentinelGrid organisation invitation",
         bodyText,
-        payload: { organisation_id: organisationId, accept_path: acceptPath },
+        payload: { organisation_id: organisationId, accept_url: inviteUrl },
       });
-      const channel =
-        process.env.NODE_ENV === "production" && (process.env.SG_EMAIL_TRANSPORT ?? "none") === "none"
-          ? "outbox_pending"
-          : "outbox";
+      const production = process.env.NODE_ENV === "production";
+      const transport = process.env.SG_EMAIL_TRANSPORT ?? (production ? "none" : "local_log");
+      // resend/none leave the row pending for the leased worker (or ops); local_log drains inline.
+      const channel = transport === "local_log" ? "outbox" : "outbox_pending";
       return { channel, outbox_id: row.id, status: row.status };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

@@ -129,7 +129,9 @@ export class RateLimitMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     // Liveness/readiness must not depend on Redis/memory allow-list configuration.
     // All other routes remain rate-limited and fail-closed when the backend is unavailable.
-    const path = req.path ?? "";
+    // Prefer originalUrl so global prefixes / proxies do not miss the exemption.
+    const raw = (req.originalUrl ?? req.url ?? req.path ?? "").split("?")[0] ?? "";
+    const path = raw.replace(/\/+$/, "") || "/";
     if (req.method === "GET" && (path === "/v1/health" || path === "/health")) {
       next();
       return;

@@ -4,9 +4,9 @@
  * The Supabase URL and anon key are public client credentials protected by RLS.
  * Never place a service-role key or other server secret in this module or a VITE_ variable.
  *
- * API origin precedence:
- *   1. VITE_API_BASE_URL (Vercel build-time override; useful during backend rollout)
- *   2. public.app_public_config.api_base_url (Supabase runtime configuration)
+ * API origin precedence (production path: UI → Supabase config → Render API):
+ *   1. public.app_public_config.api_base_url (Supabase runtime configuration)
+ *   2. VITE_API_BASE_URL only as break-glass (DEV, or VITE_API_BASE_URL_FORCE=1)
  */
 export const PUBLIC_SUPABASE_URL = "https://abaeizgfsskvjklfslrh.supabase.co";
 export const PUBLIC_SUPABASE_ANON_KEY =
@@ -96,6 +96,21 @@ export async function loadPublicConfig(): Promise<PublicConfig> {
 
   try {
     const override = normalizeApiBaseUrl(viteApi);
+    const forceViteOverride =
+      Boolean(import.meta.env.DEV) || String(import.meta.env.VITE_API_BASE_URL_FORCE ?? "") === "1";
+    const databaseUrl = normalizeApiBaseUrl(databaseConfig.api_base_url);
+
+    // Production prefers Supabase runtime config so a stale Vercel env cannot strand the SPA.
+    if (databaseUrl && !forceViteOverride) {
+      cached = {
+        ...databaseConfig,
+        api_base_url: databaseUrl,
+        api_config_source: "supabase",
+        api_config_error: null,
+      };
+      return cached;
+    }
+
     if (override) {
       cached = {
         ...databaseConfig,
@@ -106,7 +121,6 @@ export async function loadPublicConfig(): Promise<PublicConfig> {
       return cached;
     }
 
-    const databaseUrl = normalizeApiBaseUrl(databaseConfig.api_base_url);
     if (databaseUrl) {
       cached = {
         ...databaseConfig,

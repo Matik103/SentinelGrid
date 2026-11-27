@@ -57,12 +57,12 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
     }
     const org = organisationId();
     if (!org) {
-      setError("Set VITE_DEV_ORGANISATION_ID or localStorage sg_organisation_id.");
+      setError("Select or create a workspace using the workspace switcher above.");
       setLoading(false);
       return;
     }
     if (!authToken()) {
-      setError("Set VITE_DEV_ACCESS_TOKEN or localStorage sg_access_token.");
+      setError("Sign in to load this workspace.");
       setLoading(false);
       return;
     }

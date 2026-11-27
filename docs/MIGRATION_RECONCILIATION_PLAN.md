@@ -1,6 +1,6 @@
 # Hosted migration reconciliation plan (read-only)
 
-**Status:** **applied** 2026-11-26 PT (America/Los_Angeles) — hosted matches work tip through `20261127150000` (pending=0)  
+**Status:** **applied** 2026-11-27 PT (America/Los_Angeles) — hosted matches work tip through `20261127160000` (pending=0)  
 **Issue:** [#9](https://github.com/Matik103/SentinelGrid/issues/9)  
 **Work tip when authored:** `2de294edc2ae1dbacfb152fd71443f777ecbc597`  
 **Canonical branch:** `work/sentinel-command-release-v2`  
@@ -83,6 +83,13 @@ Recommended product decision (subject to lead approval):
 | Re-applied `20261127090000`, `20261127100000`, `20261127130000`–`20261127150000` | Idempotent identity/storage/branding parity |
 | Recorded all 20 work-tip versions | Dry-run pending=0 |
 | `api_base_url` | `https://sentinelgrid-fpzo.onrender.com` |
+
+## 6b. Apply record (2026-11-27 PT)
+
+| Action | Result |
+|---|---|
+| Applied `20261127160000_workspace_branding_aal2.sql` | Restrictive AAL2 policy on `storage.objects` for `workspace-branding` |
+| Recorded `20261127160000` | Hosted pending=0 vs work tip (21 repo migrations; 25 hosted version rows including main-lineage extras) |
 
 ## 7. Explicit non-actions
 

@@ -1,7 +1,8 @@
 # Phase 0 acceptance checklist (authoritative)
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current audit baseline tip:** `17b4af6b571f17f5338b683b135287adf0bfa947` (2026-11-26 America/Los_Angeles)  
+**Current tip (evidence below):** `b094207b91b5889cdc8376a853412e015c71cc80` (2026-11-26 America/Los_Angeles)  
+**Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947` (preserved in historical / baseline sections)  
 **Rule:** Do **not** mark Phase 0 COMPLETE unless every required row is fully verified at the **ops** level with linked evidence. This document is the repo-local source of truth for gate decisions.
 
 Timezone for operator notes: America/Los_Angeles.
@@ -32,8 +33,8 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | 9 | Rate limiting Redis/memory fail-closed | tested | Distributed/proxy identity still limited |
 | 10 | Audit log read API | tested | |
 | 11 | Sentinel Command UI live workflows | code | Config-gated API client; browser/auth E2E **OPEN** |
-| 12 | Engineering quality gate green on tip SHA | tested / **blocked** locally | Tip CI Node release checks green (below). Full `docs/ENGINEERING_QUALITY_GATE.md` (`supabase start` + `./scripts/audit.sh`) **blocked** on Cursor audit machine (Docker + Supabase CLI missing) — **not** a pass |
-| 13 | Ops docs + this checklist | code | Updated for tip `17b4af6` audit |
+| 12 | Engineering quality gate green on tip SHA | **tested** (CI) | Full Docker-backed gate green on tip `b094207` via `.github/workflows/audit.yml` (below). Cursor audit machine still lacks Docker/Supabase CLI — local block unchanged; CI runner is the authoritative pass |
+| 13 | Ops docs + this checklist | code | Updated for tip `b094207` quality-gate + plan packet |
 | 14 | Facility-manager same-org cross-facility isolation + assignment APIs | tested | Migration `20261125250000` + SQL isolation + assignment HTTP |
 
 ## Operational criteria
@@ -69,7 +70,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | `647ea0b` | failure ([45701124636](https://github.com/Matik103/SentinelGrid/actions/runs/45701124636)) | through `260000` | Facility tests; TS `never` in assignment test |
 | `07b06ee` | **success** ([45701978909](https://github.com/Matik103/SentinelGrid/actions/runs/45701978909)) | through `20261125260000` local+remote | Facility isolation SQL + email lease tests + 3-level checklist |
 
-### Current audit baseline — tip `17b4af6` (2026-11-26 PT)
+### Prior Issue #9 audit baseline — tip `17b4af6` (2026-11-26 PT)
 
 | Item | Result | Evidence |
 |---|---|---|
@@ -79,14 +80,29 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Local API tests | **54/54 pass** | `npm test -w @sentinelgrid/api` on Cursor audit machine |
 | Local web build | **pass** | `npm run build -w @sentinelgrid/web` |
 | Local Go connector tests | **pass** | `go test ./...` under `edge/connector` |
-| Full quality gate | **blocked / not executed** | Docker + `supabase` CLI missing → `env.docker`, `env.supabase` fail under `REQUIRE_DB_CHECKS=0 ./scripts/audit.sh` |
+| Full quality gate | **blocked on audit machine** | Docker + `supabase` CLI missing locally at that time |
 | Nest `/v1/health` | HTTP 200 partial ops | `status=ok`, supabase ok, `payload_backend=supabase`, `payload_bucket=ready`, Resend worker enabled/configured, `build_sha=""` |
 | `app_public_config.api_base_url` | set | `https://sentinelgrid-fpzo.onrender.com` |
 | www.sentinelgrid.tech | HTTP 200 | Landing reachable; production FE still documented as sourced from `main` |
 | Hosted migrations | **unverified** | Do not apply. See migration risk note below |
 | Criterion G live invite | **OPEN** | No mailbox delivery proof |
 | Backup/restore | **OPEN** | Not executed |
-| Browser E2E | **OPEN** | Not executed in this packet |
+| Browser E2E | **OPEN** | Not executed |
+
+### Current tip — `b094207` (2026-11-26 PT)
+
+| Item | Result | Evidence |
+|---|---|---|
+| Branch / SHA | `work/sentinel-command-release-v2` @ `b094207b91b5889cdc8376a853412e015c71cc80` = origin | Post–`2de294e` quality-gate + plan packet |
+| Docs/design commit | **accepted** | `2de294edc2ae1dbacfb152fd71443f777ecbc597` — Phase 0 tip audit + UniFi design |
+| Tip CI release checks | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/45947732132 |
+| Full Engineering Quality Gate | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/45947732146 — Docker + Supabase CLI 2.75.0; `db.lint`, upgrade path (17 migrations), `security.tenant_isolation`, npm/go checks, gitleaks |
+| Vercel status on tip | **success** (branch/preview) | https://vercel.com/excel-11ea67ae/sentinelgrid/4jKNtLkmNYp2aKUMNu2D7WAtnDbm — **preview ≠ www production** |
+| Hosted migrations | **unverified** | Plan only: [`MIGRATION_RECONCILIATION_PLAN.md`](MIGRATION_RECONCILIATION_PLAN.md). **Do not apply** |
+| Criterion G live invite | **OPEN** | No mailbox delivery proof |
+| Backup/restore | **OPEN** (design ready) | Disposable drill in [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md) — not executed |
+| Browser E2E | **OPEN** (plan ready) | [`BROWSER_E2E_PLAN.md`](BROWSER_E2E_PLAN.md) — not executed |
+| UniFi adapter implementation | **not authorized** | Design only: [`ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md) |
 
 ### Migration risk note (read-only; no apply)
 
@@ -102,18 +118,18 @@ Repo migrations after historical remote claim `20261125260000` (may or may not a
 Migrations present on `main` but **not** on this work tip: `20261126100000_workspace_branding.sql`, `20261126110000_atomic_asset_media_primary.sql`, `20261126120000_auth_identity_assets.sql`, `20261126120100_ensure_own_profile_jwt_email.sql`.
 
 **Still OPEN (do not close Phase 0):**
-- Hosted migration reconciliation + verified apply (**ops**, approved plan required)
+- Hosted migration inventory + reconciliation + verified apply (**ops**, approved plan required)
 - Production email delivery proof (**ops**)
 - Full OT protocol acquisition or formal deferral (**ops** — needs maps/node IDs/topics)
-- Real backup + object-storage restore drill (**ops**)
-- Authenticated browser E2E (signup/MFA/invite/registry/energy/evidence) (**ops**)
-- Full engineering quality gate on a Docker-capable runner for tip SHA (**tested/ops**)
+- Real backup + object-storage restore drill (**ops** — design ready; execute only when authorized)
+- Authenticated browser E2E (signup/MFA/invite/registry/energy/evidence) (**ops** — plan ready)
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip `17b4af6` Node CI green; full quality gate blocked on audit machine; migrations/email/restore/E2E still open — **not COMPLETE**.
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip `b094207` Node release checks + full Engineering Quality Gate green on CI; hosted migrations/email/restore/E2E still open — **not COMPLETE**.
 
 ## Related plans (not Phase 0 exit / not authorized to execute)
 
 - Router/AP inventory adapter design (implementation **not** authorized yet): [`ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md). Keep network intelligence separate from wireless security sensors and electrical outlet/circuit sensing.
 - Hosted migration reconciliation (**do not apply** until approved): [`MIGRATION_RECONCILIATION_PLAN.md`](MIGRATION_RECONCILIATION_PLAN.md).
 - Disposable backup/restore drill design: [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md).
-- Full DB quality gate CI: `.github/workflows/audit.yml` must run on this canonical branch (Node release checks alone are insufficient).
+- Authenticated browser E2E plan: [`BROWSER_E2E_PLAN.md`](BROWSER_E2E_PLAN.md).
+- Full DB quality gate CI: `.github/workflows/audit.yml` on this canonical branch — **green** on tip `b094207` (Node release checks alone remain insufficient as sole evidence).

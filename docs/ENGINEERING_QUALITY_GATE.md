@@ -42,13 +42,14 @@ The security test runner targets the local Supabase database only. It never link
 
 A CI run must not be green if required database checks did not execute.
 
-## Current product gaps (not Phase 0 acceptance)
+## What a green gate does *not* prove
 
-- Auth UI and end-to-end invitations.
-- Sentinel Command frontend.
-- Go edge connector runtime and credential lifecycle.
-- Event ingestion API, schema validation, deduplication, replay protection and dead-letter processing.
-- Raw payload object storage, byte-level verification and evidence export.
-- Backup/restore and recovery drill.
+See [`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) and [`PHASE0_ACCEPTANCE_CHECKLIST.md`](PHASE0_ACCEPTANCE_CHECKLIST.md) for live capability status. A green quality gate proves local disposable DB/security/repo checks on the tip SHA. It is **not** proof of:
 
-A green quality gate is not proof that these capabilities exist or that Phase 0 is complete.
+- Hosted Supabase migration parity with the repository.
+- Production email delivery or invite acceptance.
+- Authenticated browser E2E against deployed UI+API.
+- Backup/object-store restore drills.
+- Live OT / router / wireless / electrical acquisition.
+
+A green quality gate is not Phase 0 complete.

@@ -1,8 +1,9 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Audit baseline tip:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
-**Last reviewed:** 2026-11-26 (America/Los_Angeles) — Issue #9 supervised audit  
+**Current tip:** `b094207b91b5889cdc8376a853412e015c71cc80`  
+**Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
+**Last reviewed:** 2026-11-26 (America/Los_Angeles) — quality gate CI + Phase 0 plans  
 **Overall status:** platform foundation and workbenches are in progress; not production-complete.
 
 Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencing, dependencies and acceptance criteria. This file is the concise status snapshot. The detailed Phase 0 gate remains in [`docs/PHASE0_ACCEPTANCE_CHECKLIST.md`](docs/PHASE0_ACCEPTANCE_CHECKLIST.md).
@@ -47,7 +48,9 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | Cross-domain cyber-physical correlation | Planned | Requires validated network, wireless, energy and physical source events |
 | Controlled mitigation | Deferred until detection is reliable | Approval, policy, safety, rollback and audit controls required |
 
-## Tip `17b4af6` verification snapshot (Issue #9)
+## Tip verification snapshots
+
+### Prior Issue #9 baseline — `17b4af6`
 
 | Check | Result |
 |---|---|
@@ -57,10 +60,25 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | `npm test -w @sentinelgrid/api` | 54/54 pass (Cursor audit machine) |
 | `npm run build -w @sentinelgrid/web` | pass |
 | `go test ./...` (`edge/connector`) | pass |
-| Full quality gate (`ENGINEERING_QUALITY_GATE.md`) | **blocked** — Docker + Supabase CLI unavailable on audit machine |
+| Full quality gate | **blocked on audit machine** (no Docker / Supabase CLI) |
 | Nest `/v1/health` | HTTP 200; supabase ok; payload `supabase` / bucket ready; Resend configured+worker on; `build_sha` empty |
 | Criterion G live invite | **open** |
 | Hosted migrations vs repo | **open / unverified**; main↔work divergence |
+
+### Current tip — `b094207`
+
+| Check | Result |
+|---|---|
+| Shared branch HEAD = origin | `b094207` |
+| Docs/design packet | `2de294e` accepted (Phase 0 tip audit + UniFi design) |
+| GitHub Actions release checks | success — https://github.com/Matik103/SentinelGrid/actions/runs/45947732132 |
+| Full Engineering Quality Gate | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/45947732146 (Docker + Supabase CLI; lint; 17-migration upgrade path; tenant isolation; npm/go; gitleaks) |
+| Vercel tip status | success **preview/branch** — https://vercel.com/excel-11ea67ae/sentinelgrid/4jKNtLkmNYp2aKUMNu2D7WAtnDbm (not www production) |
+| Hosted migrations vs repo | **open / unverified**; plan only — [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md) |
+| Criterion G live invite | **open** |
+| Browser E2E | **open** — plan [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md) |
+| Backup/restore drill | **open** — design in [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md) |
+| UniFi implementation | **not authorized** — design only |
 
 ## Operational blockers
 
@@ -69,9 +87,9 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 3. **Email:** configuration readiness observed; delivered invite + accept path ops proof still required for Criterion G.
 4. **Backup/recovery:** disposable drill design in [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md). Execute only when authorized on a non-production project.
 5. **Energy/OT acquisition:** probes are not measurements. Provide real register maps, MQTT topics, OPC UA node IDs and fixtures before claiming live telemetry.
-6. **Frontend acceptance:** authenticated browser E2E for signup, MFA, workspace, invitations, registry, energy and evidence remains open.
+6. **Frontend acceptance:** authenticated browser E2E for signup, MFA, workspace, invitations, registry, energy and evidence remains open — plan in [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md).
 7. **Production FE branch:** www may still ship from `main` while Nest ships from this work branch — treat as split-brain until an explicit cutover decision.
-8. **Full quality gate:** wire `audit.yml` to the canonical branch so Docker-backed `./scripts/audit.sh` runs on tip pushes. Node release checks alone are not the gate.
+8. **Full quality gate:** **closed as CI-tested** on tip `b094207` via `audit.yml` on the canonical branch. Cursor local Docker/Supabase CLI remains unavailable; Node release checks alone are still not a substitute for the gate.
 
 ## Acquisition capability boundaries (architectural)
 

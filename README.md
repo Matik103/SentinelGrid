@@ -1,5 +1,7 @@
 # SentinelGrid
 
+> **Product and engineering roadmap:** [ROADMAP.md](ROADMAP.md) — canonical sequence for existing platform work plus network, wireless, energy/outlet, smart-home and cyber-physical security capabilities.
+
 Infrastructure intelligence, security & resilience platform.
 
 **Know what is happening. Prove what changed. Protect what matters.**

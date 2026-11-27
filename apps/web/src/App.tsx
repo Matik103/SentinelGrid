@@ -483,7 +483,7 @@ export function App() {
   const [activeOrganisationName, setActiveOrganisationName] = useState("Workspace");
   const [authRefreshKey, setAuthRefreshKey] = useState(0);
   const [authReady, setAuthReady] = useState(false);
-  const [workspaceGate, setWorkspaceGate] = useState<"checking" | "required" | "ready" | "error">("checking");
+  const [workspaceGate, setWorkspaceGate] = useState<"checking" | "mfa" | "required" | "ready" | "error">("checking");
   const [gateMessage, setGateMessage] = useState<string | null>(null);
   const location = useLocation();
 
@@ -503,9 +503,11 @@ export function App() {
     const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>("/v1/orgs/mine");
     if (result.error) {
       const message = result.error.message;
+      // AAL1 sessions get 403 MFA_REQUIRED from Nest. Never leave the gate on
+      // "checking" here — that hung production on VERIFYING WORKSPACE ACCESS.
       if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || result.error.status === 403) {
         setGateMessage("Complete authenticator verification to continue.");
-        setWorkspaceGate("checking");
+        setWorkspaceGate("mfa");
         return;
       }
       setGateMessage(message);
@@ -571,6 +573,15 @@ export function App() {
 
   if (!authReady) return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>SECURE COMMAND INITIALISING</span></div>;
   if (!authToken() || window.location.hash.includes("type=recovery")) return <AuthPanel onAuthChange={handleAuthChange} />;
+  // MFA_REQUIRED used to leave workspaceGate on "checking" forever (VERIFYING WORKSPACE ACCESS).
+  if (workspaceGate === "mfa") {
+    return (
+      <div className="auth-boot auth-boot-panel">
+        {gateMessage ? <p className="page-lead">{gateMessage}</p> : null}
+        <AuthPanel onAuthChange={handleAuthChange} />
+      </div>
+    );
+  }
   if (workspaceGate === "checking") return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>VERIFYING WORKSPACE ACCESS</span></div>;
   if (workspaceGate === "required" || workspaceGate === "error") {
     return <WorkspaceOnboarding

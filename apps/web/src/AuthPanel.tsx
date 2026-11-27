@@ -9,6 +9,7 @@ import {
   prepareMfaSession, verifyTotpChallenge,
   type MfaChallenge, type MfaFactor,
 } from "./mfa";
+import { peekOrganisationInvitation, readInviteFromLocation } from "./invitePeek";
 
 type Props = {
   onAuthChange?: () => void;
@@ -35,10 +36,23 @@ function friendlyAuthError(message: string) {
   return message;
 }
 
+function initialAuthView(): View {
+  if (isPasswordRecoveryPending()) return "reset";
+  // Invite links default to create-account (major-product pattern for new invitees).
+  if (readInviteFromLocation().token) return "signup";
+  return "signin";
+}
+
 export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
-  const [view, setView] = useState<View>(() => isPasswordRecoveryPending() ? "reset" : "signin");
+  const initialInvite = readInviteFromLocation();
+  const [view, setView] = useState<View>(() => initialAuthView());
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => initialInvite.emailHint ?? "");
+  const [emailLocked, setEmailLocked] = useState(() => Boolean(initialInvite.emailHint));
+  const [inviteOrgName, setInviteOrgName] = useState<string | null>(null);
+  const [inviteLookup, setInviteLookup] = useState<"idle" | "loading" | "ready" | "missing">(() => (
+    initialInvite.token ? "loading" : "idle"
+  ));
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -58,6 +72,46 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
   useEffect(() => {
     if (isPasswordRecoveryPending()) setView("reset");
   }, []);
+
+  useEffect(() => {
+    const { token, emailHint } = readInviteFromLocation();
+    if (!token || surface === "sidebar") {
+      setInviteLookup("idle");
+      return;
+    }
+    let active = true;
+    setInviteLookup("loading");
+    if (emailHint) {
+      setEmail(emailHint);
+      setEmailLocked(true);
+    }
+    void peekOrganisationInvitation(token)
+      .then((peek) => {
+        if (!active) return;
+        if (peek.found) {
+          setEmail(peek.email);
+          setEmailLocked(true);
+          setInviteOrgName(peek.organisation_name ?? null);
+          setInviteLookup("ready");
+          if (!isPasswordRecoveryPending()) setView("signup");
+          return;
+        }
+        setInviteLookup("missing");
+        if (peek.reason === "expired") {
+          setError("This invitation has expired. Ask your administrator to send a new one.");
+        } else if (peek.reason === "not_pending") {
+          setError("This invitation is no longer pending. Sign in if you already joined, or ask for a new invite.");
+        } else if (!emailHint) {
+          setError("We could not verify this invitation link. You can still create an account, then ask your administrator to resend the invite.");
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        // Network/peek failure: keep emailed hint if present and still prefer signup.
+        setInviteLookup(emailHint ? "ready" : "missing");
+      });
+    return () => { active = false; };
+  }, [surface]);
 
   useEffect(() => {
     let active = true;
@@ -326,15 +380,25 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
     );
   }
 
-  const invitePending = Boolean(new URLSearchParams(window.location.search).get("invite"));
+  const invitePending = Boolean(readInviteFromLocation().token);
   const resetNeedsMfa = view === "reset" && recoveryStep === "mfa";
   const resetPreparing = view === "reset" && recoveryStep === "loading";
-  const title = view === "signin" ? "Welcome back" : view === "signup" ? "Create your account" : view === "forgot" ? "Reset your password" : view === "reset"
+  const title = view === "signin"
+    ? (invitePending ? "Sign in to join" : "Welcome back")
+    : view === "signup"
+      ? (invitePending ? "Create your password" : "Create your account")
+      : view === "forgot" ? "Reset your password" : view === "reset"
     ? (resetNeedsMfa ? "Confirm your authenticator" : resetPreparing ? "Preparing password reset" : "Choose a new password")
     : "Check your inbox";
-  const description = view === "signin" ? "Sign in to continue to your secure operations environment." :
-    view === "signup" ? "Step 1 of 3: create your identity. Next you will set up an authenticator, then create or join a workspace." :
-    view === "forgot" ? "We'll send a secure password reset link to your email address." :
+  const description = view === "signin"
+    ? (invitePending
+      ? "This email already has a SentinelGrid account. Sign in, then complete MFA to join the workspace."
+      : "Sign in to continue to your secure operations environment.")
+    : view === "signup"
+      ? (invitePending
+        ? "Step 1 of 3: set a password for the invited email. Next you will set up an authenticator, then join the workspace."
+        : "Step 1 of 3: create your identity. Next you will set up an authenticator, then create or join a workspace.")
+    : view === "forgot" ? "We'll send a secure password reset link to your email address." :
     view === "reset"
       ? (resetNeedsMfa
         ? "MFA is enabled on this account. Enter your authenticator code to continue, then choose a new password."
@@ -359,15 +423,36 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
         <div className="auth-form-card">
           <div className="auth-form-topline"><span>SECURE ACCESS</span><span>01 / IDENTITY</span></div>
           <div className="auth-form-heading"><h2>{title}</h2><p>{description}</p></div>
-          {invitePending && <div className="auth-invite-note">You've arrived through a workspace invitation. Create or sign in to your account to continue.</div>}
+          {invitePending && (
+            <div className="auth-invite-note">
+              {inviteLookup === "loading"
+                ? "Checking your workspace invitation…"
+                : inviteOrgName
+                  ? `You've been invited to join ${inviteOrgName}. Create a password for the invited email (or sign in if you already have an account), then set up MFA.`
+                  : "You've been invited to a SentinelGrid workspace. Create a password for the invited email (or sign in if you already have an account), then set up MFA."}
+            </div>
+          )}
           {error && <div className="auth-feedback error" role="alert">{error}</div>}
           {notice && <div className="auth-feedback success" role="status">{notice}</div>}
 
           {view === "signin" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
             await signInWithPassword(email.trim(), password); setPassword(""); await completePasswordAuth();
           })}>
-            <label>Email address<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@company.com" required autoFocus /></label>
-            <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder="Your password" required /></label>
+            <label>Email address
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => { if (!emailLocked) setEmail(e.target.value); }}
+                autoComplete="email"
+                placeholder="you@company.com"
+                required
+                autoFocus={!emailLocked}
+                readOnly={emailLocked}
+                aria-readonly={emailLocked || undefined}
+              />
+            </label>
+            {emailLocked && <p className="auth-field-hint">Use the invited email address for this workspace.</p>}
+            <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder="Your password" required autoFocus={emailLocked} /></label>
             <div className="auth-form-meta"><span>Protected by SentinelGrid identity</span><button type="button" className="auth-text-button" onClick={() => { setView("forgot"); setError(null); setNotice(null); }}>Forgot password?</button></div>
             <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Authenticating…" : "Sign in securely"}<span>↗</span></button>
           </form>}
@@ -375,16 +460,39 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
           {view === "signup" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
             if (password.length < 8) throw new Error("Password should be at least 8 characters.");
             if (password !== confirmPassword) throw new Error("Your passwords do not match.");
-            const result = await signUpWithPassword(email.trim(), password, name);
-            setPassword(""); setConfirmPassword("");
-            if (result.session) await completePasswordAuth();
-            else { setView("verify"); setNotice(null); }
+            try {
+              const result = await signUpWithPassword(email.trim(), password, name);
+              setPassword(""); setConfirmPassword("");
+              if (result.session) await completePasswordAuth();
+              else { setView("verify"); setNotice(null); }
+            } catch (cause) {
+              const message = cause instanceof Error ? cause.message : String(cause);
+              if (/user already registered/i.test(message)) {
+                setView("signin");
+                setPassword("");
+                setConfirmPassword("");
+                throw new Error("An account already exists for this email. Sign in with your password, then complete MFA to join the workspace.");
+              }
+              throw cause;
+            }
           })}>
-            <label>Your name<input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Full name" required maxLength={120} /></label>
-            <label>Work email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@company.com" required /></label>
+            <label>Your name<input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Full name" required maxLength={120} autoFocus /></label>
+            <label>Work email
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => { if (!emailLocked) setEmail(e.target.value); }}
+                autoComplete="email"
+                placeholder="you@company.com"
+                required
+                readOnly={emailLocked}
+                aria-readonly={emailLocked || undefined}
+              />
+            </label>
+            {emailLocked && <p className="auth-field-hint">This invitation is locked to the email address above.</p>}
             <label>Create password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" placeholder="At least 8 characters" minLength={8} required /></label>
             <label>Confirm password<input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" placeholder="Repeat your password" minLength={8} required /></label>
-            <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Creating account…" : "Create secure account"}<span>↗</span></button>
+            <button className="auth-submit" type="submit" disabled={busy}>{busy ? "Creating account…" : invitePending ? "Create password and continue" : "Create secure account"}<span>↗</span></button>
           </form>}
 
           {view === "forgot" && <form className="auth-form auth-form-modern" onSubmit={(event) => void run(event, async () => {
@@ -468,8 +576,22 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
           </div>}
 
           <div className="auth-form-bottom">
-            {view === "signin" && <span>New to SentinelGrid? <button type="button" onClick={() => { setView("signup"); setError(null); setNotice(null); }}>Create an account</button></span>}
-            {view === "signup" && <span>Already have an account? <button type="button" onClick={() => { setView("signin"); setError(null); }}>Sign in</button></span>}
+            {view === "signin" && (
+              <span>
+                {invitePending ? "New to SentinelGrid? " : "New to SentinelGrid? "}
+                <button type="button" onClick={() => { setView("signup"); setError(null); setNotice(null); }}>
+                  {invitePending ? "Create a password" : "Create an account"}
+                </button>
+              </span>
+            )}
+            {view === "signup" && (
+              <span>
+                Already have an account?{" "}
+                <button type="button" onClick={() => { setView("signin"); setError(null); setNotice(null); }}>
+                  Sign in
+                </button>
+              </span>
+            )}
             {(view === "forgot" || view === "reset" || view === "verify") && (
               <span>
                 <button

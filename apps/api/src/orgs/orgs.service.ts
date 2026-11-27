@@ -245,13 +245,15 @@ export class OrgsService {
     organisationId: string,
   ): Promise<{ channel: string; outbox_id?: string; status: string }> {
     const appUrl = (process.env.SG_PUBLIC_APP_URL ?? "https://www.sentinelgrid.tech").replace(/\/$/, "");
-    const inviteUrl = `${appUrl}/?invite=${encodeURIComponent(token)}`;
+    // Include emailed address so the landing page can prefill signup even before peek RPC.
+    const inviteUrl =
+      `${appUrl}/?invite=${encodeURIComponent(token)}&email=${encodeURIComponent(email.trim().toLowerCase())}`;
     const bodyText = [
       "You have been invited to a SentinelGrid workspace.",
       "",
       `Accept your invitation: ${inviteUrl}`,
       "",
-      "Sign in or create your account with the invited email address to join the workspace.",
+      "Open the link, create your password for this email (or sign in if you already have an account), then set up your authenticator to join the workspace.",
       "If you did not expect this email, you can ignore it.",
     ].join("\n");
 
@@ -262,7 +264,7 @@ export class OrgsService {
         toEmail: email,
         subject: "SentinelGrid organisation invitation",
         bodyText,
-        payload: { organisation_id: organisationId, accept_url: inviteUrl },
+        payload: { organisation_id: organisationId, accept_url: inviteUrl, email: email.trim().toLowerCase() },
       });
       const production = process.env.NODE_ENV === "production";
       const transport = process.env.SG_EMAIL_TRANSPORT ?? (production ? "none" : "local_log");

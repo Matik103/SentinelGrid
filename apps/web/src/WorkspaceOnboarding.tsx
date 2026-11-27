@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { apiPost } from "./api";
 
 type Props = { initialError?: string | null; onComplete: () => void; onRetry: () => void };
@@ -26,6 +26,34 @@ export function WorkspaceOnboarding({ initialError, onComplete, onRetry }: Props
     // Ignore leftover MFA copy — this screen only appears after AAL2.
     setError(isMfaBanner(initialError) ? null : (initialError ?? null));
   }, [initialError]);
+
+  const autoAcceptAttempted = useRef(false);
+  useEffect(() => {
+    // Invite links: accept automatically once MFA is done (App also tries this;
+    // this covers the case where the user lands here after a soft miss).
+    if (!invitationFromUrl || autoAcceptAttempted.current) return;
+    autoAcceptAttempted.current = true;
+    let active = true;
+    setBusy(true);
+    void apiPost<unknown>("/v1/orgs/invites/accept", { token: invitationFromUrl.trim() })
+      .then((result) => {
+        if (!active) return;
+        if (result.error) {
+          setError(result.error.message);
+          setBusy(false);
+          return;
+        }
+        window.history.replaceState({}, "", window.location.pathname);
+        setSuccess("Invitation accepted. Opening Command…");
+        onComplete();
+      })
+      .catch((cause) => {
+        if (!active) return;
+        setError(cause instanceof Error ? cause.message : String(cause));
+        setBusy(false);
+      });
+    return () => { active = false; };
+  }, [invitationFromUrl, onComplete]);
 
   async function createWorkspace(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(null); setSuccess(null);
@@ -69,7 +97,11 @@ export function WorkspaceOnboarding({ initialError, onComplete, onRetry }: Props
       <section className="onboarding-intro">
         <span className="eyebrow">STEP 03 / WORKSPACE</span>
         <h1>Bring your<br /><em>operations</em> together.</h1>
-        <p>Authenticator setup is complete. Enter a workspace name below to open Command, or join a team with an invitation.</p>
+        <p>
+          {invitationFromUrl
+            ? "Authenticator setup is complete. Accept your invitation below to enter the workspace, or create a new workspace if you were also meant to start one."
+            : "Authenticator setup is complete. Enter a workspace name below to open Command, or join a team with an invitation."}
+        </p>
       </section>
       {error && <div className="auth-feedback error" role="alert">{error}</div>}
       {success && <div className="auth-feedback success" role="status">{success}</div>}

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, ensureConfig, healthCheck } from "./api";
 import { organisationId, restoreSession, setOrganisationId } from "./auth";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { WorkspacePersonalizeMenu } from "./WorkspacePersonalizeMenu";
 import { AuthPanel } from "./AuthPanel";
 import { AssetRegistryPage } from "./AssetRegistryPage";
 import { EnergyDashboard } from "./EnergyDashboard";
@@ -433,7 +434,6 @@ function ResourcePage({
 }
 
 export function App() {
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [activeOrganisationId, setActiveOrganisationId] = useState<string | null>(() => organisationId());
   const [activeOrganisationName, setActiveOrganisationName] = useState("Workspace");
   const [authRefreshKey, setAuthRefreshKey] = useState(0);
@@ -442,8 +442,8 @@ export function App() {
   const location = useLocation();
   const navigate = useNavigate();
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
-  }, [theme]);
+    document.documentElement.setAttribute("data-theme", "dark");
+  }, []);
   useEffect(() => {
     void Promise.all([restoreSession(), ensureConfig()]).finally(() => {
       setAuthRefreshKey((value) => value + 1);
@@ -513,15 +513,6 @@ export function App() {
           </div>)}
         </nav>
         <AuthPanel onAuthChange={handleAuthChange} />
-        <div className="toolbar">
-          <button
-            type="button"
-            className="btn secondary"
-            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-          >
-            {theme === "dark" ? "Light theme" : "Dark theme"}
-          </button>
-        </div>
       </aside>
       <main className="main">
         <header className="topbar">
@@ -532,7 +523,16 @@ export function App() {
             </button>
             <div className="topbar-context"><span>WORKSPACE</span><b>/</b><span className="topbar-workspace-name">{activeOrganisationName}</span><b>/</b><strong>{currentPage}</strong></div>
           </div>
-          <div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
+          <div className="topbar-tools">
+            <span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
+            <WorkspacePersonalizeMenu
+              organisationId={activeOrganisationId}
+              organisationName={activeOrganisationName}
+              onBrandingChange={() => setAuthRefreshKey((value) => value + 1)}
+              onSignOut={handleAuthChange}
+            />
+          </div>
+        </header>
         <div className="main-content">
         {inviteMessage && <div className="inline-notice" role="status">{inviteMessage}</div>}
         <Routes key={activeOrganisationId ?? "no-workspace"}>

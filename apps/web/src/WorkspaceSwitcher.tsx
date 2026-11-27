@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { apiGet, apiPost, authToken } from "./api";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { apiGet, apiPost, authToken, getWorkspaceBranding } from "./api";
 
 type OrganisationMembership = {
   organisation_id: string;
@@ -7,7 +7,7 @@ type OrganisationMembership = {
   organisations?: { id: string; name: string; slug: string } | null;
 };
 
-type Organisation = { id: string; name: string; slug: string };
+type Organisation = { id: string; name: string; slug: string; logoUrl: string | null };
 
 type Props = {
   activeOrganisationId: string | null;
@@ -20,34 +20,53 @@ function makeSlug(value: string) {
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 55).replace(/-$/g, "");
 }
 
+function initials(name: string) {
+  return name.trim().slice(0, 2).toUpperCase() || "SG";
+}
+
 export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }: Props) {
   const [organisations, setOrganisations] = useState<Organisation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
   const [saving, setSaving] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const active = useMemo(
     () => organisations.find((item) => item.id === activeOrganisationId) ?? null,
     [organisations, activeOrganisationId],
   );
 
-  async function loadOrganisations(preferredId?: string) {
+  async function withLogos(rows: Array<{ id: string; name: string; slug: string }>): Promise<Organisation[]> {
+    const branded = await Promise.all(rows.map(async (row) => {
+      try {
+        const branding = await getWorkspaceBranding(row.id);
+        return { ...row, logoUrl: branding.logoUrl };
+      } catch {
+        return { ...row, logoUrl: null };
+      }
+    }));
+    return branded;
+  }
+
+  async function loadOrganisations(preferredId?: string, opts?: { quiet?: boolean }) {
     if (!authToken()) {
       setOrganisations([]);
       setLoading(false);
       setError(null);
       return;
     }
-    setLoading(true);
-    setError(null);
+    if (!opts?.quiet) {
+      setLoading(true);
+      setError(null);
+    }
     const result = await apiGet<OrganisationMembership[]>("/v1/orgs/mine");
     if (result.error) {
-      // Keep the last known membership list and selected workspace on transient failures.
-      setError(result.error.message);
+      if (!opts?.quiet) setError(result.error.message);
     } else {
       const rows = (result.data ?? [])
         .filter((row) => row.status === "active" && row.organisations?.id)
@@ -56,30 +75,49 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
           name: row.organisations!.name,
           slug: row.organisations!.slug,
         }));
-      setOrganisations(rows);
-      const next = preferredId && rows.some((row) => row.id === preferredId)
-        ? preferredId
-        : rows.some((row) => row.id === activeOrganisationId)
-          ? activeOrganisationId
-          : rows[0]?.id;
-      if (next) {
-        const selected = rows.find((row) => row.id === next);
-        onSelect(next, selected?.name ?? "Workspace");
-      } else {
-        onSelect(null, "No workspace selected");
+      const withBrand = await withLogos(rows);
+      setOrganisations(withBrand);
+      if (!opts?.quiet) {
+        const next = preferredId && withBrand.some((row) => row.id === preferredId)
+          ? preferredId
+          : withBrand.some((row) => row.id === activeOrganisationId)
+            ? activeOrganisationId
+            : withBrand[0]?.id;
+        if (next) {
+          const selected = withBrand.find((row) => row.id === next);
+          onSelect(next, selected?.name ?? "Workspace");
+        } else {
+          onSelect(null, "No workspace selected");
+        }
       }
     }
-    setLoading(false);
+    if (!opts?.quiet) setLoading(false);
   }
 
   useEffect(() => { void loadOrganisations(); }, [refreshKey]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointer = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   async function createOrganisation(event: FormEvent) {
     event.preventDefault();
     const cleanName = name.trim();
     const cleanSlug = makeSlug(slug);
     if (!cleanName || cleanSlug.length < 2) {
-      setError("Enter a workspace name and a valid workspace URL (at least 2 characters).");
+      setError("Enter an organisation name and a valid workspace address (at least 2 characters).");
       return;
     }
     setSaving(true);
@@ -98,7 +136,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
     }
     const created = result.data;
     setOrganisations((current) => [...current.filter((item) => item.id !== created.organisation_id), {
-      id: created.organisation_id, name: created.name, slug: created.slug,
+      id: created.organisation_id, name: created.name, slug: created.slug, logoUrl: null,
     }]);
     onSelect(created.organisation_id, created.name);
     setName("");
@@ -106,31 +144,66 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
     setSlugEdited(false);
     setCreating(false);
     setSaving(false);
+    setMenuOpen(false);
   }
 
   return (
-    <section className="workspace-picker" aria-label="Workspace selection">
+    <section className="workspace-picker" aria-label="Workspace selection" ref={menuRef}>
       <div className="workspace-picker-label">CURRENT WORKSPACE</div>
-      <label className="workspace-picker-control">
-        <span className="workspace-avatar" aria-hidden="true">{(active?.name ?? "SG").slice(0, 2).toUpperCase()}</span>
+      <button
+        type="button"
+        className="workspace-picker-control workspace-picker-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={menuOpen}
+        disabled={loading || (!authToken())}
+        onClick={() => {
+          setMenuOpen((open) => {
+            const next = !open;
+            if (next) void loadOrganisations(undefined, { quiet: true });
+            return next;
+          });
+        }}
+      >
+        <span className="workspace-avatar" aria-hidden="true">
+          {active?.logoUrl
+            ? <img src={active.logoUrl} alt="" />
+            : initials(active?.name ?? "SG")}
+        </span>
         <span className="workspace-picker-copy">
           <strong>{loading ? "Loading workspaces…" : active?.name ?? (authToken() ? "No workspace selected" : "Sign in to continue")}</strong>
           <small>{active ? active.slug : error ? "Workspace list unavailable" : "Organisation environment"}</small>
         </span>
-        <select
-          aria-label="Switch workspace"
-          value={activeOrganisationId ?? ""}
-          disabled={loading || organisations.length === 0}
-          onChange={(event) => {
-            const selected = organisations.find((item) => item.id === event.target.value);
-            if (selected) onSelect(selected.id, selected.name);
-          }}
-        >
-          {!activeOrganisationId && <option value="">Select workspace</option>}
-          {organisations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
         <span className="workspace-chevron" aria-hidden="true">⌄</span>
-      </label>
+      </button>
+      {menuOpen && organisations.length > 0 && (
+        <ul className="workspace-picker-menu" role="listbox" aria-label="Switch workspace">
+          {organisations.map((item) => {
+            const selected = item.id === activeOrganisationId;
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={selected ? "workspace-picker-option active" : "workspace-picker-option"}
+                  onClick={() => {
+                    onSelect(item.id, item.name);
+                    setMenuOpen(false);
+                  }}
+                >
+                  <span className="workspace-avatar" aria-hidden="true">
+                    {item.logoUrl ? <img src={item.logoUrl} alt="" /> : initials(item.name)}
+                  </span>
+                  <span className="workspace-picker-copy">
+                    <strong>{item.name}</strong>
+                    <small>{item.slug}</small>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       {error && <p className="workspace-picker-error" role="alert">{error}</p>}
       {error && authToken() && !creating && <button className="workspace-retry" type="button" onClick={() => void loadOrganisations()}>Retry workspace list</button>}
       {organisations.length > 1 && <span className="workspace-picker-count">{organisations.length} workspaces available</span>}
@@ -146,7 +219,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
               if (!slugEdited) setSlug(makeSlug(value));
             }} placeholder="e.g. Acme Infrastructure" maxLength={200} required autoFocus />
           </label>
-          <label>Workspace URL
+          <label>Workspace slug
             <input value={slug} onChange={(event) => { setSlugEdited(true); setSlug(event.target.value); }}
               placeholder="acme-infrastructure" maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" required />
           </label>
@@ -155,7 +228,7 @@ export function WorkspaceSwitcher({ activeOrganisationId, onSelect, refreshKey }
           </button>
         </form>
       )}
-      {!authToken() && <p className="workspace-picker-hint">Sign in to see or create your workspaces.</p>}
+      {!authToken() && <p className="workspace-picker-hint">Sign in to see or create your organisations.</p>}
       {!loading && authToken() && organisations.length === 0 && !creating && (
         <p className="workspace-picker-hint">Create your first workspace to start organising your infrastructure.</p>
       )}

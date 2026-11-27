@@ -185,18 +185,6 @@ export function AuthPanel({ onAuthChange }: Props) {
     }
   };
 
-  const onAddBackupAuthenticator = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await beginEnrollment();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const onSignOut = async () => {
     setBusy(true);
     setError(null);
@@ -215,11 +203,14 @@ export function AuthPanel({ onAuthChange }: Props) {
     }
   };
 
+  // Signed-in account chrome lives in the top-right avatar menu.
+  if (signedIn && !mfa && !mfaPending) return null;
+
   return (
     <div className="auth-panel" aria-label="Authentication">
       <div className="auth-status">
-        <strong>{mfa ? (mfa.mode === "enroll" ? "Set up multi-factor authentication" : "Verify your identity") : mfaPending ? "Multi-factor authentication required" : signedIn ? "Account connected" : status}</strong>
-        <span className="mono">{mfa ? "SentinelGrid requires a verified authenticator before workspace access." : mfaPending ? "Complete authenticator verification to continue." : signedIn ? "Workspace access is protected by MFA" : "Sign in to access your workspaces"}</span>
+        <strong>{mfa ? (mfa.mode === "enroll" ? "Set up multi-factor authentication" : "Verify your identity") : mfaPending ? "Multi-factor authentication required" : status}</strong>
+        <span className="mono">{mfa ? "SentinelGrid requires a verified authenticator before workspace access." : mfaPending ? "Complete authenticator verification to continue." : "Sign in to access your workspaces"}</span>
       </div>
       {error && <div className="inline-notice warning" role="alert">{error}</div>}
       {notice && <div className="inline-notice" role="status">{notice}</div>}
@@ -252,11 +243,6 @@ export function AuthPanel({ onAuthChange }: Props) {
         <div className="auth-actions">
           <button type="button" onClick={() => { setBusy(true); setError(null); void prepareMfa().catch((err) => setError(errorMessage(err))).finally(() => setBusy(false)); }} disabled={busy}>{busy ? "Preparing…" : "Continue MFA setup"}</button>
           <button type="button" className="btn secondary" onClick={() => void onSignOut()} disabled={busy}>Sign out</button>
-        </div>
-      ) : signedIn ? (
-        <div className="auth-actions">
-          <button type="button" className="btn secondary" onClick={() => void onAddBackupAuthenticator()} disabled={busy}>{busy ? "Preparing…" : "Add backup authenticator"}</button>
-          <button type="button" onClick={() => void onSignOut()} disabled={busy}>{busy ? "Signing out…" : "Sign out"}</button>
         </div>
       ) : creatingAccount ? (
           <form onSubmit={(event) => void onSignUp(event)} className="auth-form">

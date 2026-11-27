@@ -8,7 +8,11 @@ import {
   type MfaChallenge, type MfaFactor,
 } from "./mfa";
 
-type Props = { onAuthChange?: () => void };
+type Props = {
+  onAuthChange?: () => void;
+  /** page = full signup/MFA journey; sidebar = compact account controls only */
+  surface?: "page" | "sidebar";
+};
 type View = "signin" | "signup" | "forgot" | "reset" | "verify";
 
 function friendlyAuthError(message: string) {
@@ -17,10 +21,13 @@ function friendlyAuthError(message: string) {
   if (/user already registered/i.test(message)) return "An account already exists for this email. Sign in instead, or reset your password.";
   if (/password should be at least/i.test(message)) return "Choose a longer password and try again.";
   if (/rate limit/i.test(message)) return "Too many attempts in a short time. Wait a moment before trying again.";
+  if (/friendly name|already exists/i.test(message)) {
+    return "A previous authenticator setup was left unfinished. Tap Continue MFA setup to clear it and generate a fresh QR code.";
+  }
   return message;
 }
 
-export function AuthPanel({ onAuthChange }: Props) {
+export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
   const [view, setView] = useState<View>(() => window.location.hash.includes("type=recovery") ? "reset" : "signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -43,8 +50,13 @@ export function AuthPanel({ onAuthChange }: Props) {
     let active = true;
     void restoreSession().then(async (session) => {
       if (!active || !session || window.location.hash.includes("type=recovery")) return;
+
+      // Sidebar: never auto-start MFA or call onAuthChange — the workspace gate already did that.
+      if (surface === "sidebar") return;
+
       try {
         setMfaPending(true);
+        setError(null);
         const result = await prepareMfaSession();
         if (!active) return;
         setVerifiedFactors(result.factors);
@@ -57,13 +69,12 @@ export function AuthPanel({ onAuthChange }: Props) {
         }
       } catch (err) {
         if (!active) return;
-        setError(err instanceof Error ? err.message : String(err));
-        // Keep the MFA shell visible with Sign out / Continue — never bounce to VERIFYING.
+        setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
         setMfaPending(true);
       }
     }).catch(() => undefined);
     return () => { active = false; };
-  }, []);
+  }, [surface]);
 
   const run = async (event: FormEvent, action: () => Promise<void>) => {
     event.preventDefault(); setBusy(true); setError(null); setNotice(null);
@@ -76,6 +87,7 @@ export function AuthPanel({ onAuthChange }: Props) {
 
   const completePasswordAuth = async () => {
     setMfaPending(true);
+    setError(null);
     const result = await prepareMfaSession();
     setVerifiedFactors(result.factors);
     if (result.complete) {
@@ -84,6 +96,28 @@ export function AuthPanel({ onAuthChange }: Props) {
       onAuthChange?.();
     } else {
       setMfa(result.challenge);
+    }
+  };
+
+  const startMfaSetup = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await prepareMfaSession();
+      setVerifiedFactors(result.factors);
+      if (result.complete) {
+        setMfaPending(false);
+        setMfa(null);
+        onAuthChange?.();
+      } else {
+        setMfaPending(true);
+        setMfa(result.challenge);
+      }
+    } catch (err) {
+      setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
+      setMfaPending(true);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -104,18 +138,18 @@ export function AuthPanel({ onAuthChange }: Props) {
       setMfaCode("");
       onAuthChange?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
     } finally { setBusy(false); }
   };
 
   if (mfa || mfaPending) {
-    const enrollCopy = mfa?.mode === "enroll";
+    const enrollCopy = mfa?.mode === "enroll" || (!mfa && mfaPending);
     return (
       <main className="auth-experience">
         <section className="auth-story">
           <div className="auth-story-brand"><img src="/assets/sentinelgrid-logo-wordmark.png" alt="SentinelGrid" width="230" height="74" /></div>
           <div className="auth-story-copy">
-            <span className="eyebrow"><i /> TRUSTED ACCESS / MULTI-FACTOR</span>
+            <span className="eyebrow"><i /> STEP 02 / AUTHENTICATOR</span>
             <h1>{enrollCopy ? <>Set up your<br /><span>authenticator.</span></> : <>Verify your<br /><span>identity.</span></>}</h1>
             <p>{enrollCopy
               ? "Install any TOTP app, scan the QR code, then enter the six-digit code when you are ready. There is no time pressure — your sign-in stays active until you finish or sign out."
@@ -124,7 +158,7 @@ export function AuthPanel({ onAuthChange }: Props) {
         </section>
         <section className="auth-form-side">
           <div className="auth-form-card">
-            <div className="auth-form-topline"><span>SECURE ACCESS</span><span>MFA / AAL2</span></div>
+            <div className="auth-form-topline"><span>SECURE ACCESS</span><span>02 / MFA</span></div>
             <div className="auth-form-heading">
               <h2>{mfa?.mode === "enroll" ? "Set up authenticator" : mfa ? "Enter authenticator code" : "Preparing authenticator setup"}</h2>
               <p>{mfa?.mode === "enroll"
@@ -150,7 +184,7 @@ export function AuthPanel({ onAuthChange }: Props) {
                       setBusy(true); setError(null);
                       void beginTotpChallenge(event.target.value, "challenge")
                         .then(setMfa)
-                        .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+                        .catch((err) => setError(friendlyAuthError(err instanceof Error ? err.message : String(err))))
                         .finally(() => setBusy(false));
                     }}>
                       {verifiedFactors.map((factor) => <option key={factor.id} value={factor.id}>{factor.friendlyName}</option>)}
@@ -167,13 +201,9 @@ export function AuthPanel({ onAuthChange }: Props) {
             ) : (
               <div className="auth-mfa">
                 <p className="auth-mfa-pace">Stay on this screen while setup prepares. If nothing appears, tap continue or sign out and retry.</p>
-                <button type="button" className="auth-submit" disabled={busy} onClick={() => {
-                  setBusy(true); setError(null);
-                  void prepareMfaSession()
-                    .then((result) => { setVerifiedFactors(result.factors); if (result.complete) { setMfaPending(false); onAuthChange?.(); } else setMfa(result.challenge); })
-                    .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-                    .finally(() => setBusy(false));
-                }}>{busy ? "Preparing…" : "Continue MFA setup"}<span>↗</span></button>
+                <button type="button" className="auth-submit" disabled={busy} onClick={() => void startMfaSetup()}>
+                  {busy ? "Preparing…" : "Continue MFA setup"}<span>↗</span>
+                </button>
               </div>
             )}
             <div className="auth-form-bottom">
@@ -188,13 +218,15 @@ export function AuthPanel({ onAuthChange }: Props) {
   if (signedIn && view !== "reset") return (
     <section className="auth-panel auth-panel-compact" aria-label="Account">
       <div className="auth-status"><strong>Account secured</strong><span className="mono">MFA session active (AAL2)</span></div>
-      <button type="button" className="btn secondary" disabled={busy} onClick={() => {
-        setBusy(true); setError(null);
-        void beginTotpEnrollment()
-          .then((challenge) => { setMfaPending(true); setMfa(challenge); })
-          .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-          .finally(() => setBusy(false));
-      }}>{busy ? "Preparing…" : "Add backup authenticator"}</button>
+      {surface === "sidebar" && (
+        <button type="button" className="btn secondary" disabled={busy} onClick={() => {
+          setBusy(true); setError(null);
+          void beginTotpEnrollment()
+            .then((challenge) => { setMfaPending(true); setMfa(challenge); })
+            .catch((err) => setError(friendlyAuthError(err instanceof Error ? err.message : String(err))))
+            .finally(() => setBusy(false));
+        }}>{busy ? "Preparing…" : "Add backup authenticator"}</button>
+      )}
       <button type="button" onClick={() => void signOut().then(() => onAuthChange?.()).catch((err) => setError(String(err)))} disabled={busy}>
         {busy ? "Signing out…" : "Sign out"}
       </button>
@@ -205,17 +237,17 @@ export function AuthPanel({ onAuthChange }: Props) {
   const invitePending = Boolean(new URLSearchParams(window.location.search).get("invite"));
   const title = view === "signin" ? "Welcome back" : view === "signup" ? "Create your account" : view === "forgot" ? "Reset your password" : view === "reset" ? "Choose a new password" : "Check your inbox";
   const description = view === "signin" ? "Sign in to continue to your secure operations environment." :
-    view === "signup" ? "Create your identity first. Authenticator enrollment and workspace access come next." :
+    view === "signup" ? "Step 1 of 3: create your identity. Next you will set up an authenticator, then create or join a workspace." :
     view === "forgot" ? "We'll send a secure password reset link to your email address." :
     view === "reset" ? "Choose a new password to secure your SentinelGrid account." :
-    "Your account is almost ready. Verify your email address to continue.";
+    "Your account is almost ready. Verify your email address to continue. Authenticator setup follows.";
 
   return (
     <main className="auth-experience">
       <section className="auth-story">
         <div className="auth-story-brand"><img src="/assets/sentinelgrid-logo-wordmark.png" alt="SentinelGrid" width="230" height="74" /></div>
         <div className="auth-story-copy">
-          <span className="eyebrow"><i /> TRUSTED ACCESS / OPERATIONAL INTELLIGENCE</span>
+          <span className="eyebrow"><i /> STEP 01 / IDENTITY</span>
           <h1>Know your<br /><span>system.</span><br />Secure every<br />decision.</h1>
           <p>One trusted identity. MFA-protected workspace access. A clearer operational picture across the infrastructure that matters.</p>
         </div>
@@ -282,7 +314,7 @@ export function AuthPanel({ onAuthChange }: Props) {
             {view === "signup" && <span>Already have an account? <button type="button" onClick={() => { setView("signin"); setError(null); }}>Sign in</button></span>}
             {(view === "forgot" || view === "reset" || view === "verify") && <span><button type="button" onClick={() => { setView("signin"); setError(null); setNotice(null); }}>Back to sign in</button></span>}
           </div>
-          <p className="auth-privacy-note">Password authentication alone is not enough. Workspace access requires a verified authenticator session (AAL2).</p>
+          <p className="auth-privacy-note">Journey: 1) Identity → 2) Authenticator (MFA) → 3) Workspace. Password alone is never enough for Command access.</p>
         </div>
       </section>
     </main>

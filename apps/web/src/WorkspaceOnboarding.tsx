@@ -42,13 +42,13 @@ export function WorkspaceOnboarding({ initialError, onComplete, onRetry }: Props
 
   return (
     <main className="workspace-onboarding">
-      <header className="onboarding-header"><img src="/assets/sentinelgrid-logo-wordmark.png" alt="SentinelGrid" width="205" height="66" /><span>IDENTITY VERIFIED <i /></span></header>
-      <section className="onboarding-intro"><span className="eyebrow">WORKSPACE REGISTRATION / STEP 02</span><h1>Bring your<br /><em>operations</em> together.</h1><p>Your account is ready. Create the workspace for the organisation whose infrastructure you manage, or accept an invitation from an existing team.</p></section>
+      <header className="onboarding-header"><img src="/assets/sentinelgrid-logo-wordmark.png" alt="SentinelGrid" width="205" height="66" /><span>MFA VERIFIED <i /></span></header>
+      <section className="onboarding-intro"><span className="eyebrow">STEP 03 / WORKSPACE</span><h1>Bring your<br /><em>operations</em> together.</h1><p>Identity and authenticator are done. Create a workspace for your organisation, or accept an invitation from an existing team.</p></section>
       {(error || initialError) && <div className="auth-feedback error" role="alert">{error ?? initialError}</div>}
       {success && <div className="auth-feedback success" role="status">{success}</div>}
       <div className="onboarding-grid">
         <section className="onboarding-card onboarding-primary">
-          <div className="onboarding-step">01 / NEW ENVIRONMENT</div><h2>Create a workspace</h2><p>Register your organisation's operational environment. You'll become its first workspace administrator.</p>
+          <div className="onboarding-step">03A / NEW ENVIRONMENT</div><h2>Create a workspace</h2><p>Register your organisation's operational environment. You'll become its first workspace administrator.</p>
           <form className="auth-form auth-form-modern" onSubmit={(event) => void createWorkspace(event)}>
             <label>Organisation / workspace name<input value={name} onChange={(event) => { const value = event.target.value; setName(value); if (!slugEdited) setSlug(slugify(value)); }} placeholder="e.g. Acme Infrastructure" maxLength={200} required /></label>
             <label>Workspace slug<div className="onboarding-slug"><span>SLUG /</span><input value={slug} onChange={(event) => { setSlugEdited(true); setSlug(event.target.value); }} placeholder="acme-infrastructure" maxLength={63} pattern="[a-z0-9]+(-[a-z0-9]+)*" required /></div></label>
@@ -57,7 +57,7 @@ export function WorkspaceOnboarding({ initialError, onComplete, onRetry }: Props
           </form>
         </section>
         <section className="onboarding-card">
-          <div className="onboarding-step">02 / TEAM ACCESS</div><h2>Join an existing workspace</h2><p>Already invited by an administrator? Use the secure invitation token from your email.</p>
+          <div className="onboarding-step">03B / TEAM ACCESS</div><h2>Join an existing workspace</h2><p>Already invited by an administrator? Open the invite link from your email, or paste the token below.</p>
           <form className="auth-form auth-form-modern" onSubmit={(event) => void acceptInvitation(event)}>
             <label>Invitation token<textarea value={inviteToken} onChange={(event) => setInviteToken(event.target.value)} placeholder="Paste your invitation token" rows={3} required /></label>
             <button className="auth-submit secondary" type="submit" disabled={busy || inviteToken.trim().length < 16}>{busy ? "Verifying invitation…" : "Accept invitation"}<span>↗</span></button>

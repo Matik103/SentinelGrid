@@ -580,12 +580,25 @@ export function App() {
     return () => { active = false; unsubscribe(); };
   }, []);
 
-  // Safety net: never leave VERIFYING forever (network hang, unexpected stall).
+  // Safety net: never leave VERIFYING forever. If AAL2 already, retry workspace load;
+  // only send the user to MFA when the session is still AAL1.
   useEffect(() => {
     if (workspaceGate !== "checking" || !authReady || !authToken()) return;
     const timer = window.setTimeout(() => {
-      if (workspaceGateRef.current !== "checking") return;
-      enterMfaSetup("Still verifying access. Continue with authenticator setup, or sign out and try again.");
+      void (async () => {
+        if (workspaceGateRef.current !== "checking") return;
+        try {
+          const level = await currentAssuranceLevel();
+          if (level === "aal2") {
+            void refreshWorkspaceState({ force: true });
+            return;
+          }
+        } catch {
+          /* fall through to MFA */
+        }
+        if (workspaceGateRef.current !== "checking") return;
+        enterMfaSetup("Still verifying access. Continue with authenticator setup, or sign out and try again.");
+      })();
     }, 12_000);
     return () => window.clearTimeout(timer);
   }, [workspaceGate, authReady]);
@@ -610,15 +623,17 @@ export function App() {
   const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
 
   if (!authReady) return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>SECURE COMMAND INITIALISING</span></div>;
-  if (!authToken() || window.location.hash.includes("type=recovery")) return <AuthPanel onAuthChange={handleAuthChange} />;
+  if (!authToken() || window.location.hash.includes("type=recovery")) {
+    return <AuthPanel surface="page" onAuthChange={handleAuthChange} />;
+  }
   // Full-screen MFA setup (QR / TOTP). Do not nest inside the tiny boot spinner layout.
-  if (workspaceGate === "mfa") return <AuthPanel onAuthChange={handleAuthChange} />;
+  if (workspaceGate === "mfa") return <AuthPanel surface="page" onAuthChange={handleAuthChange} />;
   if (workspaceGate === "checking") return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>VERIFYING WORKSPACE ACCESS</span></div>;
   if (workspaceGate === "required" || workspaceGate === "error") {
     return <WorkspaceOnboarding
       initialError={gateMessage}
-      onComplete={() => { void refreshWorkspaceState(); }}
-      onRetry={() => { void refreshWorkspaceState(); }}
+      onComplete={() => { void refreshWorkspaceState({ force: true }); }}
+      onRetry={() => { void refreshWorkspaceState({ force: true }); }}
     />;
   }
 
@@ -637,7 +652,7 @@ export function App() {
             </NavLink>)}
           </div>)}
         </nav>
-        <AuthPanel onAuthChange={handleAuthChange} />
+        <AuthPanel surface="sidebar" onAuthChange={handleAuthChange} />
         <div className="toolbar">
           <button type="button" className="btn secondary" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}>
             {theme === "dark" ? "Light theme" : "Dark theme"}

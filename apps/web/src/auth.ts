@@ -53,16 +53,20 @@ async function ensureUserProfile(session: Session): Promise<void> {
     console.warn("SentinelGrid profile initialisation deferred:", rpcError.message);
   }
 }
+/** Persist the current Supabase access token for Nest Authorization headers. */
+export function syncAccessToken(session: Session | null): void {
+  if (session?.access_token) localStorage.setItem(TOKEN_KEY, session.access_token);
+  else if (!isDevBuild() || !import.meta.env.VITE_DEV_ACCESS_TOKEN) localStorage.removeItem(TOKEN_KEY);
+}
+
 export async function restoreSession(): Promise<Session | null> {
   const { data, error } = await getSupabase().auth.getSession();
   if (error || !data.session) {
-    if (!isDevBuild() || !import.meta.env.VITE_DEV_ACCESS_TOKEN) localStorage.removeItem(TOKEN_KEY);
+    syncAccessToken(null);
     return null;
   }
-  if (data.session?.access_token) {
-    localStorage.setItem(TOKEN_KEY, data.session.access_token);
-    await ensureUserProfile(data.session);
-  }
+  syncAccessToken(data.session);
+  await ensureUserProfile(data.session);
   return data.session;
 }
 export async function signInWithPassword(email: string, password: string): Promise<Session> {

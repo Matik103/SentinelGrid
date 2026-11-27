@@ -1,4 +1,4 @@
-import { getSupabase } from "./auth";
+import { getSupabase, syncAccessToken } from "./auth";
 
 export type MfaChallenge = {
   mode: "enroll" | "challenge";
@@ -39,15 +39,18 @@ async function listUnverifiedTotpFactors(): Promise<Array<{ id: string; friendly
     }));
 }
 
-async function removeUnverifiedTotpFactors(): Promise<void> {
+async function removeUnverifiedTotpFactors(): Promise<number> {
   const stale = await listUnverifiedTotpFactors();
+  let removed = 0;
   for (const factor of stale) {
     const { error } = await getSupabase().auth.mfa.unenroll({ factorId: factor.id });
     if (error) {
-      // Continue trying others; enroll will surface a clear error if one remains.
       console.warn("Failed to remove unverified MFA factor", factor.id, error.message);
+      continue;
     }
+    removed += 1;
   }
+  return removed;
 }
 
 export async function beginTotpChallenge(factorId: string, mode: "enroll" | "challenge"): Promise<MfaChallenge> {
@@ -69,7 +72,9 @@ export async function beginTotpEnrollment(): Promise<MfaChallenge> {
   });
 
   if (enrolled.error && /friendly name|already exists/i.test(enrolled.error.message)) {
-    friendlyName = `SentinelGrid authenticator ${new Date().toISOString().slice(0, 19)}`;
+    // One more cleanup pass, then a unique name so enrollment can always proceed.
+    await removeUnverifiedTotpFactors();
+    friendlyName = `SentinelGrid authenticator ${Date.now()}`;
     enrolled = await getSupabase().auth.mfa.enroll({
       factorType: "totp",
       friendlyName,
@@ -89,12 +94,12 @@ export async function beginTotpEnrollment(): Promise<MfaChallenge> {
 /** Returns true when the session is already AAL2; otherwise starts enroll/challenge. */
 export async function prepareMfaSession(): Promise<{ complete: boolean; challenge: MfaChallenge | null; factors: MfaFactor[] }> {
   const level = await currentAssuranceLevel();
-  if (level === "aal2") return { complete: true, challenge: null, factors: [] };
+  if (level === "aal2") return { complete: true, challenge: null, factors: await listVerifiedTotpFactors() };
   const factors = await listVerifiedTotpFactors();
   if (factors.length) {
     return { complete: false, challenge: await beginTotpChallenge(factors[0].id, "challenge"), factors };
   }
-  return { complete: false, challenge: await beginTotpEnrollment(), factors };
+  return { complete: false, challenge: await beginTotpEnrollment(), factors: [] };
 }
 
 export async function verifyTotpChallenge(challenge: MfaChallenge, code: string): Promise<void> {
@@ -104,6 +109,13 @@ export async function verifyTotpChallenge(challenge: MfaChallenge, code: string)
     code,
   });
   if (error) throw error;
+
+  // MFA verify rotates the session to AAL2 — persist the fresh access token immediately
+  // so Nest calls after this do not still send the old AAL1 JWT from localStorage.
+  const { data, error: sessionError } = await getSupabase().auth.getSession();
+  if (sessionError) throw sessionError;
+  syncAccessToken(data.session);
+
   const level = await currentAssuranceLevel();
   if (level !== "aal2") {
     throw new Error("The authenticator code was accepted, but the session did not reach the required security level. Try again.");

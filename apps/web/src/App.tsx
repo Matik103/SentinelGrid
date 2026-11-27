@@ -547,6 +547,10 @@ export function App() {
       return;
     }
 
+    // Soft refresh keeps the shell mounted (no VERIFYING flash) when we are already ready.
+    // Hard refresh (boot, MFA complete, explicit force) still shows the gate.
+    const soft = workspaceGateRef.current === "ready" && !opts?.force;
+
     // Like major apps: detect AAL1 client-side and park on MFA setup.
     // Do not call Nest APIs (or flip back to "checking") while the user is enrolling —
     // that remounted AuthPanel and invalidated QR codes / codes mid-setup.
@@ -565,7 +569,7 @@ export function App() {
       // AAL2 now — fall through to load workspaces after MFA verify.
     }
 
-    setWorkspaceGate("checking");
+    if (!soft) setWorkspaceGate("checking");
     const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>("/v1/orgs/mine");
     if (result.error) {
       const message = result.error.message;
@@ -588,17 +592,27 @@ export function App() {
       return;
     }
     const selected = memberships.find((row) => row.organisation_id === organisationId()) ?? memberships[0];
-    setOrganisationId(selected.organisation_id);
-    setActiveOrganisationId(selected.organisation_id);
-    setActiveOrganisationName(selected.organisations?.name ?? "Workspace");
+    const nextId = selected.organisation_id;
+    const nextName = selected.organisations?.name ?? "Workspace";
+    const orgChanged = nextId !== organisationId();
+    setOrganisationId(nextId);
+    setActiveOrganisationId(nextId);
+    setActiveOrganisationName(nextName);
     setWorkspaceGate("ready");
     setGateMessage(null);
-    setAuthRefreshKey((value) => value + 1);
+    // Soft path: only remount switcher/routes when the active org actually changed.
+    if (!soft || orgChanged || opts?.force) {
+      setAuthRefreshKey((value) => value + 1);
+    }
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthSession((session) => {
-      if (!session) {
+    const unsubscribe = onAuthSession((event, session) => {
+      // Token refresh / initial session fire on tab focus and boot — keep the shell mounted.
+      // The access token is already synced in auth.ts before listeners run.
+      if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") return;
+
+      if (!session || event === "SIGNED_OUT") {
         setOrganisationId(null);
         setActiveOrganisationId(null);
         setActiveOrganisationName("Workspace");
@@ -607,6 +621,7 @@ export function App() {
       }
       // Ignore session churn while the user is mid MFA enrollment/challenge.
       if (workspaceGateRef.current === "mfa") return;
+      // SIGNED_IN / USER_UPDATED: soft-refresh if already in the shell.
       void refreshWorkspaceState();
     });
     let active = true;

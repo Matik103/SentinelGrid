@@ -1,10 +1,10 @@
-import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type AuthChangeEvent, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from "./bootstrap";
 
 const TOKEN_KEY = "sg_access_token";
 const ORG_KEY = "sg_organisation_id";
 let client: SupabaseClient | null = null;
-let sessionListeners: Array<(session: Session | null) => void> = [];
+let sessionListeners: Array<(event: AuthChangeEvent, session: Session | null) => void> = [];
 
 function isDevBuild(): boolean { return Boolean(import.meta.env.DEV); }
 function authRedirectUrl(): string {
@@ -17,10 +17,10 @@ export function getSupabase(): SupabaseClient {
     client = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: "sg-command-auth" },
     });
-    client.auth.onAuthStateChange((_event, session) => {
+    client.auth.onAuthStateChange((event, session) => {
       if (session?.access_token) localStorage.setItem(TOKEN_KEY, session.access_token);
       else if (!isDevBuild() || !import.meta.env.VITE_DEV_ACCESS_TOKEN) localStorage.removeItem(TOKEN_KEY);
-      for (const listener of sessionListeners) listener(session);
+      for (const listener of sessionListeners) listener(event, session);
     });
   }
   return client;
@@ -106,7 +106,12 @@ export async function signOut(): Promise<void> {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ORG_KEY);
 }
-export function onAuthSession(listener: (session: Session | null) => void): () => void {
+/**
+ * Subscribe to Supabase auth lifecycle events.
+ * Callers should ignore TOKEN_REFRESHED / INITIAL_SESSION when the shell is already ready —
+ * those fire on tab focus and would otherwise remount the whole workspace.
+ */
+export function onAuthSession(listener: (event: AuthChangeEvent, session: Session | null) => void): () => void {
   sessionListeners.push(listener);
   return () => { sessionListeners = sessionListeners.filter((item) => item !== listener); };
 }

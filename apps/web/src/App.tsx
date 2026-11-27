@@ -414,11 +414,18 @@ function OrganisationPanel({ onBrandingChange }: { onBrandingChange?: () => void
       <h2 className="section-title">Members</h2>
       <DataTable
         columns={[
-          { key: "user_id", label: "User" },
+          { key: "member", label: "User" },
           { key: "status", label: "Status" },
           { key: "roles", label: "Role" },
         ]}
-        rows={members}
+        rows={members.map((row) => {
+          const displayName = typeof row.display_name === "string" ? row.display_name.trim() : "";
+          const email = typeof row.email === "string" ? row.email.trim() : "";
+          return {
+            ...row,
+            member: displayName || email || row.user_id || "—",
+          };
+        })}
         emptyLabel="No members in this workspace yet."
       />
       <h2 className="section-title">Invitations</h2>

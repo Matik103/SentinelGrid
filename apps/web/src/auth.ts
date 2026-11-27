@@ -20,9 +20,12 @@ function authRedirectUrl(kind?: "reset"): string {
 export function capturePasswordRecoveryIntent(): void {
   try {
     const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
-    const hashType = new URLSearchParams(hash).get("type");
-    const queryReset = new URLSearchParams(window.location.search).get("reset");
-    if (hashType === "recovery" || queryReset === "1") {
+    const hashParams = new URLSearchParams(hash);
+    const query = new URLSearchParams(window.location.search);
+    const hashType = hashParams.get("type");
+    const queryType = query.get("type");
+    const queryReset = query.get("reset");
+    if (hashType === "recovery" || queryType === "recovery" || queryReset === "1") {
       sessionStorage.setItem(RECOVERY_FLAG, "1");
     }
   } catch {
@@ -42,6 +45,33 @@ export function clearPasswordRecoveryPending(): void {
   try { sessionStorage.removeItem(RECOVERY_FLAG); } catch { /* ignore */ }
 }
 
+/** True when the JWT/session AMR shows this is a recovery (password-reset) session. */
+export function sessionIsRecovery(session: Session | null | undefined): boolean {
+  if (!session) return false;
+  const direct = (session as Session & { amr?: Array<{ method?: string } | string> }).amr;
+  if (Array.isArray(direct) && direct.some((entry) => {
+    const method = typeof entry === "string" ? entry : entry?.method;
+    return method === "recovery";
+  })) return true;
+  try {
+    const token = session.access_token;
+    const payload = token.split(".")[1];
+    if (!payload) return false;
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as { amr?: Array<{ method?: string } | string> };
+    if (!Array.isArray(json.amr)) return false;
+    return json.amr.some((entry) => {
+      const method = typeof entry === "string" ? entry : entry?.method;
+      return method === "recovery";
+    });
+  } catch {
+    return false;
+  }
+}
+
+export function noteRecoveryFromSession(session: Session | null | undefined): void {
+  if (sessionIsRecovery(session)) markPasswordRecoveryPending();
+}
+
 export function getSupabase(): SupabaseClient {
   if (!client) {
     capturePasswordRecoveryIntent();
@@ -49,7 +79,7 @@ export function getSupabase(): SupabaseClient {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: "sg-command-auth" },
     });
     client.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") markPasswordRecoveryPending();
+      if (event === "PASSWORD_RECOVERY" || sessionIsRecovery(session)) markPasswordRecoveryPending();
       if (session?.access_token) localStorage.setItem(TOKEN_KEY, session.access_token);
       else if (!isDevBuild() || !import.meta.env.VITE_DEV_ACCESS_TOKEN) localStorage.removeItem(TOKEN_KEY);
       for (const listener of sessionListeners) listener(event, session);
@@ -92,12 +122,14 @@ export function syncAccessToken(session: Session | null): void {
 }
 
 export async function restoreSession(): Promise<Session | null> {
+  capturePasswordRecoveryIntent();
   const { data, error } = await getSupabase().auth.getSession();
   if (error || !data.session) {
     syncAccessToken(null);
     return null;
   }
   syncAccessToken(data.session);
+  noteRecoveryFromSession(data.session);
   await ensureUserProfile(data.session);
   return data.session;
 }

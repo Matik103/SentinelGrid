@@ -1,7 +1,10 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
-import { isPasswordRecoveryPending, onAuthSession, organisationId, restoreSession, setOrganisationId } from "./auth";
+import {
+  isPasswordRecoveryPending, onAuthSession, organisationId, restoreSession,
+  sessionIsRecovery, setOrganisationId,
+} from "./auth";
 import { currentAssuranceLevel } from "./mfa";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { WorkspacePersonalizeMenu } from "./WorkspacePersonalizeMenu";
@@ -525,6 +528,8 @@ export function App() {
   const [authReady, setAuthReady] = useState(false);
   const [workspaceGate, setWorkspaceGate] = useState<"checking" | "mfa" | "required" | "ready" | "error">("checking");
   const [gateMessage, setGateMessage] = useState<string | null>(null);
+  // Mirrored in React state so PASSWORD_RECOVERY / AMR detection triggers a re-render.
+  const [recoveryPending, setRecoveryPending] = useState(() => isPasswordRecoveryPending());
   const location = useLocation();
   const workspaceGateRef = useRef(workspaceGate);
   workspaceGateRef.current = workspaceGate;
@@ -548,7 +553,8 @@ export function App() {
     }
 
     // Password recovery must collect a new password before MFA / workspace gates run.
-    if (isPasswordRecoveryPending() && !opts?.force) return;
+    // Never bypass with force — that was dropping users into the app after MFA verify.
+    if (recoveryPending || isPasswordRecoveryPending()) return;
 
     // Soft refresh keeps the shell mounted (no VERIFYING flash) when we are already ready.
     // Hard refresh (boot, MFA complete, explicit force) still shows the gate.
@@ -613,14 +619,21 @@ export function App() {
     const unsubscribe = onAuthSession((event, session) => {
       // Token refresh / initial session fire on tab focus and boot — keep the shell mounted.
       // The access token is already synced in auth.ts before listeners run.
-      if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") return;
-      // Recovery session: stay on the password-reset form; do not enter MFA yet.
-      if (event === "PASSWORD_RECOVERY" || isPasswordRecoveryPending()) return;
+      if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+        if (sessionIsRecovery(session) || isPasswordRecoveryPending()) setRecoveryPending(true);
+        return;
+      }
+      // Recovery session: stay on the password-reset form; do not enter MFA / workspace.
+      if (event === "PASSWORD_RECOVERY" || sessionIsRecovery(session) || isPasswordRecoveryPending()) {
+        setRecoveryPending(true);
+        return;
+      }
 
       if (!session || event === "SIGNED_OUT") {
         setOrganisationId(null);
         setActiveOrganisationId(null);
         setActiveOrganisationName("Workspace");
+        setRecoveryPending(false);
         setWorkspaceGate("checking");
         return;
       }
@@ -634,6 +647,7 @@ export function App() {
       if (!active) return;
       setAuthReady(true);
       if (isPasswordRecoveryPending()) {
+        setRecoveryPending(true);
         setWorkspaceGate("checking");
         return;
       }
@@ -648,7 +662,7 @@ export function App() {
   // Safety net: never leave VERIFYING forever. If AAL2 already, retry workspace load;
   // only send the user to MFA when the session is still AAL1.
   useEffect(() => {
-    if (workspaceGate !== "checking" || !authReady || !authToken() || isPasswordRecoveryPending()) return;
+    if (workspaceGate !== "checking" || !authReady || !authToken() || recoveryPending || isPasswordRecoveryPending()) return;
     const timer = window.setTimeout(() => {
       void (async () => {
         if (workspaceGateRef.current !== "checking") return;
@@ -673,7 +687,13 @@ export function App() {
       setOrganisationId(null);
       setActiveOrganisationId(null);
       setActiveOrganisationName("Workspace");
+      setRecoveryPending(false);
       setWorkspaceGate("checking");
+      return;
+    }
+    // Recovery: stay on AuthPanel until the new password is saved (even after MFA step-up).
+    if (recoveryPending || isPasswordRecoveryPending()) {
+      setRecoveryPending(true);
       return;
     }
     // After MFA verify / sign-in, force workspace load even if we were on mfa.
@@ -688,11 +708,12 @@ export function App() {
   const currentPage = NAV_GROUPS.map((group) => group.items.find((item) => item.to === location.pathname)).find((item) => item !== undefined)?.label ?? "Command workspace";
 
   if (!authReady) return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>SECURE COMMAND INITIALISING</span></div>;
-  if (!authToken() || isPasswordRecoveryPending()) {
-    return <AuthPanel surface="page" onAuthChange={handleAuthChange} />;
+  if (!authToken() || recoveryPending || isPasswordRecoveryPending()) {
+    // Key forces a remount when recovery begins so a prior MFA-gate AuthPanel cannot keep state.
+    return <AuthPanel key={recoveryPending || isPasswordRecoveryPending() ? "recovery" : "auth"} surface="page" onAuthChange={handleAuthChange} />;
   }
   // Full-screen MFA setup (QR / TOTP). Do not nest inside the tiny boot spinner layout.
-  if (workspaceGate === "mfa") return <AuthPanel surface="page" onAuthChange={handleAuthChange} />;
+  if (workspaceGate === "mfa") return <AuthPanel key="mfa" surface="page" onAuthChange={handleAuthChange} />;
   if (workspaceGate === "checking") return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>VERIFYING WORKSPACE ACCESS</span></div>;
   if (workspaceGate === "required" || workspaceGate === "error") {
     // Never forward MFA setup copy onto the workspace screen — that step is already complete.

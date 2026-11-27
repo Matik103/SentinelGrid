@@ -105,10 +105,29 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
       if (surface === "sidebar") return;
 
       try {
+        // Re-check: recovery flag may land mid-flight after PASSWORD_RECOVERY / AMR detection.
+        if (isPasswordRecoveryPending()) return;
         setMfaPending(true);
         setError(null);
         const result = await prepareMfaSession();
         if (!active) return;
+        if (isPasswordRecoveryPending()) {
+          // Divert into the recovery reset steps instead of entering the workspace.
+          setMfa(null);
+          setMfaPending(false);
+          setVerifiedFactors(result.factors);
+          setView("reset");
+          if (result.complete) {
+            setRecoveryStep("password");
+            setNotice("Authenticator confirmed. Choose a new password.");
+          } else if (result.challenge) {
+            setRecoveryMfa(result.challenge);
+            setRecoveryStep("mfa");
+          } else {
+            setRecoveryStep("loading");
+          }
+          return;
+        }
         setVerifiedFactors(result.factors);
         if (result.complete) {
           setMfa(null);
@@ -119,6 +138,11 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
         }
       } catch (err) {
         if (!active) return;
+        if (isPasswordRecoveryPending()) {
+          setMfa(null);
+          setMfaPending(false);
+          return;
+        }
         setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
         setMfaPending(true);
       }
@@ -171,6 +195,16 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
     }
   };
 
+  const continueRecoveryAfterMfa = () => {
+    setMfa(null);
+    setMfaPending(false);
+    setMfaCode("");
+    setRecoveryMfa(null);
+    setRecoveryStep("password");
+    setView("reset");
+    setNotice("Authenticator confirmed. Choose a new password.");
+  };
+
   const onVerifyMfa = async (event: FormEvent) => {
     event.preventDefault();
     const code = mfaCode.trim();
@@ -183,6 +217,11 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
     try {
       await verifyTotpChallenge(mfa, code);
       await restoreSession();
+      // If this MFA was part of password recovery, never enter the workspace yet.
+      if (isPasswordRecoveryPending()) {
+        continueRecoveryAfterMfa();
+        return;
+      }
       setMfa(null);
       setMfaPending(false);
       setMfaCode("");
@@ -192,7 +231,8 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
     } finally { setBusy(false); }
   };
 
-  if (mfa || mfaPending) {
+  // Full MFA chrome is for normal sign-in only. Recovery uses its own step on the reset view.
+  if ((mfa || mfaPending) && !isPasswordRecoveryPending()) {
     const enrollCopy = mfa?.mode === "enroll" || (!mfa && mfaPending);
     return (
       <main className="auth-experience">

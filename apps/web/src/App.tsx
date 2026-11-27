@@ -416,7 +416,13 @@ function OrganisationPanel({
     });
     if (res.error) setMsg(`Invite failed: ${res.error.message}`);
     else {
-      setMsg(`Invite queued (${String((res.data as { delivery?: { channel?: string } })?.delivery?.channel ?? "outbox")})`);
+      const delivery = (res.data as { delivery?: { channel?: string; status?: string } })?.delivery;
+      const channel = delivery?.channel ?? "outbox";
+      if (channel === "outbox_failed" || delivery?.status === "failed") {
+        setMsg("Invitation was created, but email could not be queued. Check email worker / Resend configuration.");
+      } else {
+        setMsg(`Invitation created — email is being sent (${channel}).`);
+      }
       setInviteEmail("");
       void reload();
       const inv = await apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/invites`);

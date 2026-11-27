@@ -7,6 +7,12 @@ type ClaimedEmail = {
   attempts: number;
 };
 
+/** Resend tags allow only ASCII letters, numbers, underscores, or dashes. */
+export function resendTagValue(raw: string, maxLen = 50): string {
+  const cleaned = raw.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+  return (cleaned || "template").slice(0, maxLen);
+}
+
 @Injectable()
 export class EmailWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(EmailWorkerService.name);
@@ -74,7 +80,7 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy {
         body: JSON.stringify({
           from, to: [row.to_email], subject: row.subject,
           text: row.body_text, ...(row.body_html ? { html: row.body_html } : {}),
-          tags: [{ name: "sentinelgrid_template", value: row.template_key.slice(0, 50) }],
+          tags: [{ name: "sentinelgrid_template", value: resendTagValue(row.template_key) }],
         }),
         signal: AbortSignal.timeout(15000),
       });

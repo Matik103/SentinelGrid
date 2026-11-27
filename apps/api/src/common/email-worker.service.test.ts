@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resendTagValue } from "./email-worker.service.js";
 
 describe("EmailWorkerService surface", () => {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -16,5 +17,12 @@ describe("EmailWorkerService surface", () => {
     assert.match(source, /claim_email_outbox/);
     assert.match(source, /finish_email_outbox/);
     assert.match(source, /Idempotency-Key/);
+    assert.match(source, /resendTagValue/);
+  });
+
+  it("sanitizes Resend tag values (dots/spaces rejected by Resend)", () => {
+    assert.equal(resendTagValue("organisation.invite"), "organisation_invite");
+    assert.equal(resendTagValue("a b/c"), "a_b_c");
+    assert.equal(resendTagValue("..."), "template");
   });
 });

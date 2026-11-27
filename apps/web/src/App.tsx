@@ -1,5 +1,5 @@
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, ensureConfig, healthCheck } from "./api";
 import { organisationId, restoreSession, setOrganisationId } from "./auth";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
@@ -432,6 +432,8 @@ export function App() {
   const [activeOrganisationId, setActiveOrganisationId] = useState<string | null>(() => organisationId());
   const [activeOrganisationName, setActiveOrganisationName] = useState("Workspace");
   const [authRefreshKey, setAuthRefreshKey] = useState(0);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+  const processedInvite = useRef<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   useEffect(() => {
@@ -442,6 +444,30 @@ export function App() {
       setAuthRefreshKey((value) => value + 1);
     });
   }, []);
+  useEffect(() => {
+    const token = new URLSearchParams(location.search).get("invite");
+    if (!token || !authToken() || !apiConfigured() || processedInvite.current === token) return;
+    processedInvite.current = token;
+    let active = true;
+    void apiPost<{ organisation_id?: string; status?: string }>("/v1/orgs/invites/accept", { token })
+      .then((result) => {
+        if (!active) return;
+        if (result.error) {
+          processedInvite.current = null;
+          setInviteMessage(`Invitation could not be accepted: ${result.error.message}`);
+          return;
+        }
+        setInviteMessage("Invitation accepted. Your workspace access is ready.");
+        navigate({ pathname: location.pathname, search: "", hash: location.hash }, { replace: true });
+        setAuthRefreshKey((value) => value + 1);
+      })
+      .catch((error) => {
+        if (!active) return;
+        processedInvite.current = null;
+        setInviteMessage(error instanceof Error ? error.message : "Invitation acceptance failed.");
+      });
+    return () => { active = false; };
+  }, [authRefreshKey, location.pathname, location.search, location.hash, navigate]);
   const selectOrganisation = (id: string | null, name: string) => {
     if (id !== activeOrganisationId) setOrganisationId(id);
     setActiveOrganisationId(id);
@@ -503,6 +529,7 @@ export function App() {
           </div>
           <div className="topbar-tools"><span className={apiConfigured() ? "connection-state connected" : "connection-state"}><i />{apiConfigured() ? "API CONFIGURED" : "API NOT CONFIGURED"}</span><span className="topbar-divider" /><span className="topbar-date">{new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span><div className="user-orb">SG</div></div></header>
         <div className="main-content">
+        {inviteMessage && <div className="inline-notice" role="status">{inviteMessage}</div>}
         <Routes key={activeOrganisationId ?? "no-workspace"}>
           <Route path="/" element={<Overview />} />
           <Route path="/topology" element={<TopologyPage />} />

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
 import { SupabaseAdminService } from "../common/supabase-admin.service.js";
 import {
   createObjectStoreFromEnv,
@@ -31,7 +31,8 @@ export class PayloadStorageService implements OnModuleInit {
 
   constructor(
     private readonly admin: SupabaseAdminService,
-    store?: ObjectStore,
+    /** Test injection only — never a Nest provider. */
+    @Optional() store?: ObjectStore,
   ) {
     if (store) {
       this.store = store;

@@ -22,6 +22,9 @@ services:
         value: resend
       - key: SG_EMAIL_WORKER_ENABLED
         value: "true"
+      # Single-instance starter: allow in-memory rate limits. Prefer REDIS_URL when scaling.
+      - key: RATE_LIMIT_ALLOW_MEMORY
+        value: "1"
       # Required secrets — set in the Render Dashboard (sync:false). Never commit values.
       - key: SUPABASE_URL
         sync: false

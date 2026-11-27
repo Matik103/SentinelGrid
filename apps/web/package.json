@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/authRecovery.test.ts"
+    "test": "node --import tsx --test src/authRecovery.test.ts src/imageMagic.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

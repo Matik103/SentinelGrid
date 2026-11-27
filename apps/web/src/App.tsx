@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
+import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, clearWorkspaceLogo, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
 import {
   isPasswordRecoveryPending, onAuthSession, organisationId, restoreSession,
   sessionIsRecovery, setOrganisationId,
@@ -390,6 +390,22 @@ function OrganisationPanel({
     }
   }
 
+  async function onWorkspaceLogoRemove() {
+    if (!org || !logoUrl) return;
+    setLogoBusy(true);
+    setLogoMessage(null);
+    try {
+      await clearWorkspaceLogo(org);
+      setLogoUrl(null);
+      setLogoMessage("Workspace logo removed. The default SentinelGrid emblem is shown again.");
+      onBrandingChange?.();
+    } catch (cause) {
+      setLogoMessage(cause instanceof Error ? cause.message : "Could not remove the workspace logo.");
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
   async function onInvite(e: FormEvent) {
     e.preventDefault();
     if (!org) return;
@@ -427,7 +443,16 @@ function OrganisationPanel({
                   ? <img src={logoUrl} alt="Current workspace logo" />
                   : <img src="/assets/sentinelgrid-logo-mark.png" alt="Default SentinelGrid emblem" />}
             </div>
-            {canManageBranding ? <label className="btn workspace-logo-upload">{logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload workspace logo"}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={logoBusy || logoUrl === undefined} onChange={onWorkspaceLogoChange} /></label> : <span className="workspace-branding-hint">Workspace administrator access required</span>}
+            {canManageBranding ? (
+              <div className="workspace-branding-actions">
+                <label className="btn workspace-logo-upload">{logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Upload workspace logo"}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={logoBusy || logoUrl === undefined} onChange={onWorkspaceLogoChange} /></label>
+                {logoUrl ? (
+                  <button type="button" className="btn ghost" disabled={logoBusy} onClick={() => void onWorkspaceLogoRemove()}>
+                    Remove logo
+                  </button>
+                ) : null}
+              </div>
+            ) : <span className="workspace-branding-hint">Workspace administrator access required</span>}
           </div>
           {logoMessage && <p className="workspace-branding-message" role="status">{logoMessage}</p>}
         </section>

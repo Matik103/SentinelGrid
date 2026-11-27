@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { canManageWorkspaceBranding, getWorkspaceBranding, uploadWorkspaceLogo } from "./api";
+import { canManageWorkspaceBranding, clearWorkspaceLogo, getWorkspaceBranding, uploadWorkspaceLogo } from "./api";
 import { getSupabase, restoreSession, signOut } from "./auth";
 import { currentAssuranceLevel, listVerifiedTotpFactors } from "./mfa";
 import { peekCachedWorkspaceLogo } from "./workspaceLogoCache";
@@ -119,6 +119,22 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
     }
   }
 
+  async function onLogoRemoved() {
+    if (!organisationId || !logoUrl) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await clearWorkspaceLogo(organisationId);
+      setLogoUrl(null);
+      setMessage("Logo removed.");
+      onBrandingChange?.();
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : "Could not remove the workspace logo.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSignOut() {
     setSigningOut(true);
     setMessage(null);
@@ -190,6 +206,16 @@ export function WorkspacePersonalizeMenu({ organisationId, organisationName, onB
                 >
                   {busy ? "Uploading…" : logoUrl ? "Replace" : "Upload logo"}
                 </button>
+                {logoUrl ? (
+                  <button
+                    type="button"
+                    className="account-menu-text-action"
+                    disabled={busy || signingOut || !organisationId}
+                    onClick={() => void onLogoRemoved()}
+                  >
+                    Remove
+                  </button>
+                ) : null}
               </>
             ) : null}
           </div>

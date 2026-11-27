@@ -1,9 +1,13 @@
 import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
 import { SupabaseAdminService } from "./common/supabase-admin.service.js";
+import { EmailWorkerService } from "./common/email-worker.service.js";
 
 @Controller("health")
 export class HealthController {
-  constructor(private readonly admin: SupabaseAdminService) {}
+  constructor(
+    private readonly admin: SupabaseAdminService,
+    private readonly emailWorker: EmailWorkerService,
+  ) {}
 
   @Get()
   async get() {
@@ -11,16 +15,13 @@ export class HealthController {
     const production = process.env.NODE_ENV === "production";
     const emailTransport = process.env.SG_EMAIL_TRANSPORT ?? (production ? "none" : "local_log");
     const emailSecretsConfigured = Boolean(process.env.RESEND_API_KEY && process.env.SG_EMAIL_FROM);
-    const emailWorkerEnabled =
-      process.env.SG_EMAIL_WORKER_ENABLED === "true" &&
-      emailTransport === "resend" &&
-      emailSecretsConfigured;
+    const emailWorkerEnabled = this.emailWorker.isActive();
 
     // This is a readiness check, not just a process liveness response.
     // Do not disclose database errors, project identifiers, or secret values.
     const { error } = await this.admin.client
       .from("app_public_config")
-      .select("key")
+      .select("value")
       .eq("key", "api_base_url")
       .maybeSingle();
     if (error) {
@@ -31,12 +32,16 @@ export class HealthController {
       });
     }
 
+    const apiConfigValue = (data?.value ?? null) as { url?: unknown } | null;
+    const publicApiOriginConfigured = typeof apiConfigValue?.url === "string" && apiConfigValue.url.startsWith("https://");
+
     return {
       status: "ok",
       phase: "0",
       ot_default: "read_only",
       service_role_in_frontend: false,
       dependencies: { supabase: "ok" },
+      public_api_origin_configured: publicApiOriginConfigured,
       monitoring: {
         uptime_ms: Date.now() - started,
         node_env: process.env.NODE_ENV ?? "development",

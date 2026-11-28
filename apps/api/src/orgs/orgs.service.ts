@@ -170,6 +170,25 @@ export class OrgsService {
     return data;
   }
 
+  /** Pending invites addressed to the signed-in email (no raw token required). */
+  async listPendingInvitesForMe(user: AuthUser) {
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb.rpc("list_my_pending_organisation_invitations");
+    if (error) throw new BadRequestException(error.message);
+    return (data as unknown[]) ?? [];
+  }
+
+  /**
+   * Accept every still-pending invitation for the authenticated email.
+   * Used when the invite link query string was lost after signup/MFA.
+   */
+  async acceptPendingInvitesForMe(user: AuthUser) {
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb.rpc("accept_my_pending_organisation_invitations");
+    if (error) throw new BadRequestException(error.message);
+    return data as { accepted_count: number; accepted: unknown[] };
+  }
+
   async expireInvites(user: AuthUser, organisationId: string) {
     await this.requirePermission(user, organisationId, "user.manage");
     const sb = this.users.create(user.accessToken);

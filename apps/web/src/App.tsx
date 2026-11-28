@@ -449,7 +449,7 @@ function OrganisationPanel({
 
   const title = showPeople ? "People & access" : "Workspace settings";
   const lead = showPeople
-    ? "Review membership and send invitations for this workspace."
+    ? "Review membership and send invitations. Invitees get an email link — they should not need a raw token."
     : "Personalise this workspace and manage its identity.";
 
   return (
@@ -676,34 +676,56 @@ export function App() {
         setGateStage("Loading workspaces…");
       }
 
-      // After MFA, accept a pending invite from the URL before loading memberships.
-      const { token: inviteToken } = readInviteFromLocation();
-      if (inviteToken) {
-        if (!soft) setGateStage("Accepting invitation…");
-        const accepted = await apiPost<unknown>(
-          "/v1/orgs/invites/accept",
-          { token: inviteToken },
+      // After MFA: accept invite from the URL when present, then accept any pending
+      // invites for this email (covers signup without keeping ?invite= in the URL).
+      // Skip on soft refresh — shell is already mounted with memberships.
+      if (!soft) {
+        setGateStage("Accepting invitation…");
+        const { token: inviteToken } = readInviteFromLocation();
+        if (inviteToken) {
+          const accepted = await apiPost<unknown>(
+            "/v1/orgs/invites/accept",
+            { token: inviteToken },
+            { timeoutMs: API_GATE_TIMEOUT_MS },
+          );
+          if (!isCurrent()) return;
+          if (accepted.error) {
+            const message = accepted.error.message;
+            if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || accepted.error.status === 403) {
+              enterMfaSetup();
+              return;
+            }
+            // Keep the token in the URL so WorkspaceOnboarding can retry / show the error.
+            if (!/already|accepted|not found|expired|does not match/i.test(message)) {
+              setGateMessage(message);
+            }
+          } else {
+            const next = new URL(window.location.href);
+            next.searchParams.delete("invite");
+            next.searchParams.delete("token");
+            next.searchParams.delete("email");
+            window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
+          }
+        }
+        // Email-matched pending invites — invitees should not need to paste a raw token.
+        const acceptedMine = await apiPost<{ accepted_count?: number }>(
+          "/v1/orgs/invites/accept-mine",
+          {},
           { timeoutMs: API_GATE_TIMEOUT_MS },
         );
         if (!isCurrent()) return;
-        if (accepted.error) {
-          const message = accepted.error.message;
-          if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || accepted.error.status === 403) {
+        if (acceptedMine.error) {
+          const message = acceptedMine.error.message;
+          if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || acceptedMine.error.status === 403) {
             enterMfaSetup();
             return;
           }
-          // Keep the token in the URL so WorkspaceOnboarding can retry / show the error.
-          if (!/already|accepted|not found|expired|does not match/i.test(message)) {
-            setGateMessage(message);
+          // Non-fatal when there are simply no pending invites / RPC not yet migrated.
+          if (!/Could not find the function|schema cache|does not exist/i.test(message)) {
+            console.warn("accept-mine invitations:", message);
           }
-        } else {
-          const next = new URL(window.location.href);
-          next.searchParams.delete("invite");
-          next.searchParams.delete("token");
-          next.searchParams.delete("email");
-          window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
         }
-        if (!soft) setGateStage("Loading workspaces…");
+        setGateStage("Loading workspaces…");
       }
 
       const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>(

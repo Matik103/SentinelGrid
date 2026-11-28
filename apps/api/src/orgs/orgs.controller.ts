@@ -33,6 +33,16 @@ export class OrgsController {
     return this.orgs.acceptInvite(user, body);
   }
 
+  @Get("invites/pending-for-me")
+  listPendingInvitesForMe(@CurrentUser() user: AuthUser) {
+    return this.orgs.listPendingInvitesForMe(user);
+  }
+
+  @Post("invites/accept-mine")
+  acceptPendingInvitesForMe(@CurrentUser() user: AuthUser) {
+    return this.orgs.acceptPendingInvitesForMe(user);
+  }
+
   @Get(":organisationId/membership")
   membership(
     @CurrentUser() user: AuthUser,

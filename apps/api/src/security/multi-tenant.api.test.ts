@@ -34,6 +34,8 @@ describe("Multi-tenant API permission gates", () => {
     const orgs = {
       invite: async () => ({ status: "pending" }),
       acceptInvite: async () => ({ status: "accepted" }),
+      acceptPendingInvitesForMe: async () => ({ accepted_count: 1, accepted: [] }),
+      listPendingInvitesForMe: async () => [{ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }],
       revokeInvite: async () => ({ status: "revoked" }),
       listInvites: async () => [],
       bootstrap: async () => ({}),
@@ -49,6 +51,10 @@ describe("Multi-tenant API permission gates", () => {
     assert.throws(() => controller.revokeInvite(user, orgA, "not-uuid"));
     const accept = await controller.acceptInvite(user, { token: "tokensecretvalue1234567890" });
     assert.equal((accept as { status: string }).status, "accepted");
+    const pending = await controller.listPendingInvitesForMe(user);
+    assert.equal((pending as unknown[]).length, 1);
+    const mine = await controller.acceptPendingInvitesForMe(user);
+    assert.equal((mine as { accepted_count: number }).accepted_count, 1);
   });
 
   it("audit list requires audit.read for the organisation in the path", async () => {

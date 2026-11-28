@@ -4324,6 +4324,7 @@ input, select, textarea, button, .btn, a { transition-timing-function: cubic-bez
 .auth-boot { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1rem; background:radial-gradient(ellipse at 50% 42%,rgba(43,140,151,.16),transparent 38%),#071321; color:#7e9eae; font:9px var(--sg-font-mono); letter-spacing:.18em; }
 .auth-boot-mark { display:grid; place-items:center; width:54px; height:54px; border:1px solid rgba(84,214,197,.42); border-radius:17px; color:#70e4d4; font:700 17px var(--sg-font-heading); box-shadow:0 0 38px rgba(84,214,197,.13); }
 .auth-boot-stage { margin:0; letter-spacing:.12em; font:400 10px/1.4 var(--sg-font-mono); color:#5f8494; text-transform:uppercase; }
+.muted { color:#7e9eae; font:400 12px/1.4 var(--sg-font-body); }
 .auth-boot-action { max-width:min(420px, calc(100vw - 2rem)); text-align:center; }
 .auth-boot-copy { margin:0; letter-spacing:.04em; font:400 13px/1.5 var(--sg-font-body); color:#9eb6c4; text-wrap:pretty; }
 .auth-boot-actions { display:flex; flex-wrap:wrap; gap:.65rem; justify-content:center; margin-top:.35rem; letter-spacing:normal; }

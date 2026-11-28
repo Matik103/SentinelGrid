@@ -1,7 +1,7 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `16b4e3c4924b61cf06600b0dacc0e45f14c7834b` — disposable hosted-schema restore **ops**; Nest health reads `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; www FE on `main` @ `c68caea0f72da46a953a4ce265c336d765562129`  
+**Current tip:** `00b6a0ce56b2b7a610c862b446b96f8cd8e4633c` — disposable hosted-schema restore **ops**; Nest health reads `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; www FE on `main` @ `c68caea0f72da46a953a4ce265c336d765562129`  
 **Prior tip (Criterion G + E2E-08):** `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f`  
 **Prior tip (docs closeout):** `ca5b2f14fc84a824f58668ce3091507f3f8f32d5`  
 **Prior tip (migration/docs packet):** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd`  

@@ -129,8 +129,11 @@ function DataTable({
   );
 }
 
-function formatCell(value: unknown): string {
+function formatCell(value: unknown): ReactNode {
   if (value == null) return "—";
+  if (typeof value === "object" && value !== null && "$$typeof" in (value as object)) {
+    return value as ReactNode;
+  }
   if (Array.isArray(value)) {
     if (!value.length) return "—";
     return value.map((item) => formatCell(item)).join(", ");
@@ -331,6 +334,7 @@ function OrganisationPanel({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("read_only_viewer");
   const [msg, setMsg] = useState<string | null>(null);
+  const [memberBusyId, setMemberBusyId] = useState<string | null>(null);
   const org = organisationId();
   const [logoUrl, setLogoUrl] = useState<string | null | undefined>(() =>
     organisationId() ? peekCachedWorkspaceLogo(organisationId()!) : null,
@@ -447,9 +451,34 @@ function OrganisationPanel({
     if (inv.data) setInvites(inv.data);
   }
 
+  async function onRemoveMember(memberUserId: string, label: string) {
+    if (!org) return;
+    const confirmed = window.confirm(`Remove ${label} from this workspace? Their membership will be deleted.`);
+    if (!confirmed) return;
+    setMemberBusyId(memberUserId);
+    setMsg(null);
+    setError(null);
+    const res = await apiPost<Record<string, unknown>>(`/v1/orgs/${org}/members/${memberUserId}/revoke`, {});
+    setMemberBusyId(null);
+    if (res.error) {
+      const raw = res.error.message;
+      let detail = raw;
+      try {
+        const parsed = JSON.parse(raw) as { message?: string };
+        if (typeof parsed.message === "string" && parsed.message.trim()) detail = parsed.message;
+      } catch {
+        // Nest may return plain text.
+      }
+      setMsg(detail);
+      return;
+    }
+    setMsg("Member removed from this workspace.");
+    void reload();
+  }
+
   const title = showPeople ? "People & access" : "Workspace settings";
   const lead = showPeople
-    ? "Review membership and send invitations. Invitees get an email link — they should not need a raw token."
+    ? "Review membership and send invitations. The workspace creator account cannot be removed."
     : "Personalise this workspace and manage its identity.";
 
   return (
@@ -488,13 +517,32 @@ function OrganisationPanel({
               { key: "member", label: "User" },
               { key: "status", label: "Status" },
               { key: "roles", label: "Role" },
+              { key: "actions", label: "Access" },
             ]}
             rows={members.map((row) => {
               const displayName = typeof row.display_name === "string" ? row.display_name.trim() : "";
               const email = typeof row.email === "string" ? row.email.trim() : "";
+              const label = displayName || email || String(row.user_id || "member");
+              const userId = String(row.user_id ?? "");
+              const isCreator = Boolean(row.is_workspace_creator);
+              const canRemove = Boolean(row.can_remove);
               return {
                 ...row,
-                member: displayName || email || row.user_id || "—",
+                member: isCreator ? `${label} (workspace creator)` : label,
+                actions: isCreator ? (
+                  <span className="muted">Protected</span>
+                ) : canRemove ? (
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    disabled={memberBusyId === userId}
+                    onClick={() => { void onRemoveMember(userId, label); }}
+                  >
+                    {memberBusyId === userId ? "Removing…" : "Remove"}
+                  </button>
+                ) : (
+                  <span className="muted">—</span>
+                ),
               };
             })}
             emptyLabel="No members in this workspace yet."

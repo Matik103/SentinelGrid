@@ -235,11 +235,20 @@ export class OrgsService {
   async listMembers(user: AuthUser, organisationId: string) {
     await this.requirePermission(user, organisationId, "org.read");
     const sb = this.users.create(user.accessToken);
-    const { data, error } = await sb
-      .from("memberships")
-      .select("user_id, role_id, status, roles(key, name)")
-      .eq("organisation_id", organisationId);
+    const [{ data, error }, orgResult] = await Promise.all([
+      sb
+        .from("memberships")
+        .select("user_id, role_id, status, roles(key, name)")
+        .eq("organisation_id", organisationId),
+      sb
+        .from("organisations")
+        .select("created_by_user_id")
+        .eq("id", organisationId)
+        .maybeSingle(),
+    ]);
     if (error) throw new BadRequestException(error.message);
+    if (orgResult.error) throw new BadRequestException(orgResult.error.message);
+    const creatorId = String((orgResult.data as { created_by_user_id?: string | null } | null)?.created_by_user_id ?? "");
     const members = data ?? [];
     const userIds = [...new Set(members.map((row) => String((row as { user_id?: string }).user_id ?? "")).filter(Boolean))];
     if (!userIds.length) return members;
@@ -250,7 +259,14 @@ export class OrgsService {
       .in("user_id", userIds);
     if (profileError) {
       this.log.warn(`Could not enrich membership profiles: ${profileError.message}`);
-      return members;
+      return members.map((row) => {
+        const member = row as { user_id: string };
+        return {
+          ...member,
+          is_workspace_creator: creatorId !== "" && String(member.user_id) === creatorId,
+          can_remove: creatorId !== "" && String(member.user_id) !== creatorId && String(member.user_id) !== user.id,
+        };
+      });
     }
     const byUser = new Map(
       (profiles ?? []).map((profile) => [
@@ -261,12 +277,34 @@ export class OrgsService {
     return members.map((row) => {
       const member = row as { user_id: string; role_id?: string; status?: string; roles?: unknown };
       const profile = byUser.get(String(member.user_id));
+      const isCreator = creatorId !== "" && String(member.user_id) === creatorId;
       return {
         ...member,
         email: profile?.email ?? null,
         display_name: profile?.display_name ?? null,
+        is_workspace_creator: isCreator,
+        can_remove: !isCreator && String(member.user_id) !== user.id,
       };
     });
+  }
+
+  async revokeMember(user: AuthUser, organisationId: string, memberUserId: string) {
+    await this.requirePermission(user, organisationId, "user.manage");
+    const sb = this.users.create(user.accessToken);
+    const { data, error } = await sb.rpc("revoke_organisation_member", {
+      p_organisation_id: organisationId,
+      p_user_id: memberUserId,
+    });
+    if (error) {
+      if (/workspace creator|cannot be removed|own membership|last workspace administrator/i.test(error.message)) {
+        throw new ForbiddenException(error.message);
+      }
+      if (/Membership not found/i.test(error.message)) {
+        throw new NotFoundException(error.message);
+      }
+      throw new BadRequestException(error.message);
+    }
+    return data;
   }
 
   private async deliverInviteEmail(

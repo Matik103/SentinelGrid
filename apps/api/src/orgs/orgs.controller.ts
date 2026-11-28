@@ -61,6 +61,17 @@ export class OrgsController {
     return this.orgs.listMembers(user, organisationId);
   }
 
+  @Post(":organisationId/members/:memberUserId/revoke")
+  revokeMember(
+    @CurrentUser() user: AuthUser,
+    @Param("organisationId") organisationId: string,
+    @Param("memberUserId") memberUserId: string,
+  ) {
+    this.assertUuid(organisationId);
+    this.assertUuid(memberUserId);
+    return this.orgs.revokeMember(user, organisationId, memberUserId);
+  }
+
   @Get(":organisationId/invites")
   listInvites(
     @CurrentUser() user: AuthUser,

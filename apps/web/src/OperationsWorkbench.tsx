@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { apiGet, organisationId } from "./api";
+import { apiGet, formatApiErrorMessage, hasOrgPermission, organisationId } from "./api";
 
 type Facility = { id: string; name: string; code?: string | null; status?: string };
 type Asset = {
@@ -24,10 +24,12 @@ function useWorkbenchData() {
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [canWriteFacilities, setCanWriteFacilities] = useState(false);
   useEffect(() => {
     let active = true;
-    if (!org) { setError("Select an authenticated organisation to load infrastructure records."); setLoading(false); return; }
+    if (!org) { setError("Select an authenticated organisation to load infrastructure records."); setLoading(false); setCanWriteFacilities(false); return; }
     setLoading(true); setError(null);
+    void hasOrgPermission(org, "facility.write").then((allowed) => { if (active) setCanWriteFacilities(allowed); }).catch(() => { if (active) setCanWriteFacilities(false); });
     void Promise.all([
       apiGet<Asset[]>(`/v1/orgs/${org}/assets`),
       apiGet<Facility[]>(`/v1/orgs/${org}/facilities`),
@@ -36,12 +38,12 @@ function useWorkbenchData() {
       if (!active) return;
       setAssets(a.data ?? []); setFacilities(f.data ?? []); setEvents(e.data ?? []);
       const failures = [a.error, f.error, e.error].filter(Boolean);
-      if (failures.length) setError(failures.map((x) => x?.message).join(" · "));
+      if (failures.length) setError(failures.map((x) => formatApiErrorMessage(x?.message)).join(" · "));
       setLoading(false);
     }).catch((err) => { if (active) { setError(err instanceof Error ? err.message : String(err)); setLoading(false); } });
     return () => { active = false; };
   }, [org]);
-  return { assets, facilities, events, loading, error };
+  return { assets, facilities, events, loading, error, canWriteFacilities };
 }
 
 function stamp(value?: string) {
@@ -65,7 +67,7 @@ function severityClass(event: EventRecord) {
 }
 
 export function TopologyPage() {
-  const { assets, facilities, loading, error } = useWorkbenchData();
+  const { assets, facilities, loading, error, canWriteFacilities } = useWorkbenchData();
   const [facilityId, setFacilityId] = useState("all");
   const visible = useMemo(() => assets.filter((a) => a.status !== "archived" && (facilityId === "all" || a.facility_id === facilityId)).slice(0, 48), [assets, facilityId]);
   const linked = visible.filter((a) => a.parent_asset_id && visible.some((p) => p.id === a.parent_asset_id)).length;
@@ -102,7 +104,7 @@ export function TopologyPage() {
           </article>;
         })}</div>
       </div>}
-    <section className="workbench-panel"><div className="workbench-panel-heading"><div><span className="eyebrow">FACILITY COVERAGE</span><h2>Asset distribution</h2></div><Link to="/facilities">Manage facilities ↗</Link></div>
+    <section className="workbench-panel"><div className="workbench-panel-heading"><div><span className="eyebrow">FACILITY COVERAGE</span><h2>Asset distribution</h2></div><Link to="/facilities">{canWriteFacilities ? "Manage facilities ↗" : "View facilities ↗"}</Link></div>
       <div className="facility-coverage">{facilityCounts.map((f) => <div key={f.id}><span>{f.name}</span><div><i style={{ width: `${assets.length ? Math.max(3, f.count / Math.max(1, assets.length) * 100) : 0}%` }} /></div><strong>{f.count}</strong></div>)}</div>
       <p className="workbench-footnote">Relationship lines are shown only for explicit parent_asset_id links returned by the API. Missing links are not inferred from category, location or proximity.</p>
     </section>

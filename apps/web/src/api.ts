@@ -76,7 +76,7 @@ export async function apiGet<T>(path: string, options?: ApiRequestOptions): Prom
     });
     if (!res.ok) {
       const text = await res.text();
-      return { error: { status: res.status, message: text.slice(0, 300) || res.statusText } };
+      return { error: { status: res.status, message: formatApiErrorMessage(text.slice(0, 300) || res.statusText) } };
     }
     return { data: (await res.json()) as T };
   } catch (err) {
@@ -131,7 +131,7 @@ async function apiMutate<T>(
     });
     if (!res.ok) {
       const text = await res.text();
-      return { error: { status: res.status, message: text.slice(0, 300) || res.statusText } };
+      return { error: { status: res.status, message: formatApiErrorMessage(text.slice(0, 300) || res.statusText) } };
     }
     return { data: (await res.json()) as T };
   } catch (err) {

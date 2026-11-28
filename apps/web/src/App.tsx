@@ -435,15 +435,23 @@ function OrganisationPanel({
       }
       return;
     }
-    const payload = res.data as { resent?: boolean; delivery?: { channel?: string; status?: string } };
+    const payload = res.data as {
+      email?: string;
+      resent?: boolean;
+      delivery?: { channel?: string; status?: string };
+    };
     const delivery = payload?.delivery;
-    const channel = delivery?.channel ?? "outbox";
+    const channel = delivery?.channel ?? "";
+    const invitedEmail = (typeof payload?.email === "string" && payload.email.trim())
+      || inviteEmail.trim()
+      || "that address";
+    // Never surface internal delivery channel codes (outbox_pending, etc.) in the UI.
     if (channel === "outbox_failed" || delivery?.status === "failed") {
-      setMsg("Invitation was created, but email could not be queued. Check email worker / Resend configuration.");
+      setMsg(`Invitation was saved for ${invitedEmail}, but the email could not be sent. Try again in a moment.`);
     } else if (payload?.resent) {
-      setMsg(`Invitation resent — a fresh invite email is being sent (${channel}).`);
+      setMsg(`Invitation resent to ${invitedEmail}. They will get a fresh email with a join link.`);
     } else {
-      setMsg(`Invitation created — email is being sent (${channel}).`);
+      setMsg(`Invitation sent to ${invitedEmail}. They will get an email with a join link.`);
     }
     setInviteEmail("");
     void reload();

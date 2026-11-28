@@ -1,7 +1,7 @@
 # Phase 0 acceptance checklist (authoritative)
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip (evidence below):** `22421d189a2e111b57f9c2c63c61c8be0ff2d5af` (2026-11-28 America/Los_Angeles; functional invite/role UI tip `6ef1ccf`)  
+**Current tip (evidence below):** `15163b9823bb08adf292f8b8140c431fdcac2443` (2026-11-28 America/Los_Angeles; functional invite/role UI tip `6ef1ccf`)  
 **www / `main` FE tip:** `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
 **Prior tip (quality-gate packet):** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947` (preserved in historical / baseline sections)  

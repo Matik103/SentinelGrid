@@ -33,9 +33,11 @@ export type ApiError = { status: number; message: string };
 
 /** Nest / workspace calls should fail closed instead of spinning forever on cold starts. */
 const API_FETCH_TIMEOUT_MS = 15_000;
+/** Gate path (orgs/mine, invite accept) should fail faster so VERIFYING does not feel stuck. */
+export const API_GATE_TIMEOUT_MS = 8_000;
 
-function apiFetchTimeoutSignal(): AbortSignal {
-  return AbortSignal.timeout(API_FETCH_TIMEOUT_MS);
+function apiFetchTimeoutSignal(timeoutMs = API_FETCH_TIMEOUT_MS): AbortSignal {
+  return AbortSignal.timeout(timeoutMs);
 }
 
 function formatApiFetchError(err: unknown): string {
@@ -45,7 +47,9 @@ function formatApiFetchError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export async function apiGet<T>(path: string): Promise<{ data?: T; error?: ApiError }> {
+export type ApiRequestOptions = { timeoutMs?: number };
+
+export async function apiGet<T>(path: string, options?: ApiRequestOptions): Promise<{ data?: T; error?: ApiError }> {
   await ensureConfig();
   const root = base();
   if (!root) {
@@ -66,7 +70,7 @@ export async function apiGet<T>(path: string): Promise<{ data?: T; error?: ApiEr
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
       },
-      signal: apiFetchTimeoutSignal(),
+      signal: apiFetchTimeoutSignal(options?.timeoutMs ?? API_FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -81,21 +85,24 @@ export async function apiGet<T>(path: string): Promise<{ data?: T; error?: ApiEr
 export async function apiPost<T>(
   path: string,
   body: unknown,
+  options?: ApiRequestOptions,
 ): Promise<{ data?: T; error?: ApiError }> {
-  return apiMutate<T>("POST", path, body);
+  return apiMutate<T>("POST", path, body, options);
 }
 
 export async function apiPatch<T>(
   path: string,
   body: unknown,
+  options?: ApiRequestOptions,
 ): Promise<{ data?: T; error?: ApiError }> {
-  return apiMutate<T>("PATCH", path, body);
+  return apiMutate<T>("PATCH", path, body, options);
 }
 
 async function apiMutate<T>(
   method: "POST" | "PATCH",
   path: string,
   body: unknown,
+  options?: ApiRequestOptions,
 ): Promise<{ data?: T; error?: ApiError }> {
   await ensureConfig();
   const root = base();
@@ -118,7 +125,7 @@ async function apiMutate<T>(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
-      signal: apiFetchTimeoutSignal(),
+      signal: apiFetchTimeoutSignal(options?.timeoutMs ?? API_FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -135,11 +142,16 @@ export async function healthCheck(): Promise<string> {
   const root = base();
   if (!root) return apiConfigurationError();
   try {
-    const res = await fetch(`${root}/v1/health`, { signal: apiFetchTimeoutSignal() });
+    const res = await fetch(`${root}/v1/health`, { signal: apiFetchTimeoutSignal(5_000) });
     return res.ok ? "API reachable" : `API HTTP ${res.status}`;
   } catch (err) {
     return formatApiFetchError(err) === String(err) ? "API unreachable" : formatApiFetchError(err);
   }
+}
+
+/** Fire-and-forget Nest warm-up so the first authenticated gate call is not a cold start. */
+export function warmApi(): void {
+  void healthCheck().catch(() => undefined);
 }
 
 

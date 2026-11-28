@@ -12,7 +12,8 @@ export type MfaFactor = { id: string; friendlyName: string };
 
 const DEFAULT_FRIENDLY_NAME = "SentinelGrid authenticator";
 
-const ASSURANCE_TIMEOUT_MS = 8_000;
+/** Keep AAL checks snappy — VERIFYING should not wait the full Nest gate budget here. */
+const ASSURANCE_TIMEOUT_MS = 4_000;
 
 async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;

@@ -119,7 +119,7 @@ Operator-verified on production www against Nest on the shared work tip. **No in
 
 1. **Hosted Supabase migrations:** **closed** 2026-11-28 PT — host matches repo through `20261128160000` (pending=0). Plan history: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md).
 2. **Backend deploy SHA correlation:** Render health is green but `monitoring.build_sha` is empty. Set `GIT_SHA` on Render only with explicit infra approval.
-3. **Email / Criterion G:** **manual ops path closed** 2026-11-28 PT (delivery + accept + MFA + membership). Automated mailbox/Playwright invite E2E still open.
+3. **Email / Criterion G:** **ops closed** 2026-11-28 PT — manual path + authenticated E2E invite create/delivery/accept (Afya `read_only_viewer`).
 4. **Backup/recovery:** disposable drill design in [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md). Execute only when authorized on a non-production project.
 5. **Energy/OT acquisition:** probes are not measurements. Provide real register maps, MQTT topics, OPC UA node IDs and fixtures before claiming live telemetry.
 6. **Frontend acceptance:** signed-out + authenticated admin + invitee accept closed 2026-11-28 PT; remaining E2E-08 facility-manager isolation — [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md).

@@ -36,7 +36,22 @@ describe("OrgsService invitation flow", () => {
         status: "sent",
       }),
     };
-    const admin = { client: { from: () => ({ select: () => ({ in: async () => ({ data: [], error: null }) }) }) } };
+    const admin = {
+      client: {
+        from: (table: string) => {
+          if (table === "profiles") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: null, error: null }),
+                }),
+              }),
+            };
+          }
+          return { select: () => ({ in: async () => ({ data: [], error: null }) }) };
+        },
+      },
+    };
     const svc = new OrgsService({ create: () => sb } as never, admin as never, outbox as never);
     svc.requirePermission = async () => undefined;
     const prev = process.env.NODE_ENV;
@@ -57,6 +72,104 @@ describe("OrgsService invitation flow", () => {
     } finally {
       process.env.NODE_ENV = prev;
     }
+  });
+
+  it("revokeMember purges auth user when no active memberships remain", async () => {
+    const deleteCalls: string[] = [];
+    const nullUpdates: string[] = [];
+    const sb = {
+      rpc: async (name: string) => {
+        assert.equal(name, "revoke_organisation_member");
+        return { data: { status: "revoked", user_id: "member-1" }, error: null };
+      },
+    };
+    const admin = {
+      client: {
+        from: (table: string) => {
+          if (table === "memberships") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  eq: async () => ({ count: 0, error: null }),
+                }),
+              }),
+              delete: () => ({
+                eq: () => ({
+                  neq: async () => ({ error: null }),
+                }),
+              }),
+              update: (row: Record<string, unknown>) => ({
+                eq: async () => {
+                  nullUpdates.push(`memberships.${Object.keys(row)[0]}`);
+                  return { error: null };
+                },
+              }),
+            };
+          }
+          return {
+            update: (row: Record<string, unknown>) => ({
+              eq: async () => {
+                nullUpdates.push(`${table}.${Object.keys(row)[0]}`);
+                return { error: null };
+              },
+            }),
+          };
+        },
+        auth: {
+          admin: {
+            deleteUser: async (id: string) => {
+              deleteCalls.push(id);
+              return { data: { user: null }, error: null };
+            },
+          },
+        },
+      },
+    };
+    const svc = new OrgsService({ create: () => sb } as never, admin as never, { enqueue: async () => ({}) } as never);
+    svc.requirePermission = async () => undefined;
+    const out = await svc.revokeMember(
+      { id: "admin", accessToken: "t" } as never,
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "member-1",
+    );
+    assert.equal((out as { auth_account_purged: boolean }).auth_account_purged, true);
+    assert.deepEqual(deleteCalls, ["member-1"]);
+    assert.ok(nullUpdates.includes("organisation_invitations.accepted_by"));
+  });
+
+  it("revokeMember keeps auth user when another active membership exists", async () => {
+    const deleteCalls: string[] = [];
+    const sb = {
+      rpc: async () => ({ data: { status: "revoked" }, error: null }),
+    };
+    const admin = {
+      client: {
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              eq: async () => ({ count: 1, error: null }),
+            }),
+          }),
+        }),
+        auth: {
+          admin: {
+            deleteUser: async (id: string) => {
+              deleteCalls.push(id);
+              return { data: null, error: null };
+            },
+          },
+        },
+      },
+    };
+    const svc = new OrgsService({ create: () => sb } as never, admin as never, { enqueue: async () => ({}) } as never);
+    svc.requirePermission = async () => undefined;
+    const out = await svc.revokeMember(
+      { id: "admin", accessToken: "t" } as never,
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "member-1",
+    );
+    assert.equal((out as { auth_account_purged: boolean }).auth_account_purged, false);
+    assert.deepEqual(deleteCalls, []);
   });
 
   it("accept invite expires-by-token then calls accept RPC", async () => {
@@ -125,7 +238,23 @@ describe("OrgsService invitation flow", () => {
         },
       }),
     };
-    const svc = new OrgsService({ create: () => sb } as never, { client: {} } as never, { enqueue: async () => ({}) } as never);
+    const admin = {
+      client: {
+        from: (table: string) => {
+          if (table === "profiles") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: null, error: null }),
+                }),
+              }),
+            };
+          }
+          return {};
+        },
+      },
+    };
+    const svc = new OrgsService({ create: () => sb } as never, admin as never, { enqueue: async () => ({}) } as never);
     svc.requirePermission = async (...args: unknown[]) => {
       calls.push(["perm", ...args]);
     };

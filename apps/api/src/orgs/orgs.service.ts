@@ -112,6 +112,11 @@ export class OrgsService {
     });
     if (expiryError) throw new BadRequestException(`Unable to expire previous invitations: ${expiryError.message}`);
 
+    // Prior removals that left an auth user + MFA (but no active membership) block a clean
+    // re-invite: the invitee skips enrollment, never gets a confirm email, and stays pending.
+    // Erase that orphaned account before seeding a fresh invitation.
+    await this.purgeOrphanedAuthUserByEmail(input.email.trim().toLowerCase());
+
     const { data, error } = await sb.rpc("create_organisation_invitation", {
       p_organisation_id: organisationId,
       p_email: input.email,
@@ -212,10 +217,32 @@ export class OrgsService {
       .eq("id", invitationId)
       .eq("organisation_id", organisationId)
       .eq("status", "pending")
-      .select("id, organisation_id, status, revoked_at")
+      .select("id, organisation_id, email, status, revoked_at")
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException("Pending invitation not found for this organisation");
+
+    // Drop the seeded "invited" membership limbo for this email, if present.
+    const email = typeof (data as { email?: string }).email === "string"
+      ? (data as { email: string }).email.trim().toLowerCase()
+      : "";
+    if (email) {
+      const { data: profile } = await this.admin.client
+        .from("profiles")
+        .select("user_id")
+        .eq("email", email)
+        .maybeSingle();
+      const userId = (profile as { user_id?: string } | null)?.user_id;
+      if (userId) {
+        await this.admin.client
+          .from("memberships")
+          .delete()
+          .eq("organisation_id", organisationId)
+          .eq("user_id", userId)
+          .eq("status", "invited");
+        await this.purgeAuthUserIfOrphaned(userId);
+      }
+    }
     return data;
   }
 
@@ -309,7 +336,81 @@ export class OrgsService {
       }
       throw new BadRequestException(error.message);
     }
-    return data;
+
+    // Last workspace removed → erase the auth account (MFA factors, identities, profile)
+    // so a later invite is a clean signup instead of a stuck AAL2 / invited limbo.
+    const purged = await this.purgeAuthUserIfOrphaned(memberUserId);
+    return {
+      ...(data as Record<string, unknown>),
+      auth_account_purged: purged,
+    };
+  }
+
+  /**
+   * When the user has no active membership anywhere, wipe leftover invited/revoked
+   * rows and delete the Auth user (MFA factors, identities, profile) so a later
+   * invite is a clean signup instead of a stuck AAL2 / invited limbo.
+   */
+  private async purgeAuthUserIfOrphaned(memberUserId: string): Promise<boolean> {
+    const { count: activeCount, error: activeError } = await this.admin.client
+      .from("memberships")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", memberUserId)
+      .eq("status", "active");
+    if (activeError) {
+      this.log.warn(`Could not check active memberships for ${memberUserId}: ${activeError.message}`);
+      return false;
+    }
+    if ((activeCount ?? 0) > 0) return false;
+
+    // Drop non-active limbo rows and null public FKs that would block auth.users delete.
+    const { error: cleanupError } = await this.admin.client
+      .from("memberships")
+      .delete()
+      .eq("user_id", memberUserId)
+      .neq("status", "active");
+    if (cleanupError) {
+      this.log.warn(`Could not clear leftover memberships for ${memberUserId}: ${cleanupError.message}`);
+      return false;
+    }
+
+    const nullRef = async (table: string, column: string) => {
+      const { error } = await this.admin.client.from(table).update({ [column]: null }).eq(column, memberUserId);
+      if (error) {
+        this.log.warn(`Could not clear ${table}.${column} for ${memberUserId}: ${error.message}`);
+      }
+    };
+    await nullRef("organisation_invitations", "accepted_by");
+    await nullRef("organisation_invitations", "invited_by");
+    await nullRef("memberships", "invited_by");
+    await nullRef("audit_logs", "actor_user_id");
+    await nullRef("asset_media", "created_by");
+
+    const { error: deleteError } = await this.admin.client.auth.admin.deleteUser(memberUserId);
+    if (deleteError) {
+      this.log.error(`Failed to purge orphaned auth user ${memberUserId}: ${deleteError.message}`);
+      return false;
+    }
+    this.log.log(`Purged orphaned auth user ${memberUserId} (no active memberships)`);
+    return true;
+  }
+
+  private async purgeOrphanedAuthUserByEmail(email: string): Promise<boolean> {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) return false;
+
+    const { data: profile, error } = await this.admin.client
+      .from("profiles")
+      .select("user_id")
+      .eq("email", normalized)
+      .maybeSingle();
+    if (error) {
+      this.log.warn(`Could not look up profile for ${normalized}: ${error.message}`);
+      return false;
+    }
+    const userId = (profile as { user_id?: string } | null)?.user_id;
+    if (!userId) return false;
+    return this.purgeAuthUserIfOrphaned(userId);
   }
 
   private async deliverInviteEmail(

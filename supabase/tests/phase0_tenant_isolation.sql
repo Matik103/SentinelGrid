@@ -625,7 +625,62 @@ BEGIN
   PERFORM pg_temp.pass('revoke_organisation_invitation marks pending invite revoked');
   PERFORM pg_temp.clear_auth();
 
-  -- 18) Same-org cross-facility isolation for facility_manager
+  -- 18) Self-service invite discovery and acceptance require confirmed email + AAL2.
+  PERFORM pg_temp.set_auth(u_admin_b);
+  invite_payload := public.create_organisation_invitation(
+    org_b, 'viewer-a@example.test', 'read_only_viewer'
+  );
+  invite_id := (invite_payload ->> 'id')::uuid;
+  IF invite_id IS NULL THEN
+    PERFORM pg_temp.fail('self-service invitation fixture was not created');
+  END IF;
+  PERFORM pg_temp.clear_auth();
+
+  PERFORM pg_temp.set_auth(u_viewer_a, 'aal1');
+  raised := false;
+  BEGIN
+    PERFORM public.list_my_pending_organisation_invitations();
+  EXCEPTION WHEN insufficient_privilege OR others THEN
+    raised := true;
+  END;
+  IF NOT raised THEN
+    PERFORM pg_temp.fail('AAL1 user listed self-service invitations');
+  END IF;
+
+  raised := false;
+  BEGIN
+    PERFORM public.accept_my_pending_organisation_invitations();
+  EXCEPTION WHEN insufficient_privilege OR others THEN
+    raised := true;
+  END;
+  IF NOT raised THEN
+    PERFORM pg_temp.fail('AAL1 user accepted self-service invitations');
+  END IF;
+  PERFORM pg_temp.pass('AAL1 cannot list or accept self-service invitations');
+  PERFORM pg_temp.clear_auth();
+
+  PERFORM pg_temp.set_auth(u_viewer_a, 'aal2');
+  invite_payload := public.list_my_pending_organisation_invitations();
+  IF jsonb_array_length(invite_payload) <> 1 THEN
+    PERFORM pg_temp.fail('AAL2 invitee could not list their pending invitation');
+  END IF;
+  invite_payload := public.accept_my_pending_organisation_invitations();
+  IF coalesce((invite_payload ->> 'accepted_count')::int, 0) <> 1 THEN
+    PERFORM pg_temp.fail('AAL2 invitee did not accept exactly one pending invitation');
+  END IF;
+  SELECT count(*) INTO tmp_count
+  FROM public.memberships
+  WHERE organisation_id = org_b
+    AND user_id = u_viewer_a
+    AND status = 'active'
+    AND role_id = role_viewer;
+  IF tmp_count <> 1 THEN
+    PERFORM pg_temp.fail('self-service acceptance did not create the expected membership');
+  END IF;
+  PERFORM pg_temp.pass('AAL2 confirmed-email invitee can list and accept pending invitation');
+  PERFORM pg_temp.clear_auth();
+
+  -- 19) Same-org cross-facility isolation for facility_manager
   DECLARE
     u_mgr uuid := gen_random_uuid();
     role_mgr uuid;

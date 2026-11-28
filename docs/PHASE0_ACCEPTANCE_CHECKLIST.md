@@ -25,7 +25,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | # | Criterion | Level | Status / notes |
 |---|---|---|---|
 | 1 | Multi-tenant bootstrap + membership RBAC | tested | SQL isolation + org API |
-| 2 | Organisation invitations create/accept/revoke + outbox | tested + **ops (manual path)** | RPCs + outbox + Resend worker; `/?invite=` links. Live delivery + accept + MFA + membership activation verified 2026-11-28 PT (Criterion G). Automated Playwright invite E2E still open |
+| 2 | Organisation invitations create/accept/revoke + outbox | tested + **ops** | RPCs + outbox + Resend worker; `/?invite=` links. Criterion G manual accept path + authenticated E2E invite create/outbox **sent**/recipient-confirmed 2026-11-28 PT. E2E-06 invitee accept (second mailbox) still open |
 | 3 | Infrastructure registry incl. zones lifecycle | tested | HTTP create/list/archive |
 | 4 | Connector register/heartbeat/rotate/revoke + authenticated ingest | tested (partial E2E) | Credential guard + tenant-derived ingest; Nest HTTP E2E still limited |
 | 5 | Edge connector durable buffer + OT adapters | code / unit-tested | **OPEN ops / scaffold:** Modbus/MQTT/OPC UA are connectivity probes only — not full acquisition |
@@ -34,7 +34,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | 8 | Payload storage SHA-256 + production fail-closed | tested | Supabase Storage API path (not Amazon S3). Live object upload/download/restore still **OPEN ops** |
 | 9 | Rate limiting Redis/memory fail-closed | tested | Distributed/proxy identity still limited |
 | 10 | Audit log read API | tested | |
-| 11 | Sentinel Command UI live workflows | code + **partial ops** | Signed-out smoke PASS 2026-11-28 PT (`reports/e2e-smoke-2026-11-28.json`, Playwright `e2e/` 4/4). Authenticated workflows still **OPEN** (no E2E credentials) |
+| 11 | Sentinel Command UI live workflows | **ops (partial suite)** | Signed-out smoke + authenticated admin shell PASS 2026-11-28 PT (`reports/e2e-auth-pass-2026-11-28.json`). E2E-08 facility-manager isolation and invitee accept still open |
 | 12 | Engineering quality gate green on tip SHA | **tested** (CI) | Full Docker-backed gate green on tip `6ef1ccf` via `.github/workflows/audit.yml` (run 46149277028). Includes `phase0_tenant_isolation.sql`. Cursor local Docker/Supabase CLI still unavailable |
 | 13 | Ops docs + this checklist | code | Updated 2026-11-28 PT for tip `6ef1ccf` + Criterion G manual invite evidence |
 | 14 | Facility-manager same-org cross-facility isolation + assignment APIs | tested | Migration `20261125250000` + SQL isolation + assignment HTTP |
@@ -49,7 +49,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | D | OpenAPI contract | code | `docs/openapi.yaml` |
 | E | Monitoring hooks on `/v1/health` | code / partial ops | Live HTTP 200 with supabase/email/storage signals. `monitoring.build_sha` empty — cannot correlate Render process to git SHA from health alone |
 | F | No main merge without approval | enforced | Shared work continues on `work/sentinel-command-release-v2` |
-| G | Production email delivery (Resend) | **ops (manual)** | 2026-11-28 PT: invite email delivered, invitee completed signup + MFA, membership activated as read-only viewer on Afya; People & access shows creator (admin, protected) + invitee (active viewer); pending empty. Tokens/PII not recorded. Automated invite E2E still open |
+| G | Production email delivery (Resend) | **ops** | Manual path 2026-11-28 PT (delivery + accept + MFA + membership). Authenticated E2E same day: invite create → outbox **sent** → recipient confirmed for intramaxx1@gmail.com. Tokens/PII not recorded. E2E-06 accept for that invite still open |
 
 ## How to close COMPLETE
 
@@ -106,7 +106,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Hosted migrations | **parity closed** through `20261128160000` | Applied + recorded 2026-11-28 PT (32 versions); dry-run pending=0 vs repo |
 | Criterion G live invite | **ops (manual)** | Afya: admin invited read-only viewer; email delivered; signup + MFA completed; membership **active**; pending empty. No tokens/PII in this log. See `IMPLEMENTATION_STATUS.md` |
 | Backup/restore | **OPEN** (design ready) | Disposable drill in [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md) — not executed |
-| Browser E2E | **partial** | Signed-out smoke PASS 2026-11-28 PT — `reports/e2e-smoke-2026-11-28.json` + Playwright `e2e/` 4/4. Authenticated attempt 2026-11-28 PT: password OK, **BLOCKED at MFA** (`reports/e2e-auth-blocked-mfa-2026-11-28.json`); invite to designated test mailbox not sent. Resume needs live TOTP code or `SG_E2E_TOTP_SECRET` |
+| Browser E2E | **ops (partial suite)** | Signed-out smoke + authenticated admin PASS 2026-11-28 PT — `reports/e2e-auth-pass-2026-11-28.json` (MFA, People, invite to intramaxx1@gmail.com outbox **sent** + recipient confirmed, facilities/assets/energy/evidence/audit). E2E-06 invitee accept + E2E-08 facility-manager isolation still open |
 | UniFi adapter implementation | **not authorized** | Design only: [`ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md) |
 
 ### Prior tip — `b094207` (2026-11-26 PT)
@@ -140,10 +140,10 @@ Migrations present on `main` but **not** on this work tip: `20261126100000_works
 **Still OPEN (do not close Phase 0):**
 - Full OT protocol acquisition or formal deferral (**ops** — needs maps/node IDs/topics)
 - Real backup + object-storage restore drill (**ops** — design ready; execute only when authorized on a disposable project)
-- Authenticated browser E2E suite (signup/MFA/invite/registry/energy/evidence/facility isolation) (**ops** — signed-out smoke done; need approved E2E identity/mailbox)
+- Remaining browser E2E: invitee accept (E2E-06) + facility-manager isolation (E2E-08)
 - Render `monitoring.build_sha` correlation to git tip (requires explicit infra approval to set `GIT_SHA`)
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip quality gate green on `6ef1ccf`; Criterion G manual invite ops-verified; hosted migrations through `20261128160000` parity closed; signed-out browser smoke PASS; disposable hosted restore + authenticated browser E2E + Render SHA correlation still open — **not COMPLETE**.
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip quality gate green on `6ef1ccf`; Criterion G manual invite ops-verified; hosted migrations through `20261128160000` parity closed; signed-out + authenticated admin browser E2E PASS (`reports/e2e-auth-pass-2026-11-28.json`); remaining E2E-06/E2E-08 + disposable hosted restore + Render SHA correlation still open — **not COMPLETE**.
 
 ## Related plans (not Phase 0 exit / not authorized to execute)
 

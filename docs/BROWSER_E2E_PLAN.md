@@ -1,10 +1,10 @@
 # Authenticated browser E2E plan (Phase 0)
 
-**Status:** partial execution authorized 2026-11-28 PT — signed-out smoke **PASS**; authenticated suite still blocked without E2E credentials  
+**Status:** partial suite **PASS** 2026-11-28 PT — signed-out smoke + authenticated admin shell/invite; E2E-06/E2E-08 still open  
 **Issue:** [#9](https://github.com/Matik103/SentinelGrid/issues/9)  
 **Canonical branch:** `work/sentinel-command-release-v2`  
 **Timezone:** America/Los_Angeles  
-**Latest smoke evidence:** `reports/e2e-smoke-2026-11-28.json` + Playwright `e2e/smoke.unauth.spec.ts` (4/4 pass vs www)
+**Latest evidence:** `reports/e2e-auth-pass-2026-11-28.json` (+ signed-out `reports/e2e-smoke-2026-11-28.json`, Playwright `e2e/` 4/4)
 
 ## 1. Goal
 
@@ -75,6 +75,6 @@ After an authorized run, update in the **same** commit:
 
 ## 8. 2026-11-28 PT execution note
 
-Owner authorized proceeding to browser E2E. Signed-out smoke (E2E-01*) ran against `https://www.sentinelgrid.tech` (no credentials, no mutations). Playwright suite under `e2e/` reproduces those checks. E2E-02–04 and E2E-07–10 remain **BLOCKED** until an approved E2E identity and mailbox exist. E2E-05/06 remain **PARTIAL** via prior manual Criterion G ops evidence (not a substitute for full automated invite E2E).
+Owner authorized browser E2E. Signed-out smoke (E2E-01*) and authenticated admin flow (password + MFA → shell → invite → registry/energy/evidence/audit) ran against `https://www.sentinelgrid.tech`. Invite to `intramaxx1@gmail.com` created as `read_only_viewer`; email outbox status **sent**; recipient confirmed delivery 2026-11-28 PT. Playwright `e2e/` covers signed-out checks.
 
-Authenticated browser E2E therefore remains **OPEN** for Phase 0 Criterion 11 closeout.
+Still open: E2E-06 (invitee accepts), E2E-08 (facility-manager isolation). Credentials were not committed.

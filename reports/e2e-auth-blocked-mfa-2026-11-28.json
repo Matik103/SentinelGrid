@@ -1,0 +1,43 @@
+{
+  "suite": "phase0_browser_e2e_authenticated",
+  "timezone": "America/Los_Angeles",
+  "started_at": "2026-11-28T05:59:00-08:00",
+  "ended_at": "2026-11-28T06:00:00-08:00",
+  "targets": {
+    "ui": "https://www.sentinelgrid.tech",
+    "api": "https://sentinelgrid-fpzo.onrender.com"
+  },
+  "constraints": [
+    "Password used only in browser; not written to repo files",
+    "No TOTP entered",
+    "No invite created",
+    "Signed out after MFA block"
+  ],
+  "scenarios": [
+    {
+      "id": "E2E-sign-in-password",
+      "result": "PASS",
+      "notes": "Admin email/password accepted; advanced to authenticator step"
+    },
+    {
+      "id": "E2E-04-mfa",
+      "result": "BLOCKED",
+      "notes": "Authenticator code required; no TOTP secret/code available to agent",
+      "screenshot": "/opt/cursor/artifacts/phase0_authe2e_mfa_blocked.webp"
+    },
+    {
+      "id": "E2E-05-invite-intramaxx1",
+      "result": "NOT_RUN",
+      "notes": "Invite to intramaxx1@gmail.com not sent — blocked before People & access"
+    },
+    {
+      "id": "E2E-shell-surfaces",
+      "result": "NOT_RUN",
+      "notes": "Overview/facilities/assets/energy/evidence not reached"
+    }
+  ],
+  "summary": {
+    "blocked_reason": "AAL2 MFA challenge after password",
+    "resume_needs": "Live 6-digit authenticator code at run time, or Cursor secret SG_E2E_TOTP_SECRET for the test account"
+  }
+}

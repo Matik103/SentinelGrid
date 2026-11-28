@@ -106,7 +106,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Hosted migrations | **parity closed** through `20261128160000` | Applied + recorded 2026-11-28 PT (32 versions); dry-run pending=0 vs repo |
 | Criterion G live invite | **ops (manual)** | Afya: admin invited read-only viewer; email delivered; signup + MFA completed; membership **active**; pending empty. No tokens/PII in this log. See `IMPLEMENTATION_STATUS.md` |
 | Backup/restore | **OPEN** (design ready) | Disposable drill in [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md) — not executed |
-| Browser E2E | **partial** | Signed-out smoke PASS 2026-11-28 PT — `reports/e2e-smoke-2026-11-28.json` + Playwright `e2e/smoke.unauth.spec.ts` 4/4 vs www. Authenticated E2E-02–04/07–10 **BLOCKED** (no E2E credentials). E2E-05/06 partial via Criterion G manual ops |
+| Browser E2E | **partial** | Signed-out smoke PASS 2026-11-28 PT — `reports/e2e-smoke-2026-11-28.json` + Playwright `e2e/` 4/4. Authenticated attempt 2026-11-28 PT: password OK, **BLOCKED at MFA** (`reports/e2e-auth-blocked-mfa-2026-11-28.json`); invite to designated test mailbox not sent. Resume needs live TOTP code or `SG_E2E_TOTP_SECRET` |
 | UniFi adapter implementation | **not authorized** | Design only: [`ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md) |
 
 ### Prior tip — `b094207` (2026-11-26 PT)

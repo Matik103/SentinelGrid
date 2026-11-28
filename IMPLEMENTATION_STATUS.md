@@ -66,7 +66,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | Local `npm test -w @sentinelgrid/web` | 12/12 pass |
 | Hosted migrations (`abaeizgfsskvjklfslrh`) | **Parity closed** through `20261128160000` (32 versions). Applied 2026-11-28 PT via Management API; dry-run pending=0 vs repo |
 | Criterion G live invite | **ops (manual)** — see below |
-| Browser E2E | **partial** — signed-out smoke PASS (`reports/e2e-smoke-2026-11-28.json`, Playwright 4/4). Authenticated scenarios BLOCKED without E2E credentials. Plan: [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md) |
+| Browser E2E | **partial** — signed-out smoke PASS; authenticated attempt BLOCKED at MFA after password (`reports/e2e-auth-blocked-mfa-2026-11-28.json`). Need live TOTP / `SG_E2E_TOTP_SECRET` to finish invite + shell E2E. Plan: [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md) |
 | Restore drill (local marker) | **passed marker** — `scripts/restore-drill.sh` → `reports/restore-drill.json` (migrations/markers). Disposable hosted restore still **OPEN** |
 
 #### Criterion G — manual invite ops evidence (2026-11-28 PT)

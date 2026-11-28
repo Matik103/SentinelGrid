@@ -1,7 +1,7 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `49e44eb5e62686c86a54a1a42f1ce8b86e84b4e9` — disposable hosted-schema restore **ops**; Nest health reads `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; www FE on `main` @ `c68caea0f72da46a953a4ce265c336d765562129`  
+**Current tip:** `c4392e8dd6d4d30c70104c1baafbf7a4bc44506f` — disposable hosted-schema restore **ops**; Nest health reads `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; www FE on `main` @ `c68caea0f72da46a953a4ce265c336d765562129`  
 **Prior tip (Criterion G + E2E-08):** `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f`  
 **Prior tip (docs closeout):** `ca5b2f14fc84a824f58668ce3091507f3f8f32d5`  
 **Prior tip (migration/docs packet):** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd`  
@@ -63,7 +63,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | GitHub Actions release checks (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46155054494 |
 | Engineering Quality Gate (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46155054515 (Docker Supabase upgrade path + `phase0_tenant_isolation.sql`) |
 | Vercel (`main` / www) | **success** — deployment completed for `c68caea` (facility-manager create-form gate) |
-| Nest `/v1/health` | HTTP 200; supabase ok; Resend worker enabled; `payload_backend=supabase`; **`build_sha=49e44eb5e62686c86a54a1a42f1ce8b86e84b4e9`** (matches work tip; `reports/render-build-sha-2026-11-28.json`) |
+| Nest `/v1/health` | HTTP 200; supabase ok; Resend worker enabled; `payload_backend=supabase`; **`build_sha=c4392e8dd6d4d30c70104c1baafbf7a4bc44506f`** (matches work tip; `reports/render-build-sha-2026-11-28.json`) |
 | Local `npm test -w @sentinelgrid/api` | 58/58 pass (Cursor machine, tip sync) |
 | Local `npm test -w @sentinelgrid/web` | 12/12 pass |
 | Hosted migrations (`abaeizgfsskvjklfslrh`) | **Parity closed** through `20261128160000` (32 versions); dry-run pending=0 vs repo |

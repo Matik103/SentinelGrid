@@ -320,7 +320,11 @@ export class OrgsService {
     });
   }
 
-  async revokeMember(user: AuthUser, organisationId: string, memberUserId: string) {
+  async revokeMember(
+    user: AuthUser,
+    organisationId: string,
+    memberUserId: string,
+  ): Promise<Record<string, unknown>> {
     await this.requirePermission(user, organisationId, "user.manage");
     const sb = this.users.create(user.accessToken);
     const { data, error } = await sb.rpc("revoke_organisation_member", {
@@ -340,8 +344,12 @@ export class OrgsService {
     // Last workspace removed → erase the auth account (MFA factors, identities, profile)
     // so a later invite is a clean signup instead of a stuck AAL2 / invited limbo.
     const purged = await this.purgeAuthUserIfOrphaned(memberUserId);
+    const payload =
+      data && typeof data === "object" && !Array.isArray(data)
+        ? { ...(data as Record<string, unknown>) }
+        : { result: data };
     return {
-      ...(data as Record<string, unknown>),
+      ...payload,
       auth_account_purged: purged,
     };
   }

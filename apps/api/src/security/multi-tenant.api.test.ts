@@ -58,7 +58,7 @@ describe("Multi-tenant API permission gates", () => {
     const mine = await controller.acceptPendingInvitesForMe(user);
     assert.equal((mine as { accepted_count: number }).accepted_count, 1);
     const removed = await controller.revokeMember(user, orgA, "cccccccc-cccc-4ccc-8ccc-cccccccccccc");
-    assert.equal((removed as { status: string }).status, "removed");
+    assert.equal((removed as { status?: string }).status, "removed");
   });
 
   it("audit list requires audit.read for the organisation in the path", async () => {

@@ -1,7 +1,7 @@
 # Phase 0 acceptance checklist (authoritative)
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip (evidence below):** `c4392e8dd6d4d30c70104c1baafbf7a4bc44506f` (2026-11-28 America/Los_Angeles)  
+**Current tip (evidence below):** `bcc25ef16d2a5caaa15d9d2d04c23ca377d8560b` (2026-11-28 America/Los_Angeles)  
 **www / `main` FE tip:** `c68caea0f72da46a953a4ce265c336d765562129`  
 **Prior tip (Criterion G + E2E-08):** `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f`  
 **Prior tip (docs):** `ca5b2f14fc84a824f58668ce3091507f3f8f32d5`  
@@ -50,7 +50,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | B | Forward migrations on remote `abaeizgfsskvjklfslrh` | **ops** | Hosted matches repo through `20261128160000` (32 versions). Applied AAL2 self-service invite RPCs 2026-11-28 PT; `apply-pending-production.mjs --dry-run` pending=0 |
 | C | Real backup + object-store restore drill | **ops** | Disposable hosted-schema restore + Storage SHA round-trip PASS 2026-11-28 PT — `reports/hosted-restore-drill-2026-11-28.json` (see [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md)). Local marker still `reports/restore-drill.json`. Physical PITR into a second hosted project not claimed (API 403 / no dashboard login) |
 | D | OpenAPI contract | code | `docs/openapi.yaml` |
-| E | Monitoring hooks on `/v1/health` | **ops** | Nest prefers `GIT_SHA \|\| RENDER_GIT_COMMIT \|\| GITHUB_SHA`. Live `build_sha=49e44eb…` matches work tip — `reports/render-build-sha-2026-11-28.json` |
+| E | Monitoring hooks on `/v1/health` | **ops** | Nest prefers `GIT_SHA \|\| RENDER_GIT_COMMIT \|\| GITHUB_SHA`. Live match recorded — `reports/render-build-sha-2026-11-28.json` |
 | F | No main merge without approval | enforced | Shared work continues on `work/sentinel-command-release-v2` |
 | G | Production email delivery (Resend) | **ops** | Manual path + authenticated E2E 2026-11-28 PT: invite create → outbox **sent** → recipient confirmed → accept/signup → Afya membership **active** (`read_only_viewer`). Tokens/PII not recorded |
 
@@ -99,7 +99,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 
 | Item | Result | Evidence |
 |---|---|---|
-| Branch / SHA | `work/sentinel-command-release-v2` @ `c4392e8dd6d4d30c70104c1baafbf7a4bc44506f` | Disposable restore evidence + Nest `RENDER_GIT_COMMIT` → `monitoring.build_sha` |
+| Branch / SHA | `work/sentinel-command-release-v2` @ `bcc25ef16d2a5caaa15d9d2d04c23ca377d8560b` | Disposable restore evidence + Nest `RENDER_GIT_COMMIT` → `monitoring.build_sha` |
 | www / `main` FE | `c68caea0f72da46a953a4ce265c336d765562129` | Vercel production Ready ([#34](https://github.com/Matik103/SentinelGrid/pull/34)) |
 | Nest `/v1/health` `build_sha` | **ops** | Live `c4392e8dd6d4d30c70104c1baafbf7a4bc44506f` matches work tip — `reports/render-build-sha-2026-11-28.json` |
 | Hosted migrations | **parity closed** through `20261128160000` | 32 versions; dry-run pending=0 vs repo |

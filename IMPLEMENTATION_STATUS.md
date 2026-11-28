@@ -1,7 +1,7 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `c4392e8dd6d4d30c70104c1baafbf7a4bc44506f` — disposable hosted-schema restore **ops**; Nest health reads `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; www FE on `main` @ `c68caea0f72da46a953a4ce265c336d765562129`  
+**Current tip:** `bcc25ef16d2a5caaa15d9d2d04c23ca377d8560b` — disposable hosted-schema restore **ops**; Nest health reads `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; www FE on `main` @ `c68caea0f72da46a953a4ce265c336d765562129`  
 **Prior tip (Criterion G + E2E-08):** `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f`  
 **Prior tip (docs closeout):** `ca5b2f14fc84a824f58668ce3091507f3f8f32d5`  
 **Prior tip (migration/docs packet):** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd`  
@@ -121,7 +121,7 @@ Operator-verified on production www against Nest on the shared work tip, then re
 ## Operational blockers
 
 1. **Hosted Supabase migrations:** **closed** 2026-11-28 PT — host matches repo through `20261128160000` (pending=0). Plan history: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md).
-2. **Backend deploy SHA correlation:** **ops closed** 2026-11-28 PT — Nest prefers `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; live `build_sha` matched work tip `49e44eb` (`reports/render-build-sha-2026-11-28.json`).
+2. **Backend deploy SHA correlation:** **ops closed** 2026-11-28 PT — Nest prefers `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; live `build_sha` matched work tip (`reports/render-build-sha-2026-11-28.json`, verified on `c4392e8` / `49e44eb`).
 3. **Email / Criterion G:** **ops closed** 2026-11-28 PT — manual path + authenticated E2E invite create/delivery/accept (Afya `read_only_viewer`).
 4. **Backup/recovery:** **ops closed** 2026-11-28 PT — disposable hosted-schema restore + Storage digest round-trip; see [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md) and `reports/hosted-restore-drill-2026-11-28.json`.
 5. **Energy/OT acquisition:** probes are not measurements. Provide real register maps, MQTT topics, OPC UA node IDs and fixtures before claiming live telemetry.

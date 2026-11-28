@@ -1,0 +1,69 @@
+{
+  "suite": "phase0_closeout_confirm",
+  "timezone": "America/Los_Angeles",
+  "checked_at_utc": "2026-11-28T15:00:27.341Z",
+  "checked_at_america_los_angeles": "11/28/2026, 7:00:27 AM",
+  "work_tip": "97cd93bab78a1a7de223cb678c5196618b8ae054",
+  "live_build_sha": "97cd93bab78a1a7de223cb678c5196618b8ae054",
+  "account_under_test": {
+    "email": "e2e.facmgr.1795875453965@example.test",
+    "role": "facility_manager",
+    "org": "Afya"
+  },
+  "scenarios": [
+    {
+      "id": "health-build_sha",
+      "result": "PASS",
+      "notes": "build_sha matches tip 97cd93bab78a1a7de223cb678c5196618b8ae054"
+    },
+    {
+      "id": "health-storage",
+      "result": "PASS",
+      "notes": "payload_backend=supabase bucket=ready"
+    },
+    {
+      "id": "facmgr-password",
+      "result": "PASS",
+      "notes": "password grant accepted"
+    },
+    {
+      "id": "facmgr-mfa",
+      "result": "PASS",
+      "notes": "TOTP challenge/verify reached AAL2"
+    },
+    {
+      "id": "facmgr-isolation-facilities",
+      "result": "PASS",
+      "notes": "visible=[\"E2E-ALPHA\"]"
+    },
+    {
+      "id": "facmgr-isolation-assets",
+      "result": "PASS",
+      "notes": "visible=[\"E2E Asset Alpha\"]"
+    },
+    {
+      "id": "facmgr-create-gate",
+      "result": "PASS",
+      "notes": "create rejected HTTP 403"
+    },
+    {
+      "id": "invite-accepted",
+      "result": "PASS",
+      "notes": "intramaxx1 invite still accepted"
+    },
+    {
+      "id": "migrations",
+      "result": "PASS",
+      "notes": "tip=20261128160000 n=32"
+    },
+    {
+      "id": "www-reachable",
+      "result": "PASS",
+      "notes": "HTTP 200"
+    }
+  ],
+  "summary": {
+    "pass": 10,
+    "fail": 0
+  }
+}

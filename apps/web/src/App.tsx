@@ -415,14 +415,36 @@ function OrganisationPanel({
       email: inviteEmail,
       role_key: inviteRole,
     });
-    if (res.error) setMsg(`Invite failed: ${res.error.message}`);
-    else {
-      setMsg(`Invite queued (${String((res.data as { delivery?: { channel?: string } })?.delivery?.channel ?? "outbox")})`);
-      setInviteEmail("");
-      void reload();
-      const inv = await apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/invites`);
-      if (inv.data) setInvites(inv.data);
+    if (res.error) {
+      const raw = res.error.message;
+      let detail = raw;
+      try {
+        const parsed = JSON.parse(raw) as { message?: string };
+        if (typeof parsed.message === "string" && parsed.message.trim()) detail = parsed.message;
+      } catch {
+        // Nest sometimes returns plain text; keep raw.
+      }
+      if (/organisation_invitations_pending_email_uq|duplicate key|already has a pending invitation/i.test(detail)) {
+        setMsg("That email already has a pending invitation. Revoke it from the list above, then send again.");
+      } else {
+        setMsg(`Invite failed: ${detail}`);
+      }
+      return;
     }
+    const payload = res.data as { resent?: boolean; delivery?: { channel?: string; status?: string } };
+    const delivery = payload?.delivery;
+    const channel = delivery?.channel ?? "outbox";
+    if (channel === "outbox_failed" || delivery?.status === "failed") {
+      setMsg("Invitation was created, but email could not be queued. Check email worker / Resend configuration.");
+    } else if (payload?.resent) {
+      setMsg(`Invitation resent — a fresh invite email is being sent (${channel}).`);
+    } else {
+      setMsg(`Invitation created — email is being sent (${channel}).`);
+    }
+    setInviteEmail("");
+    void reload();
+    const inv = await apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/invites`);
+    if (inv.data) setInvites(inv.data);
   }
 
   const title = showPeople ? "People & access" : "Workspace settings";

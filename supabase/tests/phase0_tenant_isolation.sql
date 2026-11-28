@@ -564,6 +564,17 @@ BEGIN
   END IF;
   PERFORM pg_temp.pass('create_organisation_invitation returns pending invite');
 
+  -- Re-invite same email must supersede the pending row instead of unique-index failure.
+  invite_payload := public.create_organisation_invitation(
+    org_b, 'invitee-b@example.test', 'read_only_viewer'
+  );
+  IF invite_payload->>'token' IS NULL OR coalesce((invite_payload->>'resent')::boolean, false) IS NOT TRUE THEN
+    PERFORM pg_temp.fail('create_organisation_invitation should supersede pending invite on resend');
+  END IF;
+  invite_token := invite_payload ->> 'token';
+  invite_id := (invite_payload ->> 'id')::uuid;
+  PERFORM pg_temp.pass('create_organisation_invitation supersedes pending invite on resend');
+
   -- Cross-tenant: org A admin cannot revoke org B invite
   PERFORM pg_temp.clear_auth();
   PERFORM pg_temp.set_auth(u_admin_a);

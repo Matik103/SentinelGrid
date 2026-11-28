@@ -1,9 +1,10 @@
 # Authenticated browser E2E plan (Phase 0)
 
-**Status:** plan only — **do not execute** against production without ChatGPT/owner approval  
+**Status:** partial execution authorized 2026-11-28 PT — signed-out smoke **PASS**; authenticated suite still blocked without E2E credentials  
 **Issue:** [#9](https://github.com/Matik103/SentinelGrid/issues/9)  
 **Canonical branch:** `work/sentinel-command-release-v2`  
 **Timezone:** America/Los_Angeles  
+**Latest smoke evidence:** `reports/e2e-smoke-2026-11-28.json` + Playwright `e2e/smoke.unauth.spec.ts` (4/4 pass vs www)
 
 ## 1. Goal
 
@@ -72,4 +73,8 @@ After an authorized run, update in the **same** commit:
 - `IMPLEMENTATION_STATUS.md` — frontend acceptance / Criterion G rows
 - Issue #9 comment with SHA, URLs, scenario table, and failures with traces
 
-Until then, browser E2E remains **OPEN**.
+## 8. 2026-11-28 PT execution note
+
+Owner authorized proceeding to browser E2E. Signed-out smoke (E2E-01*) ran against `https://www.sentinelgrid.tech` (no credentials, no mutations). Playwright suite under `e2e/` reproduces those checks. E2E-02–04 and E2E-07–10 remain **BLOCKED** until an approved E2E identity and mailbox exist. E2E-05/06 remain **PARTIAL** via prior manual Criterion G ops evidence (not a substitute for full automated invite E2E).
+
+Authenticated browser E2E therefore remains **OPEN** for Phase 0 Criterion 11 closeout.

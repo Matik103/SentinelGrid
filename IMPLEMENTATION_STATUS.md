@@ -34,7 +34,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | Evidence chain/checkpoints | Implemented / tested | Production restore, retention and operational verification |
 | Payload storage | Implemented / tested (Supabase Storage API) | Live object upload/download/restore; hosted migration for bucket/RLS/backend label unverified. Not Amazon S3 |
 | Audit log | Implemented / tested | Production monitoring and retention verification |
-| Sentinel Command workbenches | Implemented UI/API surfaces | Full authenticated browser E2E and source-backed operational data |
+| Sentinel Command workbenches | Implemented UI/API surfaces | Signed-out browser smoke PASS 2026-11-28 PT (`e2e/` + report). Full authenticated browser E2E still open |
 | Topology / failure scenario lab | Implemented | Registry-based, non-actuating what-if only; not a physical digital twin or engineering-grade simulation |
 | Asset metadata and private media | Schema/API/UI foundation present | Hosted migration divergence with `main` branding/media migrations; full edit/upload lifecycle ops |
 | Energy measurement schema/API | Implemented | Live hardware acquisition and end-to-end verification |
@@ -66,7 +66,8 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | Local `npm test -w @sentinelgrid/web` | 12/12 pass |
 | Hosted migrations (`abaeizgfsskvjklfslrh`) | **Parity closed** through `20261128160000` (32 versions). Applied 2026-11-28 PT via Management API; dry-run pending=0 vs repo |
 | Criterion G live invite | **ops (manual)** — see below |
-| Browser E2E (Playwright plan) | **OPEN** — [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md); manual invite path is not a substitute for the full suite |
+| Browser E2E | **partial** — signed-out smoke PASS (`reports/e2e-smoke-2026-11-28.json`, Playwright 4/4). Authenticated scenarios BLOCKED without E2E credentials. Plan: [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md) |
+| Restore drill (local marker) | **passed marker** — `scripts/restore-drill.sh` → `reports/restore-drill.json` (migrations/markers). Disposable hosted restore still **OPEN** |
 
 #### Criterion G — manual invite ops evidence (2026-11-28 PT)
 
@@ -121,7 +122,7 @@ Operator-verified on production www against Nest on the shared work tip. **No in
 3. **Email / Criterion G:** **manual ops path closed** 2026-11-28 PT (delivery + accept + MFA + membership). Automated mailbox/Playwright invite E2E still open.
 4. **Backup/recovery:** disposable drill design in [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md). Execute only when authorized on a non-production project.
 5. **Energy/OT acquisition:** probes are not measurements. Provide real register maps, MQTT topics, OPC UA node IDs and fixtures before claiming live telemetry.
-6. **Frontend acceptance:** full authenticated browser E2E suite (registry/energy/evidence/facility isolation, etc.) remains open — plan in [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md). Manual invite path alone does not close Criterion 11.
+6. **Frontend acceptance:** signed-out smoke closed 2026-11-28 PT; full authenticated browser E2E (registry/energy/evidence/facility isolation, etc.) remains open until E2E credentials are provided — [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md).
 7. **Production FE branch:** www ships from `main` while Nest ships from this work branch — treat as split-brain until an explicit cutover decision.
 8. **Full quality gate:** **green on tip `6ef1ccf`** via `.github/workflows/audit.yml` (run 46149277028). Cursor local Docker/Supabase CLI remains unavailable; rely on CI for DB regression.
 

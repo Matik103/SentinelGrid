@@ -34,7 +34,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | 8 | Payload storage SHA-256 + production fail-closed | tested | Supabase Storage API path (not Amazon S3). Live object upload/download/restore still **OPEN ops** |
 | 9 | Rate limiting Redis/memory fail-closed | tested | Distributed/proxy identity still limited |
 | 10 | Audit log read API | tested | |
-| 11 | Sentinel Command UI live workflows | code | Config-gated API client; browser/auth E2E **OPEN** |
+| 11 | Sentinel Command UI live workflows | code + **partial ops** | Signed-out smoke PASS 2026-11-28 PT (`reports/e2e-smoke-2026-11-28.json`, Playwright `e2e/` 4/4). Authenticated workflows still **OPEN** (no E2E credentials) |
 | 12 | Engineering quality gate green on tip SHA | **tested** (CI) | Full Docker-backed gate green on tip `6ef1ccf` via `.github/workflows/audit.yml` (run 46149277028). Includes `phase0_tenant_isolation.sql`. Cursor local Docker/Supabase CLI still unavailable |
 | 13 | Ops docs + this checklist | code | Updated 2026-11-28 PT for tip `6ef1ccf` + Criterion G manual invite evidence |
 | 14 | Facility-manager same-org cross-facility isolation + assignment APIs | tested | Migration `20261125250000` + SQL isolation + assignment HTTP |
@@ -45,7 +45,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 |---|---|---|---|
 | A | Cross-tenant isolation | tested | `supabase/tests/phase0_tenant_isolation.sql` (local/CI historically). Hosted runtime cross-tenant E2E **OPEN** |
 | B | Forward migrations on remote `abaeizgfsskvjklfslrh` | **ops** | Hosted matches repo through `20261128160000` (32 versions). Applied AAL2 self-service invite RPCs 2026-11-28 PT; `apply-pending-production.mjs --dry-run` pending=0 |
-| C | Real backup + object-store restore drill | **OPEN** | Marker script ≠ restore. Design only until authorized on a disposable environment |
+| C | Real backup + object-store restore drill | **OPEN** (local marker passed) | `scripts/restore-drill.sh` passed 2026-11-28 PT (migration/marker check → `reports/restore-drill.json`). Disposable hosted Postgres+Storage restore still required |
 | D | OpenAPI contract | code | `docs/openapi.yaml` |
 | E | Monitoring hooks on `/v1/health` | code / partial ops | Live HTTP 200 with supabase/email/storage signals. `monitoring.build_sha` empty — cannot correlate Render process to git SHA from health alone |
 | F | No main merge without approval | enforced | Shared work continues on `work/sentinel-command-release-v2` |
@@ -106,7 +106,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Hosted migrations | **parity closed** through `20261128160000` | Applied + recorded 2026-11-28 PT (32 versions); dry-run pending=0 vs repo |
 | Criterion G live invite | **ops (manual)** | Afya: admin invited read-only viewer; email delivered; signup + MFA completed; membership **active**; pending empty. No tokens/PII in this log. See `IMPLEMENTATION_STATUS.md` |
 | Backup/restore | **OPEN** (design ready) | Disposable drill in [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md) — not executed |
-| Browser E2E (full suite) | **OPEN** (plan ready) | [`BROWSER_E2E_PLAN.md`](BROWSER_E2E_PLAN.md) — not executed; manual invite path ≠ suite closeout |
+| Browser E2E | **partial** | Signed-out smoke PASS 2026-11-28 PT — `reports/e2e-smoke-2026-11-28.json` + Playwright `e2e/smoke.unauth.spec.ts` 4/4 vs www. Authenticated E2E-02–04/07–10 **BLOCKED** (no E2E credentials). E2E-05/06 partial via Criterion G manual ops |
 | UniFi adapter implementation | **not authorized** | Design only: [`ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md) |
 
 ### Prior tip — `b094207` (2026-11-26 PT)
@@ -140,10 +140,10 @@ Migrations present on `main` but **not** on this work tip: `20261126100000_works
 **Still OPEN (do not close Phase 0):**
 - Full OT protocol acquisition or formal deferral (**ops** — needs maps/node IDs/topics)
 - Real backup + object-storage restore drill (**ops** — design ready; execute only when authorized on a disposable project)
-- Authenticated browser E2E suite (signup/MFA/invite/registry/energy/evidence/facility isolation) (**ops** — plan ready; manual Criterion G invite is partial evidence only)
+- Authenticated browser E2E suite (signup/MFA/invite/registry/energy/evidence/facility isolation) (**ops** — signed-out smoke done; need approved E2E identity/mailbox)
 - Render `monitoring.build_sha` correlation to git tip (requires explicit infra approval to set `GIT_SHA`)
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip quality gate green on `6ef1ccf`; Criterion G manual invite ops-verified; hosted migrations through `20261128160000` parity closed 2026-11-28 PT; restore + full browser E2E + Render SHA correlation still open — **not COMPLETE**.
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip quality gate green on `6ef1ccf`; Criterion G manual invite ops-verified; hosted migrations through `20261128160000` parity closed; signed-out browser smoke PASS; disposable hosted restore + authenticated browser E2E + Render SHA correlation still open — **not COMPLETE**.
 
 ## Related plans (not Phase 0 exit / not authorized to execute)
 

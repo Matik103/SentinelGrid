@@ -1,0 +1,106 @@
+{
+  "suite": "phase0_browser_e2e_smoke",
+  "timezone": "America/Los_Angeles",
+  "started_at": "2026-11-28T05:51:00-08:00",
+  "ended_at": "2026-11-28T05:53:00-08:00",
+  "authorization": "owner approved next Phase 0 open item (browser E2E) 2026-11-28 PT",
+  "targets": {
+    "ui": "https://www.sentinelgrid.tech",
+    "fe_tip_main": "43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59",
+    "api": "https://sentinelgrid-fpzo.onrender.com",
+    "work_tip_at_run": "22ead28145e6210ae6fa0291bb650abbdd772cb7"
+  },
+  "constraints": [
+    "No signup",
+    "No credentials entered",
+    "No invite accept",
+    "No production mutations"
+  ],
+  "scenarios": [
+    {
+      "id": "E2E-01",
+      "result": "PASS",
+      "notes": "Landing 200; SentinelGrid brand + sign-in entry visible",
+      "screenshot": "reports/e2e-2026-11-28/phase0_e2e01_landing_signin.webp"
+    },
+    {
+      "id": "E2E-01b",
+      "result": "PASS",
+      "notes": "Sign-in form present; no raw Nest JSON API error banner",
+      "screenshot": "reports/e2e-2026-11-28/phase0_e2e01_landing_signin.webp"
+    },
+    {
+      "id": "E2E-01c",
+      "result": "PASS",
+      "notes": "/organisation /users /facilities show auth wall without crash/blank page",
+      "screenshots": [
+        "reports/e2e-2026-11-28/phase0_e2e01c_organisation.webp",
+        "reports/e2e-2026-11-28/phase0_e2e01c_users.webp",
+        "reports/e2e-2026-11-28/phase0_e2e01c_facilities.webp"
+      ]
+    },
+    {
+      "id": "E2E-01d",
+      "result": "PASS",
+      "notes": "Placeholder invite token shows soft verify failure + signup path; token not in title/body",
+      "screenshot": "reports/e2e-2026-11-28/phase0_e2e01d_invite.webp"
+    },
+    {
+      "id": "E2E-health",
+      "result": "PASS",
+      "notes": "Nest /v1/health ok; bundle references api_base_url; /v1/orgs/mine without token → 401"
+    },
+    {
+      "id": "E2E-02",
+      "result": "BLOCKED",
+      "notes": "No approved E2E credentials / disposable mailbox in agent secrets"
+    },
+    {
+      "id": "E2E-03",
+      "result": "BLOCKED",
+      "notes": "Requires authenticated session"
+    },
+    {
+      "id": "E2E-04",
+      "result": "BLOCKED",
+      "notes": "Requires authenticated MFA enroll session"
+    },
+    {
+      "id": "E2E-05",
+      "result": "PARTIAL",
+      "notes": "Manual Criterion G ops evidence already recorded 2026-11-28 PT; automated mailbox not available this run"
+    },
+    {
+      "id": "E2E-06",
+      "result": "PARTIAL",
+      "notes": "Covered by manual invitee acceptance evidence; not re-automated"
+    },
+    {
+      "id": "E2E-07",
+      "result": "BLOCKED",
+      "notes": "Requires authenticated admin session"
+    },
+    {
+      "id": "E2E-08",
+      "result": "BLOCKED",
+      "notes": "Requires facility_manager test identity"
+    },
+    {
+      "id": "E2E-09",
+      "result": "BLOCKED",
+      "notes": "Requires authenticated session"
+    },
+    {
+      "id": "E2E-10",
+      "result": "BLOCKED",
+      "notes": "Requires authenticated session"
+    }
+  ],
+  "summary": {
+    "pass": 5,
+    "partial": 2,
+    "blocked": 7,
+    "fail": 0,
+    "phase0_criterion_11": "partial — signed-out smoke + prior manual invite; full authenticated suite still open"
+  }
+}

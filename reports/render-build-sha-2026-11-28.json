@@ -1,0 +1,12 @@
+{
+  "check": "phase0_render_build_sha",
+  "status": "passed",
+  "timezone_note": "America/Los_Angeles",
+  "checked_at_utc": "2026-11-28T14:51:54.601185Z",
+  "checked_at_america_los_angeles": "11/28/2026, 06:51:54 AM",
+  "git_tip": "49e44eb5e62686c86a54a1a42f1ce8b86e84b4e9",
+  "api": "https://sentinelgrid-fpzo.onrender.com/v1/health",
+  "monitoring_build_sha": "49e44eb5e62686c86a54a1a42f1ce8b86e84b4e9",
+  "matches_work_tip": true,
+  "source": "RENDER_GIT_COMMIT (GIT_SHA unset)"
+}

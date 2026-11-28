@@ -1,7 +1,7 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `00b6a0ce56b2b7a610c862b446b96f8cd8e4633c` — disposable hosted-schema restore **ops**; Nest health reads `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; www FE on `main` @ `c68caea0f72da46a953a4ce265c336d765562129`  
+**Current tip:** `49e44eb5e62686c86a54a1a42f1ce8b86e84b4e9` — disposable hosted-schema restore **ops**; Nest health reads `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; www FE on `main` @ `c68caea0f72da46a953a4ce265c336d765562129`  
 **Prior tip (Criterion G + E2E-08):** `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f`  
 **Prior tip (docs closeout):** `ca5b2f14fc84a824f58668ce3091507f3f8f32d5`  
 **Prior tip (migration/docs packet):** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd`  
@@ -63,7 +63,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | GitHub Actions release checks (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46155054494 |
 | Engineering Quality Gate (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46155054515 (Docker Supabase upgrade path + `phase0_tenant_isolation.sql`) |
 | Vercel (`main` / www) | **success** — deployment completed for `c68caea` (facility-manager create-form gate) |
-| Nest `/v1/health` | HTTP 200; supabase ok; Resend worker enabled; `payload_backend=supabase`; `build_sha` via `RENDER_GIT_COMMIT` after this deploy (verify live after Render autoDeploy) |
+| Nest `/v1/health` | HTTP 200; supabase ok; Resend worker enabled; `payload_backend=supabase`; **`build_sha=49e44eb5e62686c86a54a1a42f1ce8b86e84b4e9`** (matches work tip; `reports/render-build-sha-2026-11-28.json`) |
 | Local `npm test -w @sentinelgrid/api` | 58/58 pass (Cursor machine, tip sync) |
 | Local `npm test -w @sentinelgrid/web` | 12/12 pass |
 | Hosted migrations (`abaeizgfsskvjklfslrh`) | **Parity closed** through `20261128160000` (32 versions); dry-run pending=0 vs repo |
@@ -121,7 +121,7 @@ Operator-verified on production www against Nest on the shared work tip, then re
 ## Operational blockers
 
 1. **Hosted Supabase migrations:** **closed** 2026-11-28 PT — host matches repo through `20261128160000` (pending=0). Plan history: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md).
-2. **Backend deploy SHA correlation:** Nest now prefers `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`. Live `build_sha` verified after Render autoDeploy of this tip (no dashboard `GIT_SHA` required).
+2. **Backend deploy SHA correlation:** **ops closed** 2026-11-28 PT — Nest prefers `GIT_SHA || RENDER_GIT_COMMIT || GITHUB_SHA`; live `build_sha` matched work tip `49e44eb` (`reports/render-build-sha-2026-11-28.json`).
 3. **Email / Criterion G:** **ops closed** 2026-11-28 PT — manual path + authenticated E2E invite create/delivery/accept (Afya `read_only_viewer`).
 4. **Backup/recovery:** **ops closed** 2026-11-28 PT — disposable hosted-schema restore + Storage digest round-trip; see [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md) and `reports/hosted-restore-drill-2026-11-28.json`.
 5. **Energy/OT acquisition:** probes are not measurements. Provide real register maps, MQTT topics, OPC UA node IDs and fixtures before claiming live telemetry.

@@ -1,10 +1,10 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `22421d189a2e111b57f9c2c63c61c8be0ff2d5af` — Criterion G invite ops evidence recorded; functional invite/role UI tip `6ef1ccf`; www FE on `main` @ `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
+**Current tip:** hosted migration parity through `20261128160000` + Criterion G invite ops evidence; functional invite/role UI tip `6ef1ccf`; www FE on `main` @ `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
 **Prior tip (quality-gate packet):** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
-**Last reviewed:** 2026-11-28 (America/Los_Angeles) — Criterion G live invite ops-verified (manual); DB regression via Engineering Quality Gate CI; browser E2E suite still open  
+**Last reviewed:** 2026-11-28 (America/Los_Angeles) — applied hosted `20261128160000` (AAL2 self-service invites); Criterion G manual invite ops-verified; browser E2E suite / backup drill / Render `build_sha` still open  
 **Overall status:** platform foundation and workbenches are in progress; not production-complete. www production tracks `main`; this branch is the shared implementation tip. Nest API tracks this work tip on Render.
 
 Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencing, dependencies and acceptance criteria. This file is the concise status snapshot. The detailed Phase 0 gate remains in [`docs/PHASE0_ACCEPTANCE_CHECKLIST.md`](docs/PHASE0_ACCEPTANCE_CHECKLIST.md).
@@ -64,7 +64,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | Nest `/v1/health` | HTTP 200; supabase ok; Resend worker enabled; `payload_backend=supabase`; `build_sha` still empty |
 | Local `npm test -w @sentinelgrid/api` | 57/57 pass (Cursor machine, tip sync) |
 | Local `npm test -w @sentinelgrid/web` | 12/12 pass |
-| Hosted migrations (`abaeizgfsskvjklfslrh`) | Recorded through `20261128150000` (31 versions). Repo tip also contains `20261128160000` (AAL2 self-service invites) — **not yet recorded on host** |
+| Hosted migrations (`abaeizgfsskvjklfslrh`) | **Parity closed** through `20261128160000` (32 versions). Applied 2026-11-28 PT via Management API; dry-run pending=0 vs repo |
 | Criterion G live invite | **ops (manual)** — see below |
 | Browser E2E (Playwright plan) | **OPEN** — [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md); manual invite path is not a substitute for the full suite |
 
@@ -116,7 +116,7 @@ Operator-verified on production www against Nest on the shared work tip. **No in
 
 ## Operational blockers
 
-1. **Hosted Supabase migrations:** recorded through `20261128150000` on `abaeizgfsskvjklfslrh` (2026-11-28 PT check). Tip also has `20261128160000` not yet recorded on host — reconcile before claiming migration parity. Plan history: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md).
+1. **Hosted Supabase migrations:** **closed** 2026-11-28 PT — host matches repo through `20261128160000` (pending=0). Plan history: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md).
 2. **Backend deploy SHA correlation:** Render health is green but `monitoring.build_sha` is empty. Set `GIT_SHA` on Render only with explicit infra approval.
 3. **Email / Criterion G:** **manual ops path closed** 2026-11-28 PT (delivery + accept + MFA + membership). Automated mailbox/Playwright invite E2E still open.
 4. **Backup/recovery:** disposable drill design in [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md). Execute only when authorized on a non-production project.

@@ -44,7 +44,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | # | Criterion | Level | Status |
 |---|---|---|---|
 | A | Cross-tenant isolation | tested | `supabase/tests/phase0_tenant_isolation.sql` (local/CI historically). Hosted runtime cross-tenant E2E **OPEN** |
-| B | Forward migrations on remote `abaeizgfsskvjklfslrh` | **ops** (partial) | Hosted recorded through `20261128150000` (31 versions, checked 2026-11-28 PT). Tip also contains `20261128160000` not yet on host — migration parity still open for that version |
+| B | Forward migrations on remote `abaeizgfsskvjklfslrh` | **ops** | Hosted matches repo through `20261128160000` (32 versions). Applied AAL2 self-service invite RPCs 2026-11-28 PT; `apply-pending-production.mjs --dry-run` pending=0 |
 | C | Real backup + object-store restore drill | **OPEN** | Marker script ≠ restore. Design only until authorized on a disposable environment |
 | D | OpenAPI contract | code | `docs/openapi.yaml` |
 | E | Monitoring hooks on `/v1/health` | code / partial ops | Live HTTP 200 with supabase/email/storage signals. `monitoring.build_sha` empty — cannot correlate Render process to git SHA from health alone |
@@ -103,7 +103,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Vercel (`main`) | **success** | Deployment completed for `43ae599` at 2026-11-28T13:22:30Z |
 | Nest `/v1/health` | HTTP 200 partial ops | supabase ok; Resend worker enabled; `payload_backend=supabase`; `build_sha=""` |
 | Local API / web unit tests | **pass** | API 57/57; web 12/12 on Cursor machine at tip sync |
-| Hosted migrations | through `20261128150000` | 31 versions on host (2026-11-28 PT). Tip `20261128160000` not yet recorded — parity gap |
+| Hosted migrations | **parity closed** through `20261128160000` | Applied + recorded 2026-11-28 PT (32 versions); dry-run pending=0 vs repo |
 | Criterion G live invite | **ops (manual)** | Afya: admin invited read-only viewer; email delivered; signup + MFA completed; membership **active**; pending empty. No tokens/PII in this log. See `IMPLEMENTATION_STATUS.md` |
 | Backup/restore | **OPEN** (design ready) | Disposable drill in [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md) — not executed |
 | Browser E2E (full suite) | **OPEN** (plan ready) | [`BROWSER_E2E_PLAN.md`](BROWSER_E2E_PLAN.md) — not executed; manual invite path ≠ suite closeout |
@@ -138,13 +138,12 @@ Repo migrations after historical remote claim `20261125260000` (may or may not a
 Migrations present on `main` but **not** on this work tip: `20261126100000_workspace_branding.sql`, `20261126110000_atomic_asset_media_primary.sql`, `20261126120000_auth_identity_assets.sql`, `20261126120100_ensure_own_profile_jwt_email.sql`.
 
 **Still OPEN (do not close Phase 0):**
-- Hosted migration parity for tip `20261128160000` (host currently through `20261128150000`)
 - Full OT protocol acquisition or formal deferral (**ops** — needs maps/node IDs/topics)
-- Real backup + object-storage restore drill (**ops** — design ready; execute only when authorized)
+- Real backup + object-storage restore drill (**ops** — design ready; execute only when authorized on a disposable project)
 - Authenticated browser E2E suite (signup/MFA/invite/registry/energy/evidence/facility isolation) (**ops** — plan ready; manual Criterion G invite is partial evidence only)
-- Render `monitoring.build_sha` correlation to git tip
+- Render `monitoring.build_sha` correlation to git tip (requires explicit infra approval to set `GIT_SHA`)
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip quality gate green on `6ef1ccf`; Criterion G manual invite ops-verified 2026-11-28 PT; restore + full browser E2E + migration `160000` parity still open — **not COMPLETE**.
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip quality gate green on `6ef1ccf`; Criterion G manual invite ops-verified; hosted migrations through `20261128160000` parity closed 2026-11-28 PT; restore + full browser E2E + Render SHA correlation still open — **not COMPLETE**.
 
 ## Related plans (not Phase 0 exit / not authorized to execute)
 

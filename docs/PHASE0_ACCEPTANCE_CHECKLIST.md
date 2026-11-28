@@ -1,11 +1,12 @@
 # Phase 0 acceptance checklist (authoritative)
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip (evidence below):** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd` (2026-11-28 America/Los_Angeles; functional invite/role UI tip `6ef1ccf`)  
-**www / `main` FE tip:** `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
+**Current tip (evidence below):** `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f` (2026-11-28 America/Los_Angeles)  
+**www / `main` FE tip:** `c68caea0f72da46a953a4ce265c336d765562129`  
+**Prior tip (migration/docs packet):** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd`  
 **Prior tip (quality-gate packet):** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947` (preserved in historical / baseline sections)  
-**Rule:** Do **not** mark Phase 0 COMPLETE unless every required row is fully verified at the **ops** level with linked evidence. This document is the repo-local source of truth for gate decisions. Manual Criterion G invite proof does **not** by itself close Phase 0.
+**Rule:** Do **not** mark Phase 0 COMPLETE unless every required row is fully verified at the **ops** level with linked evidence. This document is the repo-local source of truth for gate decisions. Criterion G + browser E2E do **not** by themselves close Phase 0 while backup restore and Render `build_sha` remain open.
 
 Timezone for operator notes: America/Los_Angeles.
 
@@ -35,9 +36,9 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | 9 | Rate limiting Redis/memory fail-closed | tested | Distributed/proxy identity still limited |
 | 10 | Audit log read API | tested | |
 | 11 | Sentinel Command UI live workflows | **ops** | Signed-out smoke + authenticated admin + invitee accept + facility-manager isolation PASS 2026-11-28 PT (`reports/e2e-auth-pass-2026-11-28.json`) |
-| 12 | Engineering quality gate green on tip SHA | **tested** (CI) | Full Docker-backed gate green on tip `6ef1ccf` via `.github/workflows/audit.yml` (run 46149277028). Includes `phase0_tenant_isolation.sql`. Cursor local Docker/Supabase CLI still unavailable |
-| 13 | Ops docs + this checklist | code | Updated 2026-11-28 PT for tip `6ef1ccf` + Criterion G manual invite evidence |
-| 14 | Facility-manager same-org cross-facility isolation + assignment APIs | tested | Migration `20261125250000` + SQL isolation + assignment HTTP |
+| 12 | Engineering quality gate green on tip SHA | **tested** (CI) | Full Docker-backed gate green on tip `dbe84a7` via `.github/workflows/audit.yml` (run 46155054515). Includes `phase0_tenant_isolation.sql`. Cursor local Docker/Supabase CLI still unavailable |
+| 13 | Ops docs + this checklist | code | Updated 2026-11-28 PT for tip `dbe84a7` + Criterion G + browser E2E evidence |
+| 14 | Facility-manager same-org cross-facility isolation + assignment APIs | tested + **ops** | SQL isolation + assignment HTTP + browser E2E-08 (ALPHA visible / BETA hidden) |
 
 ## Operational criteria
 
@@ -56,7 +57,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 1. Tip SHA has green CI URL recorded below (Node release checks) **and** full quality gate evidence from a Docker-capable runner (or formal environment exception).
 2. Latest forward migration applied to remote after divergence reconciliation (statement count logged). **Not authorized in Issue #9 packet.**
 3. Real backup/object-store restore drill recorded (not marker-only).
-4. Production email ops-verified (delivered + accepted invite) — **manual path done 2026-11-28 PT**; keep automated invite E2E or formal deferral of remaining browser suite.
+4. Production email ops-verified (delivered + accepted invite) — **done 2026-11-28 PT** (manual Criterion G + authenticated E2E invite path).
 5. Full OT acquisition path or formal deferral with device map evidence (probes ≠ acquisition).
 6. Update this table and `IMPLEMENTATION_STATUS.md` in the same commit.
 
@@ -91,23 +92,30 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Backup/restore | **OPEN** | Not executed |
 | Browser E2E | **OPEN** | Not executed |
 
-### Current tip — `05138a4` (2026-11-28 PT)
+### Current tip — `dbe84a7` (2026-11-28 PT)
 
 | Item | Result | Evidence |
 |---|---|---|
-| Branch / SHA | `work/sentinel-command-release-v2` @ `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd` = origin | Docs + hosted `20261128160000` closeout; functional invite/role UI tip `6ef1ccf270485e28725de744ad87498190e71201` |
-| www / `main` FE | `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59` | Vercel production source for www.sentinelgrid.tech |
-| Tip CI release checks | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/46149277052 |
-| Full Engineering Quality Gate | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/46149277028 — Docker + Supabase; upgrade path; `security.tenant_isolation` (`phase0_tenant_isolation.sql`); npm/go; gitleaks |
-| `main` Engineering Quality Gate | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/46149279913 |
-| Vercel (`main`) | **success** | Deployment completed for `43ae599` at 2026-11-28T13:22:30Z |
+| Branch / SHA | `work/sentinel-command-release-v2` @ `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f` = origin | Merged authenticated E2E + facility-manager create gate ([#33](https://github.com/Matik103/SentinelGrid/pull/33)) |
+| www / `main` FE | `c68caea0f72da46a953a4ce265c336d765562129` | Vercel production Ready ([#34](https://github.com/Matik103/SentinelGrid/pull/34)) |
+| Tip CI release checks | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/46155054494 |
+| Full Engineering Quality Gate | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/46155054515 — Docker + Supabase; upgrade path; `security.tenant_isolation` (`phase0_tenant_isolation.sql`); npm/go; gitleaks |
+| Vercel (`main`) | **success** | Deployment completed for `c68caea` |
 | Nest `/v1/health` | HTTP 200 partial ops | supabase ok; Resend worker enabled; `payload_backend=supabase`; `build_sha=""` |
-| Local API / web unit tests | **pass** | API 57/57; web 12/12 on Cursor machine at tip sync |
+| Local API / web unit tests | **pass** | API 58/58; web 12/12 on Cursor machine at tip sync |
 | Hosted migrations | **parity closed** through `20261128160000` | Applied + recorded 2026-11-28 PT (32 versions); dry-run pending=0 vs repo |
-| Criterion G live invite | **ops (manual)** | Afya: admin invited read-only viewer; email delivered; signup + MFA completed; membership **active**; pending empty. No tokens/PII in this log. See `IMPLEMENTATION_STATUS.md` |
+| Criterion G live invite | **ops** | Afya: creator (admin, protected) + active read-only viewer(s); email delivered; signup + MFA; membership **active**; pending empty. No tokens in this log. See `IMPLEMENTATION_STATUS.md` |
 | Backup/restore | **OPEN** (design ready) | Disposable drill in [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md) — not executed |
-| Browser E2E | **ops** | Signed-out smoke + authenticated admin + invitee accept + facility-manager isolation PASS 2026-11-28 PT — `reports/e2e-auth-pass-2026-11-28.json` (MFA, invite path, E2E-08 ALPHA-only vs BETA hidden, facilities/assets/energy/evidence/audit) |
+| Browser E2E | **ops** | Signed-out + authenticated admin + invitee accept + facility-manager isolation PASS — `reports/e2e-auth-pass-2026-11-28.json` |
 | UniFi adapter implementation | **not authorized** | Design only: [`ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md) |
+
+### Prior tip — `05138a4` (2026-11-28 PT)
+
+| Item | Result | Evidence |
+|---|---|---|
+| Branch / SHA | `work/sentinel-command-release-v2` @ `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd` | Hosted `20261128160000` closeout + Criterion G manual invite docs |
+| www / `main` FE (then) | `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59` | Superseded by `c68caea` |
+| Tip CI / EQG (then) | **success** | runs 46149277052 / 46149277028 |
 
 ### Prior tip — `b094207` (2026-11-26 PT)
 
@@ -142,7 +150,7 @@ Migrations present on `main` but **not** on this work tip: `20261126100000_works
 - Real backup + object-storage restore drill (**ops** — design ready; execute only when authorized on a disposable project)
 - Render `monitoring.build_sha` correlation to git tip (requires explicit infra approval to set `GIT_SHA`)
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip quality gate green on `6ef1ccf`; Criterion G + authenticated invite accept + facility-manager isolation ops-verified; hosted migrations through `20261128160000` parity closed; browser E2E suite PASS (`reports/e2e-auth-pass-2026-11-28.json`); remaining disposable hosted restore + Render SHA correlation still open — **not COMPLETE**.
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip `dbe84a7` EQG green (run 46155054515); Criterion G + authenticated invite accept + facility-manager isolation ops-verified; hosted migrations through `20261128160000` parity closed; browser E2E suite PASS (`reports/e2e-auth-pass-2026-11-28.json`); www `main` @ `c68caea`; remaining disposable hosted restore + Render `build_sha` still open — **not COMPLETE**.
 
 ## Related plans (not Phase 0 exit / not authorized to execute)
 
@@ -150,4 +158,4 @@ Migrations present on `main` but **not** on this work tip: `20261126100000_works
 - Hosted migration reconciliation (**do not apply** until approved): [`MIGRATION_RECONCILIATION_PLAN.md`](MIGRATION_RECONCILIATION_PLAN.md).
 - Disposable backup/restore drill design: [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md).
 - Authenticated browser E2E plan: [`BROWSER_E2E_PLAN.md`](BROWSER_E2E_PLAN.md).
-- Full DB quality gate CI: `.github/workflows/audit.yml` on this canonical branch — **green** on tip `6ef1ccf` (run 46149277028; Node release checks alone remain insufficient as sole evidence).
+- Full DB quality gate CI: `.github/workflows/audit.yml` on this canonical branch — **green** on tip `dbe84a7` (run 46155054515; Node release checks alone remain insufficient as sole evidence).

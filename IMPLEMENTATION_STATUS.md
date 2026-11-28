@@ -1,10 +1,11 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd` — hosted migration parity through `20261128160000` + Criterion G invite ops evidence; functional invite/role UI tip `6ef1ccf`; www FE on `main` @ `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
+**Current tip:** `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f` — Criterion G + authenticated browser E2E through E2E-08 recorded; Nest facility-manager create gate; www FE on `main` @ `c68caea0f72da46a953a4ce265c336d765562129`  
+**Prior tip (migration/docs packet):** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd`  
 **Prior tip (quality-gate packet):** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
-**Last reviewed:** 2026-11-28 (America/Los_Angeles) — applied hosted `20261128160000`; Criterion G + invitee accept + facility-manager isolation ops-verified; authenticated browser E2E suite PASS; remaining backup drill / Render `build_sha` still open  
+**Last reviewed:** 2026-11-28 (America/Los_Angeles) — tip SHA + CI + browser E2E + Criterion G closed out; remaining disposable hosted restore + Render `build_sha`  
 **Overall status:** platform foundation and workbenches are in progress; not production-complete. www production tracks `main`; this branch is the shared implementation tip. Nest API tracks this work tip on Render.
 
 Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencing, dependencies and acceptance criteria. This file is the concise status snapshot. The detailed Phase 0 gate remains in [`docs/PHASE0_ACCEPTANCE_CHECKLIST.md`](docs/PHASE0_ACCEPTANCE_CHECKLIST.md).
@@ -24,8 +25,8 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 
 | Capability | Current status | Remaining proof / boundary |
 |---|---|---|
-| Auth, tenant bootstrap, RBAC, RLS | Implemented / SQL-tested | Hosted migration verification, full signup/MFA and cross-tenant runtime E2E |
-| TOTP MFA / AAL2 | Implemented in code and preview flow | Hosted rollout and browser E2E |
+| Auth, tenant bootstrap, RBAC, RLS | Implemented / SQL-tested / **ops (partial)** | Hosted migrations closed; signup/MFA + invite accept ops-verified; hosted cross-tenant runtime E2E still open |
+| TOTP MFA / AAL2 | Implemented / **ops** | Browser E2E MFA enroll/verify on invitee + admin AAL2 shell 2026-11-28 PT |
 | Organisation invitations | Implemented / tested / **ops-verified** | Criterion G + authenticated E2E 2026-11-28 PT: create → outbox **sent** → delivery confirmed → accept → Afya membership **active** `read_only_viewer` |
 | Infrastructure registry | Implemented / API-tested | Broader real source onboarding; registry is not auto-discovery |
 | Facility/zone/asset hierarchy | Implemented / tested | Real-world mapping and validation for each integration |
@@ -51,39 +52,39 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 
 ## Tip verification snapshots
 
-### Current tip — `05138a4` / functional UI tip `6ef1ccf` (2026-11-28 America/Los_Angeles)
+### Current tip — `dbe84a7` (2026-11-28 America/Los_Angeles)
 
 | Check | Result |
 |---|---|
-| Shared work HEAD = origin | `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd` (docs + migration closeout); functional invite/role UI at `6ef1ccf270485e28725de744ad87498190e71201` |
-| www / `main` FE tip | `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59` (Vercel production source) |
-| GitHub Actions release checks (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46149277052 |
-| Engineering Quality Gate (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46149277028 (includes Docker Supabase upgrade path + `phase0_tenant_isolation.sql`) |
-| Engineering Quality Gate (`main`) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46149279913 |
-| Vercel (`main` / www) | **success** — deployment completed for `43ae599` (2026-11-28T13:22:30Z) |
+| Shared work HEAD = origin | `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f` |
+| www / `main` FE tip | `c68caea0f72da46a953a4ce265c336d765562129` (Vercel production Ready) |
+| GitHub Actions release checks (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46155054494 |
+| Engineering Quality Gate (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46155054515 (Docker Supabase upgrade path + `phase0_tenant_isolation.sql`) |
+| Vercel (`main` / www) | **success** — deployment completed for `c68caea` (facility-manager create-form gate) |
 | Nest `/v1/health` | HTTP 200; supabase ok; Resend worker enabled; `payload_backend=supabase`; `build_sha` still empty |
-| Local `npm test -w @sentinelgrid/api` | 57/57 pass (Cursor machine, tip sync) |
+| Local `npm test -w @sentinelgrid/api` | 58/58 pass (Cursor machine, tip sync) |
 | Local `npm test -w @sentinelgrid/web` | 12/12 pass |
-| Hosted migrations (`abaeizgfsskvjklfslrh`) | **Parity closed** through `20261128160000` (32 versions). Applied 2026-11-28 PT via Management API; dry-run pending=0 vs repo |
-| Criterion G live invite | **ops (manual)** — see below |
-| Browser E2E | **ops** — signed-out + authenticated admin + invitee accept + facility-manager isolation PASS 2026-11-28 PT (`reports/e2e-auth-pass-2026-11-28.json`). Plan: [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md) |
-| Restore drill (local marker) | **passed marker** — `scripts/restore-drill.sh` → `reports/restore-drill.json` (migrations/markers). Disposable hosted restore still **OPEN** |
+| Hosted migrations (`abaeizgfsskvjklfslrh`) | **Parity closed** through `20261128160000` (32 versions); dry-run pending=0 vs repo |
+| Criterion G live invite | **ops** — manual + authenticated E2E; see below |
+| Browser E2E | **ops** — signed-out + authenticated admin + invitee accept + facility-manager isolation PASS (`reports/e2e-auth-pass-2026-11-28.json`). Plan: [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md) |
+| Restore drill (local marker) | **passed marker** — `scripts/restore-drill.sh` → `reports/restore-drill.json`. Disposable hosted restore still **OPEN** |
 
-#### Criterion G — manual invite ops evidence (2026-11-28 PT)
+#### Criterion G — invite ops evidence (2026-11-28 PT)
 
-Operator-verified on production www against Nest on the shared work tip. **No invitation tokens or personal mailbox addresses are recorded here.**
+Operator-verified on production www against Nest on the shared work tip, then reconfirmed via authenticated browser E2E. **No invitation tokens are recorded here.**
 
 | Step | Result |
 |---|---|
 | Workspace | Afya (existing tenant) |
-| Inviter | Workspace creator / organisation administrator |
-| Invitee role selected | Read-only viewer |
-| Email delivery | Invite email received (Resend outbox → mailbox) |
-| Account setup | Invitee created account, completed email confirmation |
+| Inviter | Workspace creator / organisation administrator (protected) |
+| Invitee role | Read-only viewer |
+| Email delivery | Invite email received (Resend outbox → mailbox); E2E outbox status **sent** |
+| Account setup | Invitee created account + completed confirmation |
 | MFA | Invitee completed authenticator enrollment / verification |
-| Membership | Invitee appears as **active** read-only viewer on People & access; pending invitations empty |
-| Role respect | Viewer lacks `user.manage`; People page no longer surfaces Nest 403 JSON for that role (FE gate on tip) |
-| Classification | **User-verified functional evidence** for Criterion G invite path — **not** a complete Phase 0 acceptance gate |
+| Membership | People & access: creator (admin, protected) + active read-only viewer(s); pending invitations empty after accept |
+| Role respect | Viewer lacks `user.manage`; invite UI gated; facility_manager isolation PASS (E2E-08) |
+| Test account (admin E2E) | Workspace admin test mailbox used for MFA shell + invite create (password/TOTP not stored in repo) |
+| Classification | **Ops-verified** invite path + browser E2E suite recorded — still **not** a complete Phase 0 acceptance gate (backup restore + Render `build_sha` remain) |
 
 ### Prior Issue #9 baseline — `17b4af6`
 
@@ -124,7 +125,7 @@ Operator-verified on production www against Nest on the shared work tip. **No in
 5. **Energy/OT acquisition:** probes are not measurements. Provide real register maps, MQTT topics, OPC UA node IDs and fixtures before claiming live telemetry.
 6. **Frontend acceptance:** authenticated browser E2E suite closed 2026-11-28 PT (through E2E-08) — [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md).
 7. **Production FE branch:** www ships from `main` while Nest ships from this work branch — treat as split-brain until an explicit cutover decision.
-8. **Full quality gate:** **green on tip `6ef1ccf`** via `.github/workflows/audit.yml` (run 46149277028). Cursor local Docker/Supabase CLI remains unavailable; rely on CI for DB regression.
+8. **Full quality gate:** **green on tip `dbe84a7`** via `.github/workflows/audit.yml` (run 46155054515). Cursor local Docker/Supabase CLI remains unavailable; rely on CI for DB regression.
 
 ## Acquisition capability boundaries (architectural)
 

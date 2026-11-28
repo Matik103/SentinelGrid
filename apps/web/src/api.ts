@@ -1,9 +1,11 @@
 import { loadPublicConfig, PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from "./bootstrap";
 import { authToken, organisationId } from "./auth";
+import { formatApiErrorMessage } from "./apiErrors";
 import { assertAllowedImageFile } from "./imageMagic";
 import { rememberWorkspaceLogo } from "./workspaceLogoCache";
 
 export { authToken, organisationId };
+export { formatApiErrorMessage };
 
 let apiBase = "";
 let apiConfigError: string | null = null;
@@ -247,16 +249,20 @@ export async function getWorkspaceBranding(organisationIdValue: string): Promise
   return branding;
 }
 
-export async function canManageWorkspaceBranding(organisationIdValue: string): Promise<boolean> {
+export async function hasOrgPermission(organisationIdValue: string, permission: string): Promise<boolean> {
   const token = authToken();
   if (!token) return false;
   const response = await fetch(`${PUBLIC_SUPABASE_URL}/rest/v1/rpc/has_org_permission`, {
     method: "POST",
     headers: { apikey: PUBLIC_SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ p_organisation_id: organisationIdValue, p_permission: "org.admin" }),
+    body: JSON.stringify({ p_organisation_id: organisationIdValue, p_permission: permission }),
   });
   if (!response.ok) return false;
   return Boolean(await response.json());
+}
+
+export async function canManageWorkspaceBranding(organisationIdValue: string): Promise<boolean> {
+  return hasOrgPermission(organisationIdValue, "org.admin");
 }
 
 export async function uploadWorkspaceLogo(organisationIdValue: string, file: File): Promise<WorkspaceBranding> {

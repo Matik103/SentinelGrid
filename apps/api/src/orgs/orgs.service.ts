@@ -117,7 +117,15 @@ export class OrgsService {
       p_email: input.email,
       p_role_key: input.role_key,
     });
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      // Pre-migration hosts still hit the pending-email unique index on re-invite.
+      if (/organisation_invitations_pending_email_uq|duplicate key/i.test(error.message)) {
+        throw new BadRequestException(
+          "That email already has a pending invitation. Revoke it from the list, then send again — or wait for the invite resend migration to apply.",
+        );
+      }
+      throw new BadRequestException(error.message);
+    }
 
     const result = data as {
       id: string;
@@ -127,6 +135,7 @@ export class OrgsService {
       role_id: string;
       status: string;
       token: string;
+      resent?: boolean;
     };
 
     const delivery = await this.deliverInviteEmail(result.email, result.token, organisationId);
@@ -138,6 +147,7 @@ export class OrgsService {
       email: result.email,
       role_key: result.role_key,
       role_id: result.role_id,
+      resent: Boolean(result.resent),
       delivery: {
         ...delivery,
         // Token exposed once for local_dev accept flows; production relies on outbox/email.

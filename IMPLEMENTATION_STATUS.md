@@ -1,7 +1,7 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `59d5e6f7aff71cd071aba6a0662f0b719840edcb` — hosted migration parity through `20261128160000` + Criterion G invite ops evidence; functional invite/role UI tip `6ef1ccf`; www FE on `main` @ `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
+**Current tip:** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd` — hosted migration parity through `20261128160000` + Criterion G invite ops evidence; functional invite/role UI tip `6ef1ccf`; www FE on `main` @ `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
 **Prior tip (quality-gate packet):** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
 **Last reviewed:** 2026-11-28 (America/Los_Angeles) — applied hosted `20261128160000` (AAL2 self-service invites); Criterion G manual invite ops-verified; browser E2E suite / backup drill / Render `build_sha` still open  
@@ -51,11 +51,11 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 
 ## Tip verification snapshots
 
-### Current tip — `22421d1` / functional UI tip `6ef1ccf` (2026-11-28 America/Los_Angeles)
+### Current tip — `05138a4` / functional UI tip `6ef1ccf` (2026-11-28 America/Los_Angeles)
 
 | Check | Result |
 |---|---|
-| Shared work HEAD = origin | `22421d189a2e111b57f9c2c63c61c8be0ff2d5af` (docs evidence); functional invite/role UI at `6ef1ccf270485e28725de744ad87498190e71201` |
+| Shared work HEAD = origin | `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd` (docs + migration closeout); functional invite/role UI at `6ef1ccf270485e28725de744ad87498190e71201` |
 | www / `main` FE tip | `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59` (Vercel production source) |
 | GitHub Actions release checks (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46149277052 |
 | Engineering Quality Gate (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46149277028 (includes Docker Supabase upgrade path + `phase0_tenant_isolation.sql`) |

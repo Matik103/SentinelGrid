@@ -1,7 +1,7 @@
 # Phase 0 acceptance checklist (authoritative)
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip (evidence below):** `59d5e6f7aff71cd071aba6a0662f0b719840edcb` (2026-11-28 America/Los_Angeles; functional invite/role UI tip `6ef1ccf`)  
+**Current tip (evidence below):** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd` (2026-11-28 America/Los_Angeles; functional invite/role UI tip `6ef1ccf`)  
 **www / `main` FE tip:** `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
 **Prior tip (quality-gate packet):** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947` (preserved in historical / baseline sections)  
@@ -91,11 +91,11 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Backup/restore | **OPEN** | Not executed |
 | Browser E2E | **OPEN** | Not executed |
 
-### Current tip — `22421d1` (2026-11-28 PT)
+### Current tip — `05138a4` (2026-11-28 PT)
 
 | Item | Result | Evidence |
 |---|---|---|
-| Branch / SHA | `work/sentinel-command-release-v2` @ `22421d189a2e111b57f9c2c63c61c8be0ff2d5af` = origin | Docs evidence commit; functional invite/role UI tip `6ef1ccf270485e28725de744ad87498190e71201` |
+| Branch / SHA | `work/sentinel-command-release-v2` @ `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd` = origin | Docs + hosted `20261128160000` closeout; functional invite/role UI tip `6ef1ccf270485e28725de744ad87498190e71201` |
 | www / `main` FE | `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59` | Vercel production source for www.sentinelgrid.tech |
 | Tip CI release checks | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/46149277052 |
 | Full Engineering Quality Gate | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/46149277028 — Docker + Supabase; upgrade path; `security.tenant_isolation` (`phase0_tenant_isolation.sql`); npm/go; gitleaks |

@@ -221,10 +221,14 @@ export class OrgsService {
   async listInvites(user: AuthUser, organisationId: string) {
     await this.requirePermission(user, organisationId, "user.manage");
     const sb = this.users.create(user.accessToken);
+    // Match Slack/GitHub/Notion: Invitations only shows outstanding (pending) invites.
+    // Accepted invites become Members; revoked/expired history stays out of this list.
     const { data, error } = await sb
       .from("organisation_invitations")
       .select("id, email, role_id, status, expires_at, created_at, accepted_at, revoked_at, roles(key, name)")
       .eq("organisation_id", organisationId)
+      .eq("status", "pending")
+      .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw new BadRequestException(error.message);
@@ -238,7 +242,8 @@ export class OrgsService {
       sb
         .from("memberships")
         .select("user_id, role_id, status, roles(key, name)")
-        .eq("organisation_id", organisationId),
+        .eq("organisation_id", organisationId)
+        .eq("status", "active"),
       sb
         .from("organisations")
         .select("created_by_user_id")

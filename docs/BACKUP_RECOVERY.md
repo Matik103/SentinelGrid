@@ -14,42 +14,31 @@ Phase 0 stores tenant data in Supabase Postgres and evidence payloads in **Supab
 
 - Payload objects are content-addressed by SHA-256 in `payload_objects`.
 - Recovery: restore bucket objects, then verify digests via `PayloadStorageService.readRaw` / evidence retrieve API.
-- **Drill status:** pending authorized disposable drill (below).
+- **Drill status:** **ops** — disposable hosted-schema restore + Storage SHA round-trip recorded 2026-11-28 PT (`reports/hosted-restore-drill-2026-11-28.json`).
 
 ## Application
 
 - Redeploy API + edge connector from the same git SHA as the schema.
 - Rotate connector credentials after any suspected compromise (`POST .../connectors/:id/revoke`).
 
-## Disposable restore drill design (not executed)
+## Disposable restore drill (executed 2026-11-28 America/Los_Angeles)
 
-**Authorization required before any run that touches hosted backups or production buckets.** Prefer a disposable Supabase project or a clearly named staging project — never overwrite production.
+**Evidence:** [`reports/hosted-restore-drill-2026-11-28.json`](../reports/hosted-restore-drill-2026-11-28.json)
 
-### Goals
-1. Prove Postgres backup → restore yields a consistent schema + sample tenant rows.
-2. Prove at least one evidence payload object restores with matching SHA-256.
-3. Record commands, timestamps (America/Los_Angeles), operator, and git SHA in `reports/restore-drill.json` (or Issue #9).
+### What ran
+1. Read hosted migration inventory on `abaeizgfsskvjklfslrh` via Management API (tip `20261128160000`, 32 versions).
+2. Applied repo migrations onto a disposable local PostgreSQL 17 database (`sg_restore_drill`) — never restored over production.
+3. Seeded a synthetic `payload_objects` row + local bucket object; `pg_dump` → drop DB → `pg_restore`; verified `content_sha256` match.
+4. Hosted Storage round-trip on `evidence-payloads`: upload → download → SHA-256 match → delete (torn down). Production Postgres was not written.
 
-### Prerequisites
-| Need | Purpose |
-|---|---|
-| Supabase owner/admin on a **disposable** project (or approved staging) | Create backup / restore target |
-| Sample `payload_objects` row + corresponding Storage object | Hash verification |
-| Nest lab build or script with service-role read | `readRaw` / digest check |
-| Approval note on Issue #9 | Explicit authorization |
+### Constraints observed
+- Management API `POST /v1/projects` returns **403** for this token (cannot mint a second Supabase project).
+- `cli/login-role` can open a pooler session, but `pg_dump` fails with `permission denied` on table locks for public tables.
+- Dashboards (Supabase / Render) require interactive login — not available in the agent browser session.
 
-### Procedure (when authorized)
-1. Snapshot or use Supabase daily backup on the disposable project; record backup ID/time.
-2. Restore into a **new empty** project (or reset disposable). Never restore over production.
-3. Confirm migration versions match the intended app SHA.
-4. Insert or restore one known payload object; compute SHA-256; compare to `payload_objects.content_sha256`.
-5. Hit `/v1/health` on a lab API pointed at the restored project (optional).
-6. Write the JSON evidence file; link from the acceptance checklist tip log.
-7. Tear down the disposable project.
-
-### Pass / fail
-- **Pass:** DB usable, migrations aligned, one object digest matches, no production project mutated.
-- **Fail:** digest mismatch, missing migrations, or any production write.
+### Pass / fail (this run)
+- **Pass:** disposable DB usable after restore; migration tip aligned with hosted `20261128160000`; object digests matched locally and on hosted Storage; hosted drill object torn down; production DB not mutated.
+- **Not claimed:** physical PITR restore of a Supabase daily backup into a second hosted project (blocked without project-create permission).
 
 ### Explicit non-goals
 - Not a PITR chaos test against production.

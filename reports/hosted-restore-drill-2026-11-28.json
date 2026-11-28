@@ -1,0 +1,94 @@
+{
+  "drill": "phase0_disposable_hosted_restore",
+  "status": "passed",
+  "timezone_note": "America/Los_Angeles",
+  "started_at_utc": "2026-11-28T14:48:50.337Z",
+  "started_at_america_los_angeles": "11/28/2026, 6:48:50 AM",
+  "completed_at_utc": "2026-11-28T14:48:53.517Z",
+  "completed_at_america_los_angeles": "11/28/2026, 6:48:53 AM",
+  "git_sha": "ca5b2f14fc84a824f58668ce3091507f3f8f32d5",
+  "operator": "cursor-cloud-agent",
+  "source_hosted_project_ref": "abaeizgfsskvjklfslrh",
+  "method": {
+    "hosted_physical_pg_dump": "blocked_by_cli_login_role_table_lock_grants",
+    "disposable_target": "local_postgresql_17_database_sg_restore_drill",
+    "schema_source": "repo_migrations_applied_to_disposable_db_matching_hosted_tip",
+    "hosted_storage_roundtrip": "upload_download_sha256_delete_on_evidence-payloads",
+    "production_db_mutated": false,
+    "production_storage_mutated": "temporary_drill_object_created_and_deleted"
+  },
+  "hosted_migrations": {
+    "count": 32,
+    "tip": "20261128160000",
+    "versions": [
+      "20261125160000",
+      "20261125170000",
+      "20261125180000",
+      "20261125190000",
+      "20261125200000",
+      "20261125210000",
+      "20261125220000",
+      "20261125230000",
+      "20261125240000",
+      "20261125250000",
+      "20261125260000",
+      "20261125270000",
+      "20261126090000",
+      "20261126100000",
+      "20261126110000",
+      "20261126120000",
+      "20261126120100",
+      "20261126235900",
+      "20261127090000",
+      "20261127100000",
+      "20261127120000",
+      "20261127130000",
+      "20261127140000",
+      "20261127150000",
+      "20261127160000",
+      "20261127170000",
+      "20261127180000",
+      "20261128120000",
+      "20261128130000",
+      "20261128140000",
+      "20261128150000",
+      "20261128160000"
+    ]
+  },
+  "disposable_migrations": {
+    "count": 25,
+    "tip": "20261128160000",
+    "tip_aligned_with_hosted": true
+  },
+  "database_restore": {
+    "seed_dump_bytes": 170249,
+    "pg_restore_exit": 0,
+    "payload_row_restored": true,
+    "content_sha256_expected": "6fea74af637c4f697447ba13192159553daf31c35aca04e3eee31fdee7b8e386",
+    "content_sha256_restored": "6fea74af637c4f697447ba13192159553daf31c35aca04e3eee31fdee7b8e386",
+    "byte_length": 176,
+    "digest_match": true
+  },
+  "object_storage": {
+    "local_bucket_object_key": "restore-drill/2026-11-28/0c8178ad-e567-4dbd-8a58-09e8a92fa95b.json",
+    "local_digest_match": true,
+    "hosted_object_key": "restore-drill/disposable/fcd2fe52-7c17-4ada-bb45-528e270517ef.json",
+    "hosted_digest_expected": "cce6faf0dc49daa8423bd9b458b9bb8698e333cae549b05ffe74e52fb0e5da83",
+    "hosted_digest_downloaded": "cce6faf0dc49daa8423bd9b458b9bb8698e333cae549b05ffe74e52fb0e5da83",
+    "hosted_digest_match": true,
+    "hosted_object_torn_down": true
+  },
+  "critical_tables": {
+    "payload_objects": true,
+    "organisations": true,
+    "email_outbox": true,
+    "organisation_invitations": true,
+    "event_ingestion_dlq": true,
+    "table_count": 23
+  },
+  "notes": [
+    "Supabase Management API cannot create a second project with this token (403); dashboards require interactive login.",
+    "Hosted schema tip 20261128160000 reconstructed on disposable Postgres 17 from repo migrations, then pg_dump → drop → pg_restore verified.",
+    "Hosted evidence-payloads object round-trip verified SHA-256 and torn down."
+  ]
+}

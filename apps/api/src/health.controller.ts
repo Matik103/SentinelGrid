@@ -57,7 +57,12 @@ export class HealthController {
         email_resend_configured: emailSecretsConfigured,
         payload_bucket: this.payloads.getConfiguredBucketStatus(),
         workspace_branding_bucket: this.payloads.getWorkspaceBrandingBucketStatus(),
-        build_sha: process.env.GIT_SHA ?? process.env.GITHUB_SHA ?? null,
+        // Prefer explicit GIT_SHA; Render also injects RENDER_GIT_COMMIT on each deploy.
+        build_sha:
+          process.env.GIT_SHA ||
+          process.env.RENDER_GIT_COMMIT ||
+          process.env.GITHUB_SHA ||
+          null,
       },
     };
   }

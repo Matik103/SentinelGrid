@@ -15,8 +15,10 @@ RUN npm run build -w @sentinelgrid/shared && npm run build -w @sentinelgrid/api
 FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
+# Render injects RENDER_GIT_COMMIT at build/runtime; allow explicit GIT_SHA override.
 ARG GIT_SHA=
-ENV GIT_SHA=$GIT_SHA
+ARG RENDER_GIT_COMMIT=
+ENV GIT_SHA=${GIT_SHA:-${RENDER_GIT_COMMIT}}
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/

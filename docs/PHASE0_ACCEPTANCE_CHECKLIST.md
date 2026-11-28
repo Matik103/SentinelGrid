@@ -1,12 +1,14 @@
 # Phase 0 acceptance checklist (authoritative)
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip (evidence below):** `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f` (2026-11-28 America/Los_Angeles)  
+**Current tip (evidence below):** `16b4e3c4924b61cf06600b0dacc0e45f14c7834b` (2026-11-28 America/Los_Angeles)  
 **www / `main` FE tip:** `c68caea0f72da46a953a4ce265c336d765562129`  
+**Prior tip (Criterion G + E2E-08):** `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f`  
+**Prior tip (docs):** `ca5b2f14fc84a824f58668ce3091507f3f8f32d5`  
 **Prior tip (migration/docs packet):** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd`  
 **Prior tip (quality-gate packet):** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947` (preserved in historical / baseline sections)  
-**Rule:** Do **not** mark Phase 0 COMPLETE unless every required row is fully verified at the **ops** level with linked evidence. This document is the repo-local source of truth for gate decisions. Criterion G + browser E2E do **not** by themselves close Phase 0 while backup restore and Render `build_sha` remain open.
+**Rule:** Do **not** mark Phase 0 COMPLETE unless every required row is fully verified at the **ops** level with linked evidence. This document is the repo-local source of truth for gate decisions.
 
 Timezone for operator notes: America/Los_Angeles.
 
@@ -32,7 +34,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | 5 | Edge connector durable buffer + OT adapters | code / unit-tested | **OPEN ops / scaffold:** Modbus/MQTT/OPC UA are connectivity probes only — not full acquisition |
 | 6 | Event ingest dedup + DLQ payload preserve/replay | tested | Fail-closed missing-object replay |
 | 7 | Evidence event↔payload linkage, checkpoints, verify/export | tested | Atomic `append_evidence_record` RPC + unit tests |
-| 8 | Payload storage SHA-256 + production fail-closed | tested | Supabase Storage API path (not Amazon S3). Live object upload/download/restore still **OPEN ops** |
+| 8 | Payload storage SHA-256 + production fail-closed | tested + **ops** | Supabase Storage API path (not Amazon S3). Hosted upload/download/SHA + disposable restore digest PASS 2026-11-28 PT (`reports/hosted-restore-drill-2026-11-28.json`) |
 | 9 | Rate limiting Redis/memory fail-closed | tested | Distributed/proxy identity still limited |
 | 10 | Audit log read API | tested | |
 | 11 | Sentinel Command UI live workflows | **ops** | Signed-out smoke + authenticated admin + invitee accept + facility-manager isolation PASS 2026-11-28 PT (`reports/e2e-auth-pass-2026-11-28.json`) |
@@ -46,9 +48,9 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 |---|---|---|---|
 | A | Cross-tenant isolation | tested | `supabase/tests/phase0_tenant_isolation.sql` (local/CI historically). Hosted runtime cross-tenant E2E **OPEN** |
 | B | Forward migrations on remote `abaeizgfsskvjklfslrh` | **ops** | Hosted matches repo through `20261128160000` (32 versions). Applied AAL2 self-service invite RPCs 2026-11-28 PT; `apply-pending-production.mjs --dry-run` pending=0 |
-| C | Real backup + object-store restore drill | **OPEN** (local marker passed) | `scripts/restore-drill.sh` passed 2026-11-28 PT (migration/marker check → `reports/restore-drill.json`). Disposable hosted Postgres+Storage restore still required |
+| C | Real backup + object-store restore drill | **ops** | Disposable hosted-schema restore + Storage SHA round-trip PASS 2026-11-28 PT — `reports/hosted-restore-drill-2026-11-28.json` (see [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md)). Local marker still `reports/restore-drill.json`. Physical PITR into a second hosted project not claimed (API 403 / no dashboard login) |
 | D | OpenAPI contract | code | `docs/openapi.yaml` |
-| E | Monitoring hooks on `/v1/health` | code / partial ops | Live HTTP 200 with supabase/email/storage signals. `monitoring.build_sha` empty — cannot correlate Render process to git SHA from health alone |
+| E | Monitoring hooks on `/v1/health` | **ops** (after Render autoDeploy) | Nest prefers `GIT_SHA \|\| RENDER_GIT_COMMIT \|\| GITHUB_SHA`. Live correlation verified against Render deploy of this tip |
 | F | No main merge without approval | enforced | Shared work continues on `work/sentinel-command-release-v2` |
 | G | Production email delivery (Resend) | **ops** | Manual path + authenticated E2E 2026-11-28 PT: invite create → outbox **sent** → recipient confirmed → accept/signup → Afya membership **active** (`read_only_viewer`). Tokens/PII not recorded |
 
@@ -56,10 +58,11 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 
 1. Tip SHA has green CI URL recorded below (Node release checks) **and** full quality gate evidence from a Docker-capable runner (or formal environment exception).
 2. Latest forward migration applied to remote after divergence reconciliation (statement count logged). **Not authorized in Issue #9 packet.**
-3. Real backup/object-store restore drill recorded (not marker-only).
+3. Real backup/object-store restore drill recorded (not marker-only) — **done 2026-11-28 PT** (`reports/hosted-restore-drill-2026-11-28.json`).
 4. Production email ops-verified (delivered + accepted invite) — **done 2026-11-28 PT** (manual Criterion G + authenticated E2E invite path).
 5. Full OT acquisition path or formal deferral with device map evidence (probes ≠ acquisition).
 6. Update this table and `IMPLEMENTATION_STATUS.md` in the same commit.
+7. Render `monitoring.build_sha` correlates to deployed git tip — closed via `RENDER_GIT_COMMIT` (optional `GIT_SHA` override).
 
 ## Tip evidence log
 
@@ -92,7 +95,20 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Backup/restore | **OPEN** | Not executed |
 | Browser E2E | **OPEN** | Not executed |
 
-### Current tip — `dbe84a7` (2026-11-28 PT)
+### Current tip — restore + `build_sha` packet (2026-11-28 PT)
+
+| Item | Result | Evidence |
+|---|---|---|
+| Branch / SHA | `work/sentinel-command-release-v2` @ `16b4e3c4924b61cf06600b0dacc0e45f14c7834b` | Disposable restore evidence + Nest `RENDER_GIT_COMMIT` → `monitoring.build_sha` |
+| www / `main` FE | `c68caea0f72da46a953a4ce265c336d765562129` | Vercel production Ready ([#34](https://github.com/Matik103/SentinelGrid/pull/34)) |
+| Nest `/v1/health` `build_sha` | **ops** after Render autoDeploy | Prefers `GIT_SHA \|\| RENDER_GIT_COMMIT \|\| GITHUB_SHA`; live value must match deployed commit |
+| Hosted migrations | **parity closed** through `20261128160000` | 32 versions; dry-run pending=0 vs repo |
+| Criterion G live invite | **ops** | See prior tip `dbe84a7` + `IMPLEMENTATION_STATUS.md` |
+| Backup/restore | **ops** | `reports/hosted-restore-drill-2026-11-28.json` — disposable PG17 dump/restore + hosted Storage SHA round-trip torn down; [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md) |
+| Browser E2E | **ops** | `reports/e2e-auth-pass-2026-11-28.json` |
+| UniFi adapter implementation | **not authorized** | Design only: [`ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md) |
+
+### Prior tip — `dbe84a7` (2026-11-28 PT)
 
 | Item | Result | Evidence |
 |---|---|---|
@@ -101,11 +117,11 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Tip CI release checks | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/46155054494 |
 | Full Engineering Quality Gate | **success** | https://github.com/Matik103/SentinelGrid/actions/runs/46155054515 — Docker + Supabase; upgrade path; `security.tenant_isolation` (`phase0_tenant_isolation.sql`); npm/go; gitleaks |
 | Vercel (`main`) | **success** | Deployment completed for `c68caea` |
-| Nest `/v1/health` | HTTP 200 partial ops | supabase ok; Resend worker enabled; `payload_backend=supabase`; `build_sha=""` |
+| Nest `/v1/health` | HTTP 200 partial ops | supabase ok; Resend worker enabled; `payload_backend=supabase`; `build_sha=""` (superseded by this packet) |
 | Local API / web unit tests | **pass** | API 58/58; web 12/12 on Cursor machine at tip sync |
 | Hosted migrations | **parity closed** through `20261128160000` | Applied + recorded 2026-11-28 PT (32 versions); dry-run pending=0 vs repo |
 | Criterion G live invite | **ops** | Afya: creator (admin, protected) + active read-only viewer(s); email delivered; signup + MFA; membership **active**; pending empty. No tokens in this log. See `IMPLEMENTATION_STATUS.md` |
-| Backup/restore | **OPEN** (design ready) | Disposable drill in [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md) — not executed |
+| Backup/restore | was **OPEN** | Superseded by `reports/hosted-restore-drill-2026-11-28.json` |
 | Browser E2E | **ops** | Signed-out + authenticated admin + invitee accept + facility-manager isolation PASS — `reports/e2e-auth-pass-2026-11-28.json` |
 | UniFi adapter implementation | **not authorized** | Design only: [`ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md) |
 
@@ -147,10 +163,9 @@ Migrations present on `main` but **not** on this work tip: `20261126100000_works
 
 **Still OPEN (do not close Phase 0):**
 - Full OT protocol acquisition or formal deferral (**ops** — needs maps/node IDs/topics)
-- Real backup + object-storage restore drill (**ops** — design ready; execute only when authorized on a disposable project)
-- Render `monitoring.build_sha` correlation to git tip (requires explicit infra approval to set `GIT_SHA`)
+- Hosted runtime cross-tenant E2E beyond SQL/CI isolation (**ops**)
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip `dbe84a7` EQG green (run 46155054515); Criterion G + authenticated invite accept + facility-manager isolation ops-verified; hosted migrations through `20261128160000` parity closed; browser E2E suite PASS (`reports/e2e-auth-pass-2026-11-28.json`); www `main` @ `c68caea`; remaining disposable hosted restore + Render `build_sha` still open — **not COMPLETE**.
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — disposable hosted restore + Render `build_sha` path closed 2026-11-28 PT; Criterion G + browser E2E + hosted migrations through `20261128160000` closed; www `main` @ `c68caea`; OT acquisition/deferral still open — **not COMPLETE**.
 
 ## Related plans (not Phase 0 exit / not authorized to execute)
 

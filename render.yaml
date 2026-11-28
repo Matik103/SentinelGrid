@@ -45,6 +45,6 @@ services:
       # Optional: REDIS_URL for multi-instance rate limiting (then RATE_LIMIT_ALLOW_MEMORY can go)
       - key: REDIS_URL
         sync: false
-      # Optional: set in Render to the deployed git SHA for /v1/health monitoring.build_sha
+      # Optional override for /v1/health monitoring.build_sha. If unset, Nest uses RENDER_GIT_COMMIT.
       - key: GIT_SHA
         sync: false

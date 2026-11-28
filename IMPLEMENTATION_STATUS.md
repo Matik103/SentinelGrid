@@ -4,7 +4,7 @@
 **Current tip:** `05138a4daeceac3ebf0171b3a7b98cf9b8c4b9bd` — hosted migration parity through `20261128160000` + Criterion G invite ops evidence; functional invite/role UI tip `6ef1ccf`; www FE on `main` @ `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
 **Prior tip (quality-gate packet):** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
-**Last reviewed:** 2026-11-28 (America/Los_Angeles) — applied hosted `20261128160000`; Criterion G ops-verified; authenticated admin browser E2E PASS; remaining E2E-06/E2E-08 + backup drill / Render `build_sha` still open  
+**Last reviewed:** 2026-11-28 (America/Los_Angeles) — applied hosted `20261128160000`; Criterion G + invitee accept ops-verified; authenticated browser E2E through E2E-06 PASS; remaining E2E-08 + backup drill / Render `build_sha` still open  
 **Overall status:** platform foundation and workbenches are in progress; not production-complete. www production tracks `main`; this branch is the shared implementation tip. Nest API tracks this work tip on Render.
 
 Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencing, dependencies and acceptance criteria. This file is the concise status snapshot. The detailed Phase 0 gate remains in [`docs/PHASE0_ACCEPTANCE_CHECKLIST.md`](docs/PHASE0_ACCEPTANCE_CHECKLIST.md).
@@ -26,7 +26,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 |---|---|---|
 | Auth, tenant bootstrap, RBAC, RLS | Implemented / SQL-tested | Hosted migration verification, full signup/MFA and cross-tenant runtime E2E |
 | TOTP MFA / AAL2 | Implemented in code and preview flow | Hosted rollout and browser E2E |
-| Organisation invitations | Implemented / tested / **ops-verified** | Manual Criterion G path + authenticated E2E invite create/outbox **sent** + recipient confirmed delivery 2026-11-28 PT. E2E-06 invitee accept still open |
+| Organisation invitations | Implemented / tested / **ops-verified** | Criterion G + authenticated E2E 2026-11-28 PT: create → outbox **sent** → delivery confirmed → accept → Afya membership **active** `read_only_viewer` |
 | Infrastructure registry | Implemented / API-tested | Broader real source onboarding; registry is not auto-discovery |
 | Facility/zone/asset hierarchy | Implemented / tested | Real-world mapping and validation for each integration |
 | Connector lifecycle | Implemented / tested | Operational deployment and supported source integrations |
@@ -34,7 +34,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | Evidence chain/checkpoints | Implemented / tested | Production restore, retention and operational verification |
 | Payload storage | Implemented / tested (Supabase Storage API) | Live object upload/download/restore; hosted migration for bucket/RLS/backend label unverified. Not Amazon S3 |
 | Audit log | Implemented / tested | Production monitoring and retention verification |
-| Sentinel Command workbenches | Implemented UI/API surfaces | Signed-out smoke + authenticated admin shell PASS 2026-11-28 PT (`reports/e2e-auth-pass-2026-11-28.json`). E2E-06/E2E-08 still open |
+| Sentinel Command workbenches | Implemented UI/API surfaces | Signed-out smoke + authenticated admin + invitee Overview PASS 2026-11-28 PT (`reports/e2e-auth-pass-2026-11-28.json`). E2E-08 still open |
 | Topology / failure scenario lab | Implemented | Registry-based, non-actuating what-if only; not a physical digital twin or engineering-grade simulation |
 | Asset metadata and private media | Schema/API/UI foundation present | Hosted migration divergence with `main` branding/media migrations; full edit/upload lifecycle ops |
 | Energy measurement schema/API | Implemented | Live hardware acquisition and end-to-end verification |
@@ -66,7 +66,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | Local `npm test -w @sentinelgrid/web` | 12/12 pass |
 | Hosted migrations (`abaeizgfsskvjklfslrh`) | **Parity closed** through `20261128160000` (32 versions). Applied 2026-11-28 PT via Management API; dry-run pending=0 vs repo |
 | Criterion G live invite | **ops (manual)** — see below |
-| Browser E2E | **ops (partial suite)** — signed-out smoke + authenticated admin PASS 2026-11-28 PT (`reports/e2e-auth-pass-2026-11-28.json`); invite to test mailbox outbox **sent**. E2E-06 accept + E2E-08 isolation still open. Plan: [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md) |
+| Browser E2E | **ops (partial suite)** — signed-out + authenticated admin + invitee accept PASS 2026-11-28 PT (`reports/e2e-auth-pass-2026-11-28.json`). E2E-08 facility-manager isolation still open. Plan: [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md) |
 | Restore drill (local marker) | **passed marker** — `scripts/restore-drill.sh` → `reports/restore-drill.json` (migrations/markers). Disposable hosted restore still **OPEN** |
 
 #### Criterion G — manual invite ops evidence (2026-11-28 PT)
@@ -122,7 +122,7 @@ Operator-verified on production www against Nest on the shared work tip. **No in
 3. **Email / Criterion G:** **manual ops path closed** 2026-11-28 PT (delivery + accept + MFA + membership). Automated mailbox/Playwright invite E2E still open.
 4. **Backup/recovery:** disposable drill design in [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md). Execute only when authorized on a non-production project.
 5. **Energy/OT acquisition:** probes are not measurements. Provide real register maps, MQTT topics, OPC UA node IDs and fixtures before claiming live telemetry.
-6. **Frontend acceptance:** signed-out + authenticated admin E2E closed 2026-11-28 PT; remaining E2E-06 invitee accept and E2E-08 facility-manager isolation — [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md).
+6. **Frontend acceptance:** signed-out + authenticated admin + invitee accept closed 2026-11-28 PT; remaining E2E-08 facility-manager isolation — [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md).
 7. **Production FE branch:** www ships from `main` while Nest ships from this work branch — treat as split-brain until an explicit cutover decision.
 8. **Full quality gate:** **green on tip `6ef1ccf`** via `.github/workflows/audit.yml` (run 46149277028). Cursor local Docker/Supabase CLI remains unavailable; rely on CI for DB regression.
 

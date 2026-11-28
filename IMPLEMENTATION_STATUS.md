@@ -1,12 +1,11 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `6d2f6825771ddbd3c7ae682bc90a5227d5b44ed5` — leftovers on www (`main` @ `65687cc` / `index-BIxTJfuC.js`); hosted migrations through `20261127160000`  
-**Prior tip (leftovers code):** `e3fc54218e3f7d827e424b5fa220ffcfe0ee36b2`  
-**Stale tip previously recorded in docs:** `b094207b91b5889cdc8376a853412e015c71cc80`  
+**Current tip:** `6ef1ccf270485e28725de744ad87498190e71201` — invite lifecycle + role-gated People/shell UI; www FE on `main` @ `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
+**Prior tip (quality-gate packet):** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
-**Last reviewed:** 2026-11-27 (America/Los_Angeles) — applied `20261127160000` AAL2 branding storage policy on hosted project  
-**Overall status:** platform foundation and workbenches are in progress; not production-complete. www production tracks `main`; this branch is the shared implementation tip.
+**Last reviewed:** 2026-11-28 (America/Los_Angeles) — Criterion G live invite ops-verified (manual); DB regression via Engineering Quality Gate CI; browser E2E suite still open  
+**Overall status:** platform foundation and workbenches are in progress; not production-complete. www production tracks `main`; this branch is the shared implementation tip. Nest API tracks this work tip on Render.
 
 Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencing, dependencies and acceptance criteria. This file is the concise status snapshot. The detailed Phase 0 gate remains in [`docs/PHASE0_ACCEPTANCE_CHECKLIST.md`](docs/PHASE0_ACCEPTANCE_CHECKLIST.md).
 
@@ -27,7 +26,7 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 |---|---|---|
 | Auth, tenant bootstrap, RBAC, RLS | Implemented / SQL-tested | Hosted migration verification, full signup/MFA and cross-tenant runtime E2E |
 | TOTP MFA / AAL2 | Implemented in code and preview flow | Hosted rollout and browser E2E |
-| Organisation invitations | Implemented / tested | Invite link format aligned to `/?invite=` on tip `17b4af6`. Real Resend **delivery + acceptance** still open |
+| Organisation invitations | Implemented / tested / **ops-verified (manual invite path)** | Resend delivery + signup/MFA/membership activation verified 2026-11-28 PT on Afya (see tip log). Full Playwright browser E2E suite still open |
 | Infrastructure registry | Implemented / API-tested | Broader real source onboarding; registry is not auto-discovery |
 | Facility/zone/asset hierarchy | Implemented / tested | Real-world mapping and validation for each integration |
 | Connector lifecycle | Implemented / tested | Operational deployment and supported source integrations |
@@ -51,6 +50,39 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 | Controlled mitigation | Deferred until detection is reliable | Approval, policy, safety, rollback and audit controls required |
 
 ## Tip verification snapshots
+
+### Current tip — `6ef1ccf` (2026-11-28 America/Los_Angeles)
+
+| Check | Result |
+|---|---|
+| Shared work HEAD = origin | `6ef1ccf270485e28725de744ad87498190e71201` |
+| www / `main` FE tip | `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59` (Vercel production source) |
+| GitHub Actions release checks (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46149277052 |
+| Engineering Quality Gate (work tip) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46149277028 (includes Docker Supabase upgrade path + `phase0_tenant_isolation.sql`) |
+| Engineering Quality Gate (`main`) | **success** — https://github.com/Matik103/SentinelGrid/actions/runs/46149279913 |
+| Vercel (`main` / www) | **success** — deployment completed for `43ae599` (2026-11-28T13:22:30Z) |
+| Nest `/v1/health` | HTTP 200; supabase ok; Resend worker enabled; `payload_backend=supabase`; `build_sha` still empty |
+| Local `npm test -w @sentinelgrid/api` | 57/57 pass (Cursor machine, tip sync) |
+| Local `npm test -w @sentinelgrid/web` | 12/12 pass |
+| Hosted migrations (`abaeizgfsskvjklfslrh`) | Recorded through `20261128150000` (31 versions). Repo tip also contains `20261128160000` (AAL2 self-service invites) — **not yet recorded on host** |
+| Criterion G live invite | **ops (manual)** — see below |
+| Browser E2E (Playwright plan) | **OPEN** — [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md); manual invite path is not a substitute for the full suite |
+
+#### Criterion G — manual invite ops evidence (2026-11-28 PT)
+
+Operator-verified on production www against Nest on the shared work tip. **No invitation tokens or personal mailbox addresses are recorded here.**
+
+| Step | Result |
+|---|---|
+| Workspace | Afya (existing tenant) |
+| Inviter | Workspace creator / organisation administrator |
+| Invitee role selected | Read-only viewer |
+| Email delivery | Invite email received (Resend outbox → mailbox) |
+| Account setup | Invitee created account, completed email confirmation |
+| MFA | Invitee completed authenticator enrollment / verification |
+| Membership | Invitee appears as **active** read-only viewer on People & access; pending invitations empty |
+| Role respect | Viewer lacks `user.manage`; People page no longer surfaces Nest 403 JSON for that role (FE gate on tip) |
+| Classification | **User-verified functional evidence** for Criterion G invite path — **not** a complete Phase 0 acceptance gate |
 
 ### Prior Issue #9 baseline — `17b4af6`
 
@@ -84,14 +116,14 @@ Use [`ROADMAP.md`](ROADMAP.md) for the consolidated product direction, sequencin
 
 ## Operational blockers
 
-1. **Hosted Supabase migrations:** **ops applied** 2026-11-27 PT on `abaeizgfsskvjklfslrh` through `20261127160000` (pending=0 vs work tip). Includes restrictive AAL2 policy on `workspace-branding` storage. Plan history: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md).
+1. **Hosted Supabase migrations:** recorded through `20261128150000` on `abaeizgfsskvjklfslrh` (2026-11-28 PT check). Tip also has `20261128160000` not yet recorded on host — reconcile before claiming migration parity. Plan history: [`docs/MIGRATION_RECONCILIATION_PLAN.md`](docs/MIGRATION_RECONCILIATION_PLAN.md).
 2. **Backend deploy SHA correlation:** Render health is green but `monitoring.build_sha` is empty. Set `GIT_SHA` on Render only with explicit infra approval.
-3. **Email:** configuration readiness observed; delivered invite + accept path ops proof still required for Criterion G.
+3. **Email / Criterion G:** **manual ops path closed** 2026-11-28 PT (delivery + accept + MFA + membership). Automated mailbox/Playwright invite E2E still open.
 4. **Backup/recovery:** disposable drill design in [`docs/BACKUP_RECOVERY.md`](docs/BACKUP_RECOVERY.md). Execute only when authorized on a non-production project.
 5. **Energy/OT acquisition:** probes are not measurements. Provide real register maps, MQTT topics, OPC UA node IDs and fixtures before claiming live telemetry.
-6. **Frontend acceptance:** authenticated browser E2E for signup, MFA, workspace, invitations, registry, energy and evidence remains open — plan in [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md).
-7. **Production FE branch:** www may still ship from `main` while Nest ships from this work branch — treat as split-brain until an explicit cutover decision.
-8. **Full quality gate:** **closed as CI-tested** on tip `b094207` via `audit.yml` on the canonical branch. Cursor local Docker/Supabase CLI remains unavailable; Node release checks alone are still not a substitute for the gate.
+6. **Frontend acceptance:** full authenticated browser E2E suite (registry/energy/evidence/facility isolation, etc.) remains open — plan in [`docs/BROWSER_E2E_PLAN.md`](docs/BROWSER_E2E_PLAN.md). Manual invite path alone does not close Criterion 11.
+7. **Production FE branch:** www ships from `main` while Nest ships from this work branch — treat as split-brain until an explicit cutover decision.
+8. **Full quality gate:** **green on tip `6ef1ccf`** via `.github/workflows/audit.yml` (run 46149277028). Cursor local Docker/Supabase CLI remains unavailable; rely on CI for DB regression.
 
 ## Acquisition capability boundaries (architectural)
 

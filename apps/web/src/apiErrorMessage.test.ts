@@ -3,10 +3,10 @@ import { describe, it } from "node:test";
 import { formatApiErrorMessage } from "./apiErrors.ts";
 
 describe("formatApiErrorMessage", () => {
-  it("extracts Nest JSON message bodies", () => {
+  it("extracts Nest JSON message bodies and softens missing-permission copy", () => {
     assert.equal(
       formatApiErrorMessage('{"message":"Missing permission: user.manage","error":"Forbidden","statusCode":403}'),
-      "Missing permission: user.manage",
+      "Your role cannot perform this action (user.manage). Ask a workspace administrator if you need access.",
     );
   });
 

@@ -49,13 +49,19 @@ function StatusBanner({ error }: { error?: string | null }) {
   return <div className="inline-notice warning">{error}</div>;
 }
 
-function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
+function useOrgResource<T>(pathBuilder: (orgId: string) => string, enabled = true) {
   const [rows, setRows] = useState<T[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const orgId = organisationId();
 
   const reload = async () => {
+    if (!enabled) {
+      setRows([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     if (!apiConfigured()) {
@@ -76,7 +82,7 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
     }
     const res = await apiGet<T[]>(pathBuilder(org));
     if (res.error) {
-      setError(`${res.error.status}: ${res.error.message}`);
+      setError(formatApiErrorMessage(res.error.message));
       setRows([]);
     } else {
       setRows(res.data ?? []);
@@ -86,7 +92,7 @@ function useOrgResource<T>(pathBuilder: (orgId: string) => string) {
 
   useEffect(() => {
     void reload();
-  }, [orgId]);
+  }, [orgId, enabled]);
 
   return { rows, error, loading, reload, orgId };
 }
@@ -168,6 +174,7 @@ function Overview() {
   const [events, setEvents] = useState<OverviewEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [canWriteFacilities, setCanWriteFacilities] = useState(false);
   const org = organisationId();
   const [workspaceLogoUrl, setWorkspaceLogoUrl] = useState<string | null | undefined>(() =>
     organisationId() ? peekCachedWorkspaceLogo(organisationId()!) : null,
@@ -181,8 +188,10 @@ function Overview() {
       if (cached !== undefined) setWorkspaceLogoUrl(cached);
       else setWorkspaceLogoUrl(undefined);
       void getWorkspaceBranding(org).then((branding) => { if (active) setWorkspaceLogoUrl(branding.logoUrl); }).catch(() => { if (active) setWorkspaceLogoUrl(null); });
+      void hasOrgPermission(org, "facility.write").then((allowed) => { if (active) setCanWriteFacilities(allowed); }).catch(() => { if (active) setCanWriteFacilities(false); });
     } else {
       setWorkspaceLogoUrl(null);
+      setCanWriteFacilities(false);
     }
     void healthCheck().then((value) => { if (active) setHealth(value); }).catch(() => { if (active) setHealth("Unavailable"); });
     if (!apiConfigured() || !org || !authToken()) {
@@ -273,7 +282,7 @@ function Overview() {
               <div className="facility-details"><strong>{facility.name}</strong><span>{facility.code || "Facility registry"} · {facility.status || "Status not reported"}</span></div>
               <span className="facility-arrow">↗</span>
             </article>)}
-          </div> : <div className="command-empty"><strong>No facilities registered yet</strong><span>Create your first facility to begin mapping its infrastructure.</span><NavLink to="/facilities">Register a facility ↗</NavLink></div>}
+          </div> : <div className="command-empty"><strong>No facilities registered yet</strong><span>{canWriteFacilities ? "Create your first facility to begin mapping its infrastructure." : "No facilities are registered for this workspace yet."}</span>{canWriteFacilities ? <NavLink to="/facilities">Register a facility ↗</NavLink> : <NavLink to="/facilities">View facilities ↗</NavLink>}</div>}
         </section>
 
         <section className="command-panel activity-panel">
@@ -475,7 +484,7 @@ function OrganisationPanel({
       const detail = formatApiErrorMessage(res.error.message);
       if (/organisation_invitations_pending_email_uq|duplicate key|already has a pending invitation/i.test(detail)) {
         setMsg("That email already has a pending invitation. Revoke it from the list above, then send again.");
-      } else if (/Missing permission:\s*user\.manage/i.test(detail)) {
+      } else if (/user\.manage/i.test(detail)) {
         setMsg("Your role cannot send invitations. Ask a workspace administrator.");
       } else {
         setMsg(`Invite failed: ${detail}`);
@@ -515,7 +524,7 @@ function OrganisationPanel({
     setMemberBusyId(null);
     if (res.error) {
       const detail = formatApiErrorMessage(res.error.message);
-      setMsg(/Missing permission:\s*user\.manage/i.test(detail)
+      setMsg(/user\.manage/i.test(detail)
         ? "Your role cannot remove members. Ask a workspace administrator."
         : detail);
       return;
@@ -647,6 +656,8 @@ function ResourcePage({
   path,
   columns,
   create,
+  writePermission,
+  readPermission,
 }: {
   title: string;
   lead: string;
@@ -657,13 +668,50 @@ function ResourcePage({
     build: (org: string, form: FormData) => { path: string; body: unknown } | null;
     fields: ReactNode;
   };
+  /** When set, create form is shown only if the caller has this permission. */
+  writePermission?: string;
+  /** When set, skip the list fetch and show a role notice if the caller lacks it. */
+  readPermission?: string;
 }) {
-  const { rows, error, loading, reload, orgId } = useOrgResource<Record<string, unknown>>(path);
+  const orgId = organisationId();
+  const [canWrite, setCanWrite] = useState(!writePermission);
+  const [canRead, setCanRead] = useState(!readPermission);
+  const [capabilityReady, setCapabilityReady] = useState(!(writePermission || readPermission));
+  const listEnabled = capabilityReady && canRead;
+  const { rows, error, loading, reload } = useOrgResource<Record<string, unknown>>(path, listEnabled);
   const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!orgId || !authToken() || (!writePermission && !readPermission)) {
+      setCanWrite(!writePermission);
+      setCanRead(!readPermission);
+      setCapabilityReady(true);
+      return;
+    }
+    setCapabilityReady(false);
+    void Promise.all([
+      writePermission ? hasOrgPermission(orgId, writePermission) : Promise.resolve(true),
+      readPermission ? hasOrgPermission(orgId, readPermission) : Promise.resolve(true),
+    ]).then(([writeOk, readOk]) => {
+      if (cancelled) return;
+      setCanWrite(writeOk);
+      setCanRead(readOk);
+      setCapabilityReady(true);
+    }).catch(() => {
+      if (cancelled) return;
+      setCanWrite(false);
+      setCanRead(!readPermission);
+      setCapabilityReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, writePermission, readPermission]);
 
   async function onCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!orgId || !create) return;
+    if (!orgId || !create || !canWrite) return;
     const form = new FormData(e.currentTarget);
     const built = create.build(orgId, form);
     if (!built) {
@@ -671,7 +719,7 @@ function ResourcePage({
       return;
     }
     const res = await apiPost(built.path, built.body);
-    if (res.error) setMsg(res.error.message);
+    if (res.error) setMsg(formatApiErrorMessage(res.error.message));
     else {
       setMsg("Created");
       e.currentTarget.reset();
@@ -679,17 +727,28 @@ function ResourcePage({
     }
   }
 
+  if (capabilityReady && readPermission && !canRead) {
+    return (
+      <Page title={title} lead={lead}>
+        <p className="page-lead">Your role cannot view {title.toLowerCase()}. Ask a workspace administrator if you need access.</p>
+      </Page>
+    );
+  }
+
   return (
     <Page title={title} lead={lead}>
       <StatusBanner error={error} />
-      {loading ? <p className="page-lead">Loading…</p> : <DataTable columns={columns} rows={rows} emptyLabel={`No ${title.toLowerCase()} recorded for this workspace yet.`} />}
-      {create && orgId && (
+      {loading || !capabilityReady ? <p className="page-lead">Loading…</p> : <DataTable columns={columns} rows={rows} emptyLabel={`No ${title.toLowerCase()} recorded for this workspace yet.`} />}
+      {create && orgId && capabilityReady && canWrite && (
         <form className="inline-form" onSubmit={onCreate}>
           {create.fields}
           <button type="submit" className="btn">
             {create.label}
           </button>
         </form>
+      )}
+      {create && orgId && capabilityReady && !canWrite && (
+        <p className="page-lead">Your role can review this list but cannot create or change records here.</p>
       )}
       {msg && <p className="page-lead">{msg}</p>}
     </Page>
@@ -701,6 +760,7 @@ export function App() {
   const [activeOrganisationName, setActiveOrganisationName] = useState("Workspace");
   const [authRefreshKey, setAuthRefreshKey] = useState(0);
   const [authReady, setAuthReady] = useState(false);
+  const [canReadAudit, setCanReadAudit] = useState(false);
   const [workspaceGate, setWorkspaceGate] = useState<"checking" | "mfa" | "required" | "ready" | "error">("checking");
   const [gateMessage, setGateMessage] = useState<string | null>(null);
   const [gateStage, setGateStage] = useState<string | null>(null);
@@ -1004,6 +1064,18 @@ export function App() {
     void refreshWorkspaceState({ force: true, assumedAal2: opts?.assumedAal2 });
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeOrganisationId || !authToken() || workspaceGate !== "ready") {
+      setCanReadAudit(false);
+      return;
+    }
+    void hasOrgPermission(activeOrganisationId, "audit.read")
+      .then((allowed) => { if (!cancelled) setCanReadAudit(allowed); })
+      .catch(() => { if (!cancelled) setCanReadAudit(false); });
+    return () => { cancelled = true; };
+  }, [activeOrganisationId, workspaceGate, authRefreshKey]);
+
   const selectOrganisation = (id: string | null, name: string) => {
     if (id !== activeOrganisationId) setOrganisationId(id);
     setActiveOrganisationId(id);
@@ -1072,12 +1144,16 @@ export function App() {
         </div>
         <WorkspaceSwitcher activeOrganisationId={activeOrganisationId} onSelect={selectOrganisation} refreshKey={authRefreshKey} />
         <nav className="nav" aria-label="Primary">
-          {NAV_GROUPS.map((group) => <div className="nav-group" key={group.section}>
-            <div className="nav-section-label">{group.section}</div>
-            {group.items.map((item) => <NavLink key={item.to} to={item.to} end={item.to === "/"} className={({ isActive }) => isActive ? "active" : undefined}>
-              <span className="nav-glyph" aria-hidden="true">{item.glyph}</span><span>{item.label}</span>
-            </NavLink>)}
-          </div>)}
+          {NAV_GROUPS.map((group) => {
+            const items = group.items.filter((item) => item.to !== "/audit" || canReadAudit);
+            if (!items.length) return null;
+            return <div className="nav-group" key={group.section}>
+              <div className="nav-section-label">{group.section}</div>
+              {items.map((item) => <NavLink key={item.to} to={item.to} end={item.to === "/"} className={({ isActive }) => isActive ? "active" : undefined}>
+                <span className="nav-glyph" aria-hidden="true">{item.glyph}</span><span>{item.label}</span>
+              </NavLink>)}
+            </div>;
+          })}
         </nav>
       </aside>
       <main className="main">
@@ -1118,6 +1194,7 @@ export function App() {
                   { key: "status", label: "Status" },
                   { key: "created_at", label: "Created" },
                 ]}
+                writePermission="facility.write"
                 create={{
                   label: "Create facility",
                   fields: (
@@ -1150,6 +1227,7 @@ export function App() {
                   { key: "code", label: "Code" },
                   { key: "status", label: "Status" },
                 ]}
+                writePermission="facility.write"
                 create={{
                   label: "Create zone",
                   fields: (
@@ -1187,6 +1265,7 @@ export function App() {
                   { key: "asset_id", label: "Asset" },
                   { key: "status", label: "Status" },
                 ]}
+                writePermission="asset.write"
                 create={{
                   label: "Register device",
                   fields: <><input name="facility_id" required placeholder="Facility UUID" /><input name="asset_id" placeholder="Asset UUID (optional)" /><input name="name" required placeholder="Device name" /><select name="category" defaultValue="network"><option value="electrical">Electrical</option><option value="generators">Generator</option><option value="solar">Solar</option><option value="battery">Battery</option><option value="hvac">HVAC</option><option value="refrigeration">Refrigeration</option><option value="pumps_motors">Pumps & motors</option><option value="industrial">Industrial</option><option value="network">Network</option><option value="bms">Building systems</option><option value="data_center">Data centre</option><option value="transformers">Transformers</option><option value="ups">UPS</option><option value="cooling">Cooling plant</option><option value="other">Other</option></select></>,
@@ -1206,6 +1285,7 @@ export function App() {
                   { key: "name", label: "Sensor" }, { key: "sensor_type", label: "Type" }, { key: "unit", label: "Unit" },
                   { key: "facility_id", label: "Facility" }, { key: "asset_id", label: "Asset" }, { key: "device_id", label: "Device" }, { key: "status", label: "Status" },
                 ]}
+                writePermission="asset.write"
                 create={{
                   label: "Register sensor",
                   fields: <><input name="facility_id" required placeholder="Facility UUID" /><input name="asset_id" placeholder="Asset UUID (optional)" /><input name="device_id" placeholder="Device UUID (optional)" /><input name="name" required placeholder="Sensor name" /><input name="sensor_type" required placeholder="Sensor type (e.g. temperature)" /><input name="unit" placeholder="Unit (e.g. °C, kWh)" /></>,
@@ -1219,7 +1299,7 @@ export function App() {
             element={
               <ResourcePage
                 title="Connectors"
-                lead="Register, heartbeat, rotate, and revoke edge connectors."
+                lead="Review edge connectors for this workspace. Registration requires connector.write."
                 path={(org) => `/v1/orgs/${org}/connectors`}
                 columns={[
                   { key: "name", label: "Name" },
@@ -1228,6 +1308,7 @@ export function App() {
                   { key: "credential_status", label: "Credential" },
                   { key: "last_heartbeat_at", label: "Heartbeat" },
                 ]}
+                writePermission="connector.write"
                 create={{
                   label: "Register connector",
                   fields: <input name="name" required placeholder="Connector name" />,
@@ -1286,6 +1367,7 @@ export function App() {
                   { key: "resource_id", label: "ID" },
                   { key: "created_at", label: "When" },
                 ]}
+                readPermission="audit.read"
               />
             }
           />

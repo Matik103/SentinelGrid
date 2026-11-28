@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { addAssetExternalImage, apiGet, apiPatch, apiPost, listAssetMedia, listEnergyMeasurements, organisationId, uploadAssetImage, type AssetMediaRecord, type EnergyMeasurement } from "./api";
+import { addAssetExternalImage, apiGet, apiPatch, apiPost, formatApiErrorMessage, hasOrgPermission, listAssetMedia, listEnergyMeasurements, organisationId, uploadAssetImage, type AssetMediaRecord, type EnergyMeasurement } from "./api";
 
 type Asset = {
   id: string;
@@ -99,15 +99,17 @@ export function AssetRegistryPage() {
   const [verifiedExternal, setVerifiedExternal] = useState(false);
   const [parentAssetId, setParentAssetId] = useState("");
   const [savingRelationship, setSavingRelationship] = useState(false);
+  const [canWriteAssets, setCanWriteAssets] = useState(false);
 
   const load = async () => {
     if (!org) { setError("Select an organisation to load its asset registry."); setLoading(false); return; }
     setLoading(true); setError(null); setMediaWarning(null);
+    void hasOrgPermission(org, "asset.write").then(setCanWriteAssets).catch(() => setCanWriteAssets(false));
     const [assetResult, facilityResult] = await Promise.all([
       apiGet<Asset[]>(`/v1/orgs/${org}/assets`),
       apiGet<Facility[]>(`/v1/orgs/${org}/facilities`),
     ]);
-    if (assetResult.error) setError(assetResult.error.message);
+    if (assetResult.error) setError(formatApiErrorMessage(assetResult.error.message));
     else {
       const next = assetResult.data ?? [];
       setAssets(next);
@@ -115,7 +117,7 @@ export function AssetRegistryPage() {
       setSelectedId((current) => current && next.some((a) => a.id === current) ? current : requestedAsset && next.some((a) => a.id === requestedAsset) ? requestedAsset : next[0]?.id ?? "");
     }
     if (facilityResult.data) setFacilities(facilityResult.data);
-    if (facilityResult.error) setMediaWarning(`Facility list: ${facilityResult.error.message}`);
+    if (facilityResult.error) setMediaWarning(`Facility list: ${formatApiErrorMessage(facilityResult.error.message)}`);
     try {
       const images = await listAssetMedia(org);
       setMedia(images);
@@ -167,7 +169,7 @@ export function AssetRegistryPage() {
     };
     const result = await apiPatch<Asset>(`/v1/orgs/${org}/assets/${selected.id}`, body);
     if (result.error) {
-      setMessage(result.error.message);
+      setMessage(formatApiErrorMessage(result.error.message));
       return;
     }
     setMessage("Asset identity updated.");
@@ -200,7 +202,7 @@ export function AssetRegistryPage() {
       specifications: detail ? { category_detail: detail } : {},
     };
     const result = await apiPost<Asset>(`/v1/orgs/${org}/assets`, body);
-    if (result.error) { setMessage(result.error.message); return; }
+    if (result.error) { setMessage(formatApiErrorMessage(result.error.message)); return; }
     setMessage("Asset registered. Add a real equipment photo to complete its visual profile.");
     setShowCreate(false);
     await load();
@@ -213,7 +215,7 @@ export function AssetRegistryPage() {
     setSavingRelationship(true); setMessage(null);
     try {
       const result = await apiPost(`/v1/orgs/${org}/assets/${selected.id}/parent`, { parent_asset_id: parentAssetId || null });
-      if (result.error) throw new Error(result.error.message);
+      if (result.error) throw new Error(formatApiErrorMessage(result.error.message));
       setMessage("Asset relationship updated. Topology and scenario views now use this explicit link.");
       await load();
     } catch (err) {
@@ -258,9 +260,13 @@ export function AssetRegistryPage() {
         <h1 className="page-title">Asset intelligence</h1>
         <p className="page-lead">A visual record of the equipment your organisation operates, monitors and protects.</p>
       </div>
-      <button className="btn" type="button" onClick={() => { setShowCreate((value) => !value); setMessage(null); }}>
-        {showCreate ? "Close form" : "+ Register asset"}
-      </button>
+      {canWriteAssets ? (
+        <button className="btn" type="button" onClick={() => { setShowCreate((value) => !value); setMessage(null); }}>
+          {showCreate ? "Close form" : "+ Register asset"}
+        </button>
+      ) : (
+        <span className="page-lead">Your role can view assets but cannot register or edit them.</span>
+      )}
     </div>
 
     <div className="registry-summary">
@@ -270,7 +276,7 @@ export function AssetRegistryPage() {
       <div><span>FACILITIES</span><strong>{facilities.length || "—"}</strong></div>
     </div>
 
-    {showCreate && <form className="asset-create-panel" onSubmit={createAsset}>
+    {showCreate && canWriteAssets && <form className="asset-create-panel" onSubmit={createAsset}>
       <div className="section-heading"><div><h2>Register equipment</h2><p>Capture identity, operational criticality and an optional same-facility parent relationship. Parent links are validated by the API.</p></div></div>
       <div className="asset-form-grid">
         <label>Asset name<input name="name" required placeholder="e.g. Main standby generator" /></label>
@@ -329,10 +335,12 @@ export function AssetRegistryPage() {
             <div><span className="eyebrow">{categoryMeta(selected.category).label.toUpperCase()} / ASSET PROFILE</span><h2>{selected.name}</h2><p>{facilityName(selected.facility_id)}{selected.zone_id ? " · Zone assigned" : ""}</p></div>
             <div className="asset-profile-actions">
               <span className={`asset-status ${selected.status === "active" ? "active" : "muted"}`}>{selected.status}</span>
-              <button type="button" className="btn secondary" onClick={() => setShowEdit((v) => !v)}>{showEdit ? "Cancel edit" : "Edit identity"}</button>
+              {canWriteAssets ? (
+                <button type="button" className="btn secondary" onClick={() => setShowEdit((v) => !v)}>{showEdit ? "Cancel edit" : "Edit identity"}</button>
+              ) : null}
             </div>
           </div>
-          {showEdit && <form className="asset-create-panel compact" onSubmit={(e) => void updateAsset(e)}>
+          {showEdit && canWriteAssets && <form className="asset-create-panel compact" onSubmit={(e) => void updateAsset(e)}>
             <div className="asset-form-grid">
               <label>Asset name<input name="name" required defaultValue={selected.name} /></label>
               <label>Manufacturer<input name="manufacturer" defaultValue={selected.manufacturer ?? ""} /></label>
@@ -356,14 +364,22 @@ export function AssetRegistryPage() {
           </div>
           <div className="asset-subsection">
             <div className="subsection-heading"><h3>Infrastructure relationship</h3><span>HIERARCHY / TOPOLOGY</span></div>
-            <label className="relationship-field">Parent asset
-              <select value={parentAssetId} onChange={(event) => setParentAssetId(event.target.value)}>
-                <option value="">No parent / standalone asset</option>
-                {assets.filter((asset) => asset.id !== selected.id && asset.facility_id === selected.facility_id && asset.status !== "archived").map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
-              </select>
-            </label>
-            <p className="profile-empty">Parent relationships are limited to assets in the same facility. Circular relationships are rejected by the API.</p>
-            <button className="btn secondary" type="button" disabled={savingRelationship || parentAssetId === (selected.parent_asset_id ?? "")} onClick={saveParentRelationship}>{savingRelationship ? "Saving relationship…" : "Save relationship"}</button>
+            {canWriteAssets ? (
+              <>
+                <label className="relationship-field">Parent asset
+                  <select value={parentAssetId} onChange={(event) => setParentAssetId(event.target.value)}>
+                    <option value="">No parent / standalone asset</option>
+                    {assets.filter((asset) => asset.id !== selected.id && asset.facility_id === selected.facility_id && asset.status !== "archived").map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+                  </select>
+                </label>
+                <p className="profile-empty">Parent relationships are limited to assets in the same facility. Circular relationships are rejected by the API.</p>
+                <button className="btn secondary" type="button" disabled={savingRelationship || parentAssetId === (selected.parent_asset_id ?? "")} onClick={saveParentRelationship}>{savingRelationship ? "Saving relationship…" : "Save relationship"}</button>
+              </>
+            ) : (
+              <p className="profile-empty">{assets.find((asset) => asset.id === selected.parent_asset_id)?.name
+                ? `Parent: ${assets.find((asset) => asset.id === selected.parent_asset_id)?.name}`
+                : "Standalone asset. Your role cannot change relationships."}</p>
+            )}
           </div>
           <div className="asset-subsection">
             <div className="subsection-heading"><h3>Category specifications</h3><span>NAMEPLATE / TECHNICAL DATA</span></div>
@@ -379,22 +395,28 @@ export function AssetRegistryPage() {
           </div>
           <div className="asset-subsection">
             <div className="subsection-heading"><h3>Equipment photographs</h3><span>{selectedMedia.length} FILES</span></div>
-            <label className="upload-photo-control">
-              <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={onPhotoSelected} disabled={uploading} />
-              <span>{uploading ? "Uploading image…" : "＋ Add equipment photograph"}</span>
-            </label>
-            <label className="verification-check"><input type="checkbox" checked={verifiedPhoto} onChange={(event) => setVerifiedPhoto(event.target.checked)} /> I confirm this photograph shows this exact asset.</label>
-            <form className="external-image-form" onSubmit={onExternalImage}>
-              <label>Manufacturer / catalogue image URL<input type="url" required value={externalUrl} onChange={(event) => setExternalUrl(event.target.value)} placeholder="https://manufacturer.example/product.jpg" /></label>
-              <div className="external-image-fields">
-                <label>Image source<select value={externalSource} onChange={(event) => setExternalSource(event.target.value as "manufacturer_catalogue" | "representative")}><option value="manufacturer_catalogue">Manufacturer catalogue</option><option value="representative">Representative reference</option></select></label>
-                <label>Model / product reference<input value={manufacturerReference} onChange={(event) => setManufacturerReference(event.target.value)} placeholder={selected.manufacturer && selected.model ? `${selected.manufacturer} ${selected.model}` : "Exact model reference"} /></label>
-              </div>
-              <label>Attribution / source page<input value={externalAttribution} onChange={(event) => setExternalAttribution(event.target.value)} placeholder="Manufacturer product page or image credit" /></label>
-              <label className="verification-check"><input type="checkbox" checked={verifiedExternal} onChange={(event) => setVerifiedExternal(event.target.checked)} /> I verified this image matches the exact make and model.</label>
-              <button className="btn secondary" type="submit" disabled={uploading}>{uploading ? "Saving…" : "Save image reference"}</button>
-            </form>
-            <div className="media-provenance-note">Manufacturer catalogue and representative images keep their provenance. Only mark an image as an exact match after checking the same model/reference. The customer’s actual equipment photo remains the preferred source.</div>
+            {canWriteAssets ? (
+              <>
+                <label className="upload-photo-control">
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={onPhotoSelected} disabled={uploading} />
+                  <span>{uploading ? "Uploading image…" : "＋ Add equipment photograph"}</span>
+                </label>
+                <label className="verification-check"><input type="checkbox" checked={verifiedPhoto} onChange={(event) => setVerifiedPhoto(event.target.checked)} /> I confirm this photograph shows this exact asset.</label>
+                <form className="external-image-form" onSubmit={onExternalImage}>
+                  <label>Manufacturer / catalogue image URL<input type="url" required value={externalUrl} onChange={(event) => setExternalUrl(event.target.value)} placeholder="https://manufacturer.example/product.jpg" /></label>
+                  <div className="external-image-fields">
+                    <label>Image source<select value={externalSource} onChange={(event) => setExternalSource(event.target.value as "manufacturer_catalogue" | "representative")}><option value="manufacturer_catalogue">Manufacturer catalogue</option><option value="representative">Representative reference</option></select></label>
+                    <label>Model / product reference<input value={manufacturerReference} onChange={(event) => setManufacturerReference(event.target.value)} placeholder={selected.manufacturer && selected.model ? `${selected.manufacturer} ${selected.model}` : "Exact model reference"} /></label>
+                  </div>
+                  <label>Attribution / source page<input value={externalAttribution} onChange={(event) => setExternalAttribution(event.target.value)} placeholder="Manufacturer product page or image credit" /></label>
+                  <label className="verification-check"><input type="checkbox" checked={verifiedExternal} onChange={(event) => setVerifiedExternal(event.target.checked)} /> I verified this image matches the exact make and model.</label>
+                  <button className="btn secondary" type="submit" disabled={uploading}>{uploading ? "Saving…" : "Save image reference"}</button>
+                </form>
+                <div className="media-provenance-note">Manufacturer catalogue and representative images keep their provenance. Only mark an image as an exact match after checking the same model/reference. The customer’s actual equipment photo remains the preferred source.</div>
+              </>
+            ) : (
+              <p className="profile-empty">Your role can view photographs but cannot upload or change them.</p>
+            )}
             {selectedMedia.length > 0 && <div className="asset-media-gallery" role="list">
               {(["primary", "detail", "nameplate", "manual", "diagram"] as const).map((kind) => {
                 const group = selectedMedia.filter((item) => item.media_kind === kind);

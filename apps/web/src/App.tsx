@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { API_GATE_TIMEOUT_MS, apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, clearWorkspaceLogo, ensureConfig, formatApiErrorMessage, getWorkspaceBranding, hasOrgPermission, healthCheck, uploadWorkspaceLogo, warmApi } from "./api";
+import { API_GATE_TIMEOUT_MS, apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, clearWorkspaceLogo, ensureConfig, formatApiErrorMessage, getWorkspaceBranding, hasOrgPermission, healthCheck, isFacilityManager, uploadWorkspaceLogo, warmApi } from "./api";
 import { readInviteFromLocation } from "./invitePeek";
 import {
   isPasswordRecoveryPending, onAuthSession, organisationId, restoreSession,
@@ -658,6 +658,7 @@ function ResourcePage({
   create,
   writePermission,
   readPermission,
+  createAllowed,
 }: {
   title: string;
   lead: string;
@@ -672,18 +673,20 @@ function ResourcePage({
   writePermission?: string;
   /** When set, skip the list fetch and show a role notice if the caller lacks it. */
   readPermission?: string;
+  /** Extra create gate (e.g. hide org-wide facility create for facility managers). */
+  createAllowed?: (orgId: string) => Promise<boolean>;
 }) {
   const orgId = organisationId();
   const [canWrite, setCanWrite] = useState(!writePermission);
   const [canRead, setCanRead] = useState(!readPermission);
-  const [capabilityReady, setCapabilityReady] = useState(!(writePermission || readPermission));
+  const [capabilityReady, setCapabilityReady] = useState(!(writePermission || readPermission || createAllowed));
   const listEnabled = capabilityReady && canRead;
   const { rows, error, loading, reload } = useOrgResource<Record<string, unknown>>(path, listEnabled);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!orgId || !authToken() || (!writePermission && !readPermission)) {
+    if (!orgId || !authToken() || (!writePermission && !readPermission && !createAllowed)) {
       setCanWrite(!writePermission);
       setCanRead(!readPermission);
       setCapabilityReady(true);
@@ -693,9 +696,10 @@ function ResourcePage({
     void Promise.all([
       writePermission ? hasOrgPermission(orgId, writePermission) : Promise.resolve(true),
       readPermission ? hasOrgPermission(orgId, readPermission) : Promise.resolve(true),
-    ]).then(([writeOk, readOk]) => {
+      createAllowed ? createAllowed(orgId) : Promise.resolve(true),
+    ]).then(([writeOk, readOk, createOk]) => {
       if (cancelled) return;
-      setCanWrite(writeOk);
+      setCanWrite(Boolean(writeOk && createOk));
       setCanRead(readOk);
       setCapabilityReady(true);
     }).catch(() => {
@@ -707,7 +711,7 @@ function ResourcePage({
     return () => {
       cancelled = true;
     };
-  }, [orgId, writePermission, readPermission]);
+  }, [orgId, writePermission, readPermission, createAllowed]);
 
   async function onCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -1195,6 +1199,7 @@ export function App() {
                   { key: "created_at", label: "Created" },
                 ]}
                 writePermission="facility.write"
+                createAllowed={async (org) => !(await isFacilityManager(org))}
                 create={{
                   label: "Create facility",
                   fields: (

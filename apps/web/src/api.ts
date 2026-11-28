@@ -261,6 +261,19 @@ export async function hasOrgPermission(organisationIdValue: string, permission: 
   return Boolean(await response.json());
 }
 
+/** True when the caller’s active membership is facility_manager (facility-scoped). */
+export async function isFacilityManager(organisationIdValue: string): Promise<boolean> {
+  const token = authToken();
+  if (!token) return false;
+  const response = await fetch(`${PUBLIC_SUPABASE_URL}/rest/v1/rpc/is_facility_manager`, {
+    method: "POST",
+    headers: { apikey: PUBLIC_SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_organisation_id: organisationIdValue }),
+  });
+  if (!response.ok) return false;
+  return Boolean(await response.json());
+}
+
 export async function canManageWorkspaceBranding(organisationIdValue: string): Promise<boolean> {
   return hasOrgPermission(organisationIdValue, "org.admin");
 }

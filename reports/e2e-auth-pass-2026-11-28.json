@@ -2,7 +2,7 @@
   "suite": "phase0_browser_e2e_authenticated",
   "timezone": "America/Los_Angeles",
   "started_at": "2026-11-28T06:02:00-08:00",
-  "ended_at": "2026-11-28T06:10:00-08:00",
+  "ended_at": "2026-11-28T06:22:00-08:00",
   "targets": {
     "ui": "https://www.sentinelgrid.tech",
     "ui_alt_observed": "https://sentinelgrid-delta.vercel.app",
@@ -10,7 +10,7 @@
     "work_tip_at_record": "e38f14c118341ec4f9076a9abd7502229176187d"
   },
   "constraints": [
-    "Credentials used only in browser; not written to repo files",
+    "Credentials used only in browser/session; not written to repo files",
     "No member removals",
     "Workspace creator left protected"
   ],
@@ -32,7 +32,7 @@
     {
       "id": "E2E-06-invitee-accept",
       "result": "PASS",
-      "notes": "Invitee created account, accepted invite, entered Afya Overview (WORKSPACE / Afya / Overview). DB: invitation status=accepted at 2026-11-28T06:09:34-08:00; membership active read_only_viewer; pending invites=0; outbox remains sent.",
+      "notes": "Invitee created account, accepted invite, entered Afya Overview. DB: invitation status=accepted; membership active read_only_viewer; pending invites=0.",
       "invite_id": "36842239-6c3e-4086-96a1-6d82db537c22",
       "invite_status": "accepted",
       "membership_status": "active",
@@ -41,6 +41,24 @@
       "screenshot": "reports/e2e-2026-11-28-auth/phase0_authe2e_invitee_overview.png"
     },
     { "id": "E2E-07-facilities", "result": "PASS", "notes": "Empty facilities list + create form; no 403", "screenshot": "reports/e2e-2026-11-28-auth/phase0_authe2e_facilities.webp" },
+    {
+      "id": "E2E-08-facility-manager-isolation",
+      "result": "PASS",
+      "notes": "Seeded E2E-ALPHA (assigned) + E2E-BETA (unassigned) on Afya; facility_manager membership + assignment to ALPHA only. Nest + PostgREST AAL2 session lists only ALPHA facilities and only E2E Asset Alpha. Browser (www) facilities/assets show ALPHA only; BETA hidden.",
+      "facilities": {
+        "assigned": { "code": "E2E-ALPHA", "id": "d884f6f5-6675-4600-b022-116956dca733" },
+        "unassigned": { "code": "E2E-BETA", "id": "333aa489-17ff-447c-968d-d31b1f0917a7" }
+      },
+      "api": {
+        "facilities_visible": ["E2E-ALPHA"],
+        "assets_visible": ["E2E Asset Alpha"],
+        "beta_visible": false
+      },
+      "screenshots": [
+        "reports/e2e-2026-11-28-auth/phase0_e2e08_facilities_manager.webp",
+        "reports/e2e-2026-11-28-auth/phase0_e2e08_assets_manager.webp"
+      ]
+    },
     { "id": "E2E-07-assets", "result": "PASS", "notes": "Asset intelligence empty state; no 403", "screenshot": "reports/e2e-2026-11-28-auth/phase0_authe2e_assets.webp" },
     { "id": "E2E-09-energy", "result": "PASS", "notes": "Energy intelligence empty readings; no 403", "screenshot": "reports/e2e-2026-11-28-auth/phase0_authe2e_energy.webp" },
     { "id": "E2E-10-evidence", "result": "PASS", "notes": "Evidence chain empty state; no 403", "screenshot": "reports/e2e-2026-11-28-auth/phase0_authe2e_evidence.webp" },
@@ -48,9 +66,9 @@
     { "id": "E2E-sign-out", "result": "PASS", "notes": "Returned to Welcome back sign-in", "screenshot": "reports/e2e-2026-11-28-auth/phase0_authe2e_signed_out.webp" }
   ],
   "summary": {
-    "pass": 12,
+    "pass": 13,
     "fail": 0,
     "blocked": 0,
-    "phase0_notes": "Authenticated admin shell + invite create/delivery/accept closed. Facility-manager isolation (E2E-08) still open."
+    "phase0_notes": "Authenticated admin shell + invite create/delivery/accept + facility-manager isolation closed. Follow-up UI/API: hide/reject org-wide facility create for facility_manager."
   }
 }

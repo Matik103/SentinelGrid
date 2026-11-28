@@ -9,6 +9,27 @@ const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const user = { id: userId, accessToken: "tok" } as { id: string; accessToken: string } as never;
 
 describe("RegistryService facility assignments", () => {
+  it("createFacility rejects facility_manager before insert", async () => {
+    const sb = {
+      rpc: async (name: string, args: unknown) => {
+        assert.equal(name, "is_facility_manager");
+        assert.deepEqual(args, { p_organisation_id: org });
+        return { data: true, error: null };
+      },
+      from: () => {
+        throw new Error("insert must not run for facility_manager");
+      },
+    };
+    const svc = new RegistryService(
+      { requirePermission: async () => undefined } as never,
+      { create: () => sb } as never,
+    );
+    await assert.rejects(
+      () => svc.createFacility(user, org, { name: "Should fail", code: "NOPE" }),
+      /Facility managers cannot create facilities/,
+    );
+  });
+
   it("assignFacility requires user.manage and upserts assignment", async () => {
     const perms: unknown[] = [];
     const calls: unknown[] = [];

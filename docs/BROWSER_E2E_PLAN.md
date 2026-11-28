@@ -1,6 +1,6 @@
 # Authenticated browser E2E plan (Phase 0)
 
-**Status:** partial suite **PASS** 2026-11-28 PT — signed-out smoke + authenticated admin shell/invite + invitee accept; E2E-08 still open  
+**Status:** authenticated suite **PASS** 2026-11-28 PT — signed-out smoke + admin shell/invite + invitee accept + facility-manager isolation  
 **Issue:** [#9](https://github.com/Matik103/SentinelGrid/issues/9)  
 **Canonical branch:** `work/sentinel-command-release-v2`  
 **Timezone:** America/Los_Angeles  
@@ -75,6 +75,6 @@ After an authorized run, update in the **same** commit:
 
 ## 8. 2026-11-28 PT execution note
 
-Owner authorized browser E2E. Signed-out smoke (E2E-01*) and authenticated admin flow (password + MFA → shell → invite → registry/energy/evidence/audit) ran against `https://www.sentinelgrid.tech`. Invite to `intramaxx1@gmail.com` created as `read_only_viewer`; outbox **sent**; recipient confirmed delivery; invitee signup/accept completed — Afya Overview loaded as active `read_only_viewer` (invite `36842239-…` status `accepted` 2026-11-28 ~06:09 PT). Playwright `e2e/` covers signed-out checks.
+Owner authorized browser E2E. Signed-out smoke (E2E-01*) and authenticated admin flow (password + MFA → shell → invite → registry/energy/evidence/audit) ran against `https://www.sentinelgrid.tech`. Invite to `intramaxx1@gmail.com` created as `read_only_viewer`; outbox **sent**; recipient confirmed delivery; invitee signup/accept completed — Afya Overview loaded as active `read_only_viewer` (invite `36842239-…` status `accepted` 2026-11-28 ~06:09 PT).
 
-Still open: E2E-08 (facility-manager isolation). Credentials were not committed.
+E2E-08: Afya seeded with `E2E-ALPHA` (assigned) + `E2E-BETA` (unassigned); `facility_manager` AAL2 session sees only ALPHA facilities/assets via Nest, PostgREST, and www UI screenshots. Credentials were not committed. Playwright `e2e/` covers signed-out checks.

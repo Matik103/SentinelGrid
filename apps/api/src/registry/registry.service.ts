@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
 import { z } from "zod";
 import type { AuthUser } from "../auth/auth.types.js";
 import { OrgsService } from "../orgs/orgs.service.js";
@@ -105,6 +105,16 @@ export class RegistryService {
     const input = FacilitySchema.parse(body);
     await this.orgs.requirePermission(user, organisationId, "facility.write");
     const sb = this.users.create(user.accessToken);
+    // Facility managers are scoped to assigned facilities; org-wide create is admin-only (RLS also blocks).
+    const { data: isMgr, error: mgrError } = await sb.rpc("is_facility_manager", {
+      p_organisation_id: organisationId,
+    });
+    if (mgrError) throw new BadRequestException(mgrError.message);
+    if (isMgr) {
+      throw new ForbiddenException(
+        "Facility managers cannot create facilities. Ask a workspace administrator to register the facility and assign you.",
+      );
+    }
     const { data, error } = await sb
       .from("facilities")
       .insert({

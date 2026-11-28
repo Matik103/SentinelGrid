@@ -34,7 +34,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | 8 | Payload storage SHA-256 + production fail-closed | tested | Supabase Storage API path (not Amazon S3). Live object upload/download/restore still **OPEN ops** |
 | 9 | Rate limiting Redis/memory fail-closed | tested | Distributed/proxy identity still limited |
 | 10 | Audit log read API | tested | |
-| 11 | Sentinel Command UI live workflows | **ops (partial suite)** | Signed-out smoke + authenticated admin + invitee accept PASS 2026-11-28 PT (`reports/e2e-auth-pass-2026-11-28.json`). E2E-08 facility-manager isolation still open |
+| 11 | Sentinel Command UI live workflows | **ops** | Signed-out smoke + authenticated admin + invitee accept + facility-manager isolation PASS 2026-11-28 PT (`reports/e2e-auth-pass-2026-11-28.json`) |
 | 12 | Engineering quality gate green on tip SHA | **tested** (CI) | Full Docker-backed gate green on tip `6ef1ccf` via `.github/workflows/audit.yml` (run 46149277028). Includes `phase0_tenant_isolation.sql`. Cursor local Docker/Supabase CLI still unavailable |
 | 13 | Ops docs + this checklist | code | Updated 2026-11-28 PT for tip `6ef1ccf` + Criterion G manual invite evidence |
 | 14 | Facility-manager same-org cross-facility isolation + assignment APIs | tested | Migration `20261125250000` + SQL isolation + assignment HTTP |
@@ -106,7 +106,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 | Hosted migrations | **parity closed** through `20261128160000` | Applied + recorded 2026-11-28 PT (32 versions); dry-run pending=0 vs repo |
 | Criterion G live invite | **ops (manual)** | Afya: admin invited read-only viewer; email delivered; signup + MFA completed; membership **active**; pending empty. No tokens/PII in this log. See `IMPLEMENTATION_STATUS.md` |
 | Backup/restore | **OPEN** (design ready) | Disposable drill in [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md) — not executed |
-| Browser E2E | **ops (partial suite)** | Signed-out smoke + authenticated admin + invitee accept PASS 2026-11-28 PT — `reports/e2e-auth-pass-2026-11-28.json` (MFA, invite create/delivery/accept on Afya as `read_only_viewer`, facilities/assets/energy/evidence/audit). E2E-08 facility-manager isolation still open |
+| Browser E2E | **ops** | Signed-out smoke + authenticated admin + invitee accept + facility-manager isolation PASS 2026-11-28 PT — `reports/e2e-auth-pass-2026-11-28.json` (MFA, invite path, E2E-08 ALPHA-only vs BETA hidden, facilities/assets/energy/evidence/audit) |
 | UniFi adapter implementation | **not authorized** | Design only: [`ROUTER_AP_ADAPTER_DESIGN.md`](ROUTER_AP_ADAPTER_DESIGN.md) |
 
 ### Prior tip — `b094207` (2026-11-26 PT)
@@ -140,10 +140,9 @@ Migrations present on `main` but **not** on this work tip: `20261126100000_works
 **Still OPEN (do not close Phase 0):**
 - Full OT protocol acquisition or formal deferral (**ops** — needs maps/node IDs/topics)
 - Real backup + object-storage restore drill (**ops** — design ready; execute only when authorized on a disposable project)
-- Remaining browser E2E: facility-manager isolation (E2E-08)
 - Render `monitoring.build_sha` correlation to git tip (requires explicit infra approval to set `GIT_SHA`)
 
-**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip quality gate green on `6ef1ccf`; Criterion G + authenticated invite accept ops-verified; hosted migrations through `20261128160000` parity closed; signed-out + authenticated admin + invitee-accept browser E2E PASS (`reports/e2e-auth-pass-2026-11-28.json`); remaining E2E-08 + disposable hosted restore + Render SHA correlation still open — **not COMPLETE**.
+**Phase 0 status:** PARTIALLY COMPLETE / IN TESTING — tip quality gate green on `6ef1ccf`; Criterion G + authenticated invite accept + facility-manager isolation ops-verified; hosted migrations through `20261128160000` parity closed; browser E2E suite PASS (`reports/e2e-auth-pass-2026-11-28.json`); remaining disposable hosted restore + Render SHA correlation still open — **not COMPLETE**.
 
 ## Related plans (not Phase 0 exit / not authorized to execute)
 

@@ -1,7 +1,7 @@
 # Phase 0 acceptance checklist (authoritative)
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip (evidence below):** `bcc25ef16d2a5caaa15d9d2d04c23ca377d8560b` (2026-11-28 America/Los_Angeles)  
+**Current tip (evidence below):** `0932bc4bee35a1f1d4045a754fd4a8b288005af4` (2026-11-28 America/Los_Angeles)  
 **www / `main` FE tip:** `c68caea0f72da46a953a4ce265c336d765562129`  
 **Prior tip (Criterion G + E2E-08):** `dbe84a7bb6ad9103ca14fb5fc6c7b16c6de3384f`  
 **Prior tip (docs):** `ca5b2f14fc84a824f58668ce3091507f3f8f32d5`  
@@ -99,7 +99,7 @@ Historical tip SHAs and run links below refer to the branch state **at the time 
 
 | Item | Result | Evidence |
 |---|---|---|
-| Branch / SHA | `work/sentinel-command-release-v2` @ `bcc25ef16d2a5caaa15d9d2d04c23ca377d8560b` | Disposable restore evidence + Nest `RENDER_GIT_COMMIT` → `monitoring.build_sha` |
+| Branch / SHA | `work/sentinel-command-release-v2` @ `0932bc4bee35a1f1d4045a754fd4a8b288005af4` | Disposable restore evidence + Nest `RENDER_GIT_COMMIT` → `monitoring.build_sha` |
 | www / `main` FE | `c68caea0f72da46a953a4ce265c336d765562129` | Vercel production Ready ([#34](https://github.com/Matik103/SentinelGrid/pull/34)) |
 | Nest `/v1/health` `build_sha` | **ops** | Live `c4392e8dd6d4d30c70104c1baafbf7a4bc44506f` matches work tip — `reports/render-build-sha-2026-11-28.json` |
 | Hosted migrations | **parity closed** through `20261128160000` | 32 versions; dry-run pending=0 vs repo |

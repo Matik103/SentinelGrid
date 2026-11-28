@@ -547,7 +547,8 @@ function OrganisationPanel({
             })}
             emptyLabel="No members in this workspace yet."
           />
-          <h2 className="section-title">Invitations</h2>
+          <h2 className="section-title">Pending invitations</h2>
+          <p className="page-lead">Only outstanding invites appear here. After someone accepts, they move to Members.</p>
           <DataTable
             columns={[
               { key: "email", label: "Email" },

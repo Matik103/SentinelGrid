@@ -725,12 +725,31 @@ export function App() {
         setGateStage("Loading workspaces…");
       }
 
-      // After MFA: accept invite from the URL when present, then accept any pending
-      // invites for this email (covers signup without keeping ?invite= in the URL).
-      // Skip on soft refresh — shell is already mounted with memberships.
-      if (!soft) {
+      type MembershipRow = { organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null };
+      const loadMine = () => apiGet<MembershipRow[]>("/v1/orgs/mine", { timeoutMs: API_GATE_TIMEOUT_MS });
+
+      // Returning users: load memberships first. Do NOT call accept-mine on every refresh —
+      // that was the VERIFYING / ACCEPTING INVITATION stall with no invite in the URL.
+      let result = await loadMine();
+      if (!isCurrent()) return;
+      if (result.error) {
+        const message = result.error.message;
+        if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || result.error.status === 403) {
+          enterMfaSetup();
+          return;
+        }
+        setGateMessage(message);
+        setGateStage(null);
+        setWorkspaceGate("error");
+        return;
+      }
+      let memberships = (result.data ?? []).filter((row) => row.status === "active" && row.organisations?.id);
+      const { token: inviteToken } = readInviteFromLocation();
+      const needsInviteAccept = Boolean(inviteToken) || memberships.length === 0;
+
+      if (!soft && needsInviteAccept) {
         setGateStage("Accepting invitation…");
-        const { token: inviteToken } = readInviteFromLocation();
+        let acceptedSomething = false;
         if (inviteToken) {
           const accepted = await apiPost<unknown>(
             "/v1/orgs/invites/accept",
@@ -744,11 +763,11 @@ export function App() {
               enterMfaSetup();
               return;
             }
-            // Keep the token in the URL so WorkspaceOnboarding can retry / show the error.
             if (!/already|accepted|not found|expired|does not match/i.test(message)) {
               setGateMessage(message);
             }
           } else {
+            acceptedSomething = true;
             const next = new URL(window.location.href);
             next.searchParams.delete("invite");
             next.searchParams.delete("token");
@@ -756,7 +775,7 @@ export function App() {
             window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
           }
         }
-        // Email-matched pending invites — invitees should not need to paste a raw token.
+        // Only when there is an invite link or no memberships yet (invitee without ?invite=).
         const acceptedMine = await apiPost<{ accepted_count?: number }>(
           "/v1/orgs/invites/accept-mine",
           {},
@@ -769,31 +788,31 @@ export function App() {
             enterMfaSetup();
             return;
           }
-          // Non-fatal when there are simply no pending invites / RPC not yet migrated.
           if (!/Could not find the function|schema cache|does not exist/i.test(message)) {
             console.warn("accept-mine invitations:", message);
           }
+        } else if ((acceptedMine.data?.accepted_count ?? 0) > 0) {
+          acceptedSomething = true;
         }
-        setGateStage("Loading workspaces…");
+        if (acceptedSomething || memberships.length === 0) {
+          setGateStage("Loading workspaces…");
+          result = await loadMine();
+          if (!isCurrent()) return;
+          if (result.error) {
+            const message = result.error.message;
+            if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || result.error.status === 403) {
+              enterMfaSetup();
+              return;
+            }
+            setGateMessage(message);
+            setGateStage(null);
+            setWorkspaceGate("error");
+            return;
+          }
+          memberships = (result.data ?? []).filter((row) => row.status === "active" && row.organisations?.id);
+        }
       }
 
-      const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>(
-        "/v1/orgs/mine",
-        { timeoutMs: API_GATE_TIMEOUT_MS },
-      );
-      if (!isCurrent()) return;
-      if (result.error) {
-        const message = result.error.message;
-        if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || result.error.status === 403) {
-          enterMfaSetup();
-          return;
-        }
-        setGateMessage(message);
-        setGateStage(null);
-        setWorkspaceGate("error");
-        return;
-      }
-      const memberships = (result.data ?? []).filter((row) => row.status === "active" && row.organisations?.id);
       if (!memberships.length) {
         setOrganisationId(null);
         setActiveOrganisationId(null);

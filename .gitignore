@@ -18,6 +18,8 @@ edge/connector/bin/
 # Generated audit output (uploaded by CI as an artifact)
 reports/audit-report.json
 reports/e2e-2026-11-28/
+e2e/test-results/
+e2e/node_modules/
 .audit/
 
 supabase/.branches

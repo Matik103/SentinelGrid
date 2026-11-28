@@ -12,7 +12,8 @@ import {
 import { peekOrganisationInvitation, readInviteFromLocation } from "./invitePeek";
 
 type Props = {
-  onAuthChange?: () => void;
+  /** assumedAal2: skip a redundant AAL round-trip after MFA verify / already-AAL2 prepare. */
+  onAuthChange?: (opts?: { assumedAal2?: boolean }) => void;
   /** page = full signup/MFA journey; sidebar = compact account controls only */
   surface?: "page" | "sidebar";
 };
@@ -197,7 +198,7 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
         if (result.complete) {
           setMfa(null);
           setMfaPending(false);
-          onAuthChange?.();
+          onAuthChange?.({ assumedAal2: true });
         } else {
           setMfa(result.challenge);
         }
@@ -232,7 +233,7 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
     if (result.complete) {
       setMfa(null);
       setMfaPending(false);
-      onAuthChange?.();
+      onAuthChange?.({ assumedAal2: true });
     } else {
       setMfa(result.challenge);
     }
@@ -247,7 +248,7 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
       if (result.complete) {
         setMfaPending(false);
         setMfa(null);
-        onAuthChange?.();
+        onAuthChange?.({ assumedAal2: true });
       } else {
         setMfaPending(true);
         setMfa(result.challenge);
@@ -280,8 +281,9 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
     if (!mfa) return;
     setBusy(true); setError(null);
     try {
+      // verifyTotpChallenge already syncs the AAL2 access token — skip another restoreSession
+      // round-trip so VERIFYING can load workspaces immediately.
       await verifyTotpChallenge(mfa, code);
-      await restoreSession();
       // If this MFA was part of password recovery, never enter the workspace yet.
       if (isPasswordRecoveryPending()) {
         continueRecoveryAfterMfa();
@@ -290,7 +292,7 @@ export function AuthPanel({ onAuthChange, surface = "page" }: Props) {
       setMfa(null);
       setMfaPending(false);
       setMfaCode("");
-      onAuthChange?.();
+      onAuthChange?.({ assumedAal2: true });
     } catch (err) {
       setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
     } finally { setBusy(false); }

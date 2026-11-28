@@ -115,7 +115,8 @@ export async function restoreSession(): Promise<Session | null> {
   }
   syncAccessToken(data.session);
   noteRecoveryFromSession(data.session);
-  await ensureUserProfile(data.session);
+  // Do not block boot / VERIFYING on profile upsert — Nest auth uses the JWT, not this RPC.
+  void ensureUserProfile(data.session);
   return data.session;
 }
 export async function signInWithPassword(email: string, password: string): Promise<Session> {

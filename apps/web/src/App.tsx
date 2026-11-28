@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, clearWorkspaceLogo, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo } from "./api";
+import { API_GATE_TIMEOUT_MS, apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, clearWorkspaceLogo, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo, warmApi } from "./api";
 import { readInviteFromLocation } from "./invitePeek";
 import {
   isPasswordRecoveryPending, onAuthSession, organisationId, restoreSession,
@@ -582,12 +582,14 @@ export function App() {
   const [authReady, setAuthReady] = useState(false);
   const [workspaceGate, setWorkspaceGate] = useState<"checking" | "mfa" | "required" | "ready" | "error">("checking");
   const [gateMessage, setGateMessage] = useState<string | null>(null);
+  const [gateStage, setGateStage] = useState<string | null>(null);
   // Mirrored in React state so PASSWORD_RECOVERY / AMR detection triggers a re-render.
   const [recoveryPending, setRecoveryPending] = useState(() => isPasswordRecoveryPending());
   const location = useLocation();
   const workspaceGateRef = useRef(workspaceGate);
   workspaceGateRef.current = workspaceGate;
   const refreshGenerationRef = useRef(0);
+  const refreshInFlightRef = useRef(false);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", "dark");
@@ -595,115 +597,142 @@ export function App() {
 
   const enterMfaSetup = (message = "Set up or verify your authenticator to continue. Take your time — your session stays signed in until you finish or sign out.") => {
     setGateMessage(message);
+    setGateStage(null);
     setWorkspaceGate("mfa");
+    // Warm Nest while the user finishes MFA so VERIFYING is not a cold start.
+    warmApi();
   };
 
-  const refreshWorkspaceState = async (opts?: { force?: boolean }) => {
+  const refreshWorkspaceState = async (opts?: { force?: boolean; assumedAal2?: boolean }) => {
     const generation = ++refreshGenerationRef.current;
     const isCurrent = () => refreshGenerationRef.current === generation;
+    refreshInFlightRef.current = true;
 
-    if (!authToken()) {
-      setOrganisationId(null);
-      setActiveOrganisationId(null);
-      setActiveOrganisationName("Workspace");
-      setWorkspaceGate("checking");
-      return;
-    }
-
-    // Password recovery must collect a new password before MFA / workspace gates run.
-    // Never bypass with force — that was dropping users into the app after MFA verify.
-    if (recoveryPending || isPasswordRecoveryPending()) return;
-
-    // Soft refresh keeps the shell mounted (no VERIFYING flash) when we are already ready.
-    // Hard refresh (boot, MFA complete, explicit force) still shows the gate.
-    const soft = workspaceGateRef.current === "ready" && !opts?.force;
-
-    // Like major apps: detect AAL1 client-side and park on MFA setup.
-    // Do not call Nest APIs (or flip back to "checking") while the user is enrolling —
-    // that remounted AuthPanel and invalidated QR codes / codes mid-setup.
     try {
-      const level = await currentAssuranceLevel();
-      if (!isCurrent()) return;
-      if (level !== "aal2") {
-        enterMfaSetup();
+      if (!authToken()) {
+        setOrganisationId(null);
+        setActiveOrganisationId(null);
+        setActiveOrganisationName("Workspace");
+        setGateStage(null);
+        setWorkspaceGate("checking");
         return;
       }
-    } catch (cause) {
-      if (!isCurrent()) return;
-      const timedOut = cause instanceof Error && /timed out/i.test(cause.message);
-      if (timedOut) {
-        setGateMessage("Authenticator status check timed out. Retry, or sign out and sign back in.");
-        setWorkspaceGate("error");
-        return;
+
+      // Password recovery must collect a new password before MFA / workspace gates run.
+      // Never bypass with force — that was dropping users into the app after MFA verify.
+      if (recoveryPending || isPasswordRecoveryPending()) return;
+
+      // Soft refresh keeps the shell mounted (no VERIFYING flash) when we are already ready.
+      // Hard refresh (boot, MFA complete, explicit force) still shows the gate.
+      const soft = workspaceGateRef.current === "ready" && !opts?.force;
+
+      // Skip AAL when MFA verify (or prepareMfaSession) already confirmed AAL2 — that round-trip
+      // was the main post-auth stall before Nest /orgs/mine.
+      if (!opts?.assumedAal2) {
+        if (!soft) setGateStage("Confirming authenticator…");
+        try {
+          const level = await currentAssuranceLevel();
+          if (!isCurrent()) return;
+          if (level !== "aal2") {
+            enterMfaSetup();
+            return;
+          }
+        } catch (cause) {
+          if (!isCurrent()) return;
+          const timedOut = cause instanceof Error && /timed out/i.test(cause.message);
+          if (timedOut) {
+            setGateMessage("Authenticator status check timed out. Retry, or sign out and sign back in.");
+            setGateStage(null);
+            setWorkspaceGate("error");
+            return;
+          }
+          enterMfaSetup("We could not confirm your authenticator status. Continue MFA setup, or sign out and try again.");
+          return;
+        }
       }
-      enterMfaSetup("We could not confirm your authenticator status. Continue MFA setup, or sign out and try again.");
-      return;
-    }
 
-    if (workspaceGateRef.current === "mfa" && !opts?.force) {
-      // AAL2 now — fall through to load workspaces after MFA verify.
-    }
+      if (workspaceGateRef.current === "mfa" && !opts?.force) {
+        // AAL2 now — fall through to load workspaces after MFA verify.
+      }
 
-    if (!soft) setWorkspaceGate("checking");
+      if (!soft) {
+        setWorkspaceGate("checking");
+        setGateStage("Loading workspaces…");
+      }
 
-    // After MFA, accept a pending invite from the URL before loading memberships.
-    const { token: inviteToken } = readInviteFromLocation();
-    if (inviteToken) {
-      const accepted = await apiPost<unknown>("/v1/orgs/invites/accept", { token: inviteToken });
+      // After MFA, accept a pending invite from the URL before loading memberships.
+      const { token: inviteToken } = readInviteFromLocation();
+      if (inviteToken) {
+        if (!soft) setGateStage("Accepting invitation…");
+        const accepted = await apiPost<unknown>(
+          "/v1/orgs/invites/accept",
+          { token: inviteToken },
+          { timeoutMs: API_GATE_TIMEOUT_MS },
+        );
+        if (!isCurrent()) return;
+        if (accepted.error) {
+          const message = accepted.error.message;
+          if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || accepted.error.status === 403) {
+            enterMfaSetup();
+            return;
+          }
+          // Keep the token in the URL so WorkspaceOnboarding can retry / show the error.
+          if (!/already|accepted|not found|expired|does not match/i.test(message)) {
+            setGateMessage(message);
+          }
+        } else {
+          const next = new URL(window.location.href);
+          next.searchParams.delete("invite");
+          next.searchParams.delete("token");
+          next.searchParams.delete("email");
+          window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
+        }
+        if (!soft) setGateStage("Loading workspaces…");
+      }
+
+      const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>(
+        "/v1/orgs/mine",
+        { timeoutMs: API_GATE_TIMEOUT_MS },
+      );
       if (!isCurrent()) return;
-      if (accepted.error) {
-        const message = accepted.error.message;
-        if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || accepted.error.status === 403) {
+      if (result.error) {
+        const message = result.error.message;
+        if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || result.error.status === 403) {
           enterMfaSetup();
           return;
         }
-        // Keep the token in the URL so WorkspaceOnboarding can retry / show the error.
-        if (!/already|accepted|not found|expired|does not match/i.test(message)) {
-          setGateMessage(message);
-        }
-      } else {
-        const next = new URL(window.location.href);
-        next.searchParams.delete("invite");
-        next.searchParams.delete("token");
-        next.searchParams.delete("email");
-        window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
-      }
-    }
-
-    const result = await apiGet<Array<{ organisation_id: string; status: string; organisations?: { id: string; name: string; slug: string } | null }>>("/v1/orgs/mine");
-    if (!isCurrent()) return;
-    if (result.error) {
-      const message = result.error.message;
-      if (/MFA_REQUIRED|multi-factor|aal2/i.test(message) || result.error.status === 403) {
-        enterMfaSetup();
+        setGateMessage(message);
+        setGateStage(null);
+        setWorkspaceGate("error");
         return;
       }
-      setGateMessage(message);
-      setWorkspaceGate("error");
-      return;
-    }
-    const memberships = (result.data ?? []).filter((row) => row.status === "active" && row.organisations?.id);
-    if (!memberships.length) {
-      setOrganisationId(null);
-      setActiveOrganisationId(null);
-      setActiveOrganisationName("Workspace");
-      // MFA is done — clear any leftover authenticator banner before workspace create.
+      const memberships = (result.data ?? []).filter((row) => row.status === "active" && row.organisations?.id);
+      if (!memberships.length) {
+        setOrganisationId(null);
+        setActiveOrganisationId(null);
+        setActiveOrganisationName("Workspace");
+        // MFA is done — clear any leftover authenticator banner before workspace create.
+        setGateMessage(null);
+        setGateStage(null);
+        setWorkspaceGate("required");
+        return;
+      }
+      const selected = memberships.find((row) => row.organisation_id === organisationId()) ?? memberships[0];
+      const nextId = selected.organisation_id;
+      const nextName = selected.organisations?.name ?? "Workspace";
+      const orgChanged = nextId !== organisationId();
+      setOrganisationId(nextId);
+      setActiveOrganisationId(nextId);
+      setActiveOrganisationName(nextName);
+      setGateStage(null);
+      setWorkspaceGate("ready");
       setGateMessage(null);
-      setWorkspaceGate("required");
-      return;
-    }
-    const selected = memberships.find((row) => row.organisation_id === organisationId()) ?? memberships[0];
-    const nextId = selected.organisation_id;
-    const nextName = selected.organisations?.name ?? "Workspace";
-    const orgChanged = nextId !== organisationId();
-    setOrganisationId(nextId);
-    setActiveOrganisationId(nextId);
-    setActiveOrganisationName(nextName);
-    setWorkspaceGate("ready");
-    setGateMessage(null);
-    // Soft path: only remount switcher/routes when the active org actually changed.
-    if (!soft || orgChanged || opts?.force) {
-      setAuthRefreshKey((value) => value + 1);
+      // Soft path: only remount switcher/routes when the active org actually changed.
+      if (!soft || orgChanged || opts?.force) {
+        setAuthRefreshKey((value) => value + 1);
+      }
+    } finally {
+      if (isCurrent()) refreshInFlightRef.current = false;
     }
   };
 
@@ -713,12 +742,13 @@ export function App() {
       // The access token is already synced in auth.ts before listeners run.
       if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
         if (sessionIsRecovery(session) || isPasswordRecoveryPending()) setRecoveryPending(true);
-        // If we are still on VERIFYING with a live session, kick a soft refresh once —
-        // restores can race INITIAL_SESSION and leave the gate spinning with no in-flight load.
+        // Only kick a rescue refresh when nothing is already loading — restoreSession's
+        // post-hook usually owns the first gate pass; racing both doubled Nest latency.
         if (
           event === "INITIAL_SESSION"
           && session?.access_token
           && workspaceGateRef.current === "checking"
+          && !refreshInFlightRef.current
           && !isPasswordRecoveryPending()
           && !sessionIsRecovery(session)
         ) {
@@ -737,6 +767,7 @@ export function App() {
         setActiveOrganisationId(null);
         setActiveOrganisationName("Workspace");
         setRecoveryPending(false);
+        setGateStage(null);
         setWorkspaceGate("checking");
         return;
       }
@@ -749,6 +780,7 @@ export function App() {
     void Promise.all([restoreSession(), ensureConfig()]).then(() => {
       if (!active) return;
       setAuthReady(true);
+      warmApi();
       if (isPasswordRecoveryPending()) {
         setRecoveryPending(true);
         setWorkspaceGate("checking");
@@ -773,7 +805,7 @@ export function App() {
           const level = await currentAssuranceLevel();
           if (workspaceGateRef.current !== "checking") return;
           if (level === "aal2") {
-            void refreshWorkspaceState({ force: true });
+            void refreshWorkspaceState({ force: true, assumedAal2: true });
             return;
           }
           enterMfaSetup("Still verifying access. Continue with authenticator setup, or sign out and try again.");
@@ -783,14 +815,15 @@ export function App() {
             ? "Workspace verification timed out. The API or authenticator check may be slow — retry in a moment."
             : "Still verifying access. Retry, continue authenticator setup, or sign out.";
           setGateMessage(message);
+          setGateStage(null);
           setWorkspaceGate("error");
         }
       })();
-    }, 6_000);
+    }, 8_000);
     return () => window.clearTimeout(timer);
   }, [workspaceGate, authReady]);
 
-  const handleAuthChange = () => {
+  const handleAuthChange = (opts?: { assumedAal2?: boolean }) => {
     // Keep React recoveryPending in sync with sessionStorage (expired link / abandon reset).
     const pending = isPasswordRecoveryPending();
     setRecoveryPending(pending);
@@ -799,13 +832,14 @@ export function App() {
       setOrganisationId(null);
       setActiveOrganisationId(null);
       setActiveOrganisationName("Workspace");
+      setGateStage(null);
       setWorkspaceGate("checking");
       return;
     }
     // Recovery: stay on AuthPanel until the new password is saved (even after MFA step-up).
     if (pending) return;
     // After MFA verify / sign-in, force workspace load even if we were on mfa.
-    void refreshWorkspaceState({ force: true });
+    void refreshWorkspaceState({ force: true, assumedAal2: opts?.assumedAal2 });
   };
 
   const selectOrganisation = (id: string | null, name: string) => {
@@ -822,7 +856,15 @@ export function App() {
   }
   // Full-screen MFA setup (QR / TOTP). Do not nest inside the tiny boot spinner layout.
   if (workspaceGate === "mfa") return <AuthPanel key="mfa" surface="page" onAuthChange={handleAuthChange} />;
-  if (workspaceGate === "checking") return <div className="auth-boot"><span className="auth-boot-mark">SG</span><span>VERIFYING WORKSPACE ACCESS</span></div>;
+  if (workspaceGate === "checking") {
+    return (
+      <div className="auth-boot">
+        <span className="auth-boot-mark">SG</span>
+        <span>VERIFYING WORKSPACE ACCESS</span>
+        {gateStage ? <p className="auth-boot-stage">{gateStage}</p> : null}
+      </div>
+    );
+  }
   if (workspaceGate === "error" && gateMessage && /timed out|too long to respond|waking up|slow/i.test(gateMessage)) {
     return (
       <div className="auth-boot auth-boot-action">

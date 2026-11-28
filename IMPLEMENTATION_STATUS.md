@@ -1,7 +1,7 @@
 # SentinelGrid implementation status
 
 **Canonical branch:** `work/sentinel-command-release-v2`  
-**Current tip:** `15163b9823bb08adf292f8b8140c431fdcac2443` — hosted migration parity through `20261128160000` + Criterion G invite ops evidence; functional invite/role UI tip `6ef1ccf`; www FE on `main` @ `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
+**Current tip:** `59d5e6f7aff71cd071aba6a0662f0b719840edcb` — hosted migration parity through `20261128160000` + Criterion G invite ops evidence; functional invite/role UI tip `6ef1ccf`; www FE on `main` @ `43ae5995ee9eb4d0d8fc8644d9f40d7009d05e59`  
 **Prior tip (quality-gate packet):** `b094207b91b5889cdc8376a853412e015c71cc80`  
 **Prior Issue #9 audit baseline:** `17b4af6b571f17f5338b683b135287adf0bfa947`  
 **Last reviewed:** 2026-11-28 (America/Los_Angeles) — applied hosted `20261128160000` (AAL2 self-service invites); Criterion G manual invite ops-verified; browser E2E suite / backup drill / Render `build_sha` still open  

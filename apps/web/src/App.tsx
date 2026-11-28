@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { API_GATE_TIMEOUT_MS, apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, clearWorkspaceLogo, ensureConfig, getWorkspaceBranding, healthCheck, uploadWorkspaceLogo, warmApi } from "./api";
+import { API_GATE_TIMEOUT_MS, apiConfigurationError, apiConfigured, apiGet, apiPost, authToken, canManageWorkspaceBranding, clearWorkspaceLogo, ensureConfig, formatApiErrorMessage, getWorkspaceBranding, hasOrgPermission, healthCheck, uploadWorkspaceLogo, warmApi } from "./api";
 import { readInviteFromLocation } from "./invitePeek";
 import {
   isPasswordRecoveryPending, onAuthSession, organisationId, restoreSession,
@@ -341,40 +341,92 @@ function OrganisationPanel({
   );
   const [logoBusy, setLogoBusy] = useState(false);
   const [canManageBranding, setCanManageBranding] = useState(false);
+  const [canManagePeople, setCanManagePeople] = useState(false);
+  const [peopleCapabilityReady, setPeopleCapabilityReady] = useState(false);
   const [logoMessage, setLogoMessage] = useState<string | null>(null);
   const showBranding = mode === "settings";
   const showPeople = mode === "people";
 
-  const reload = async () => {
+  const reload = async (managePeople?: boolean) => {
     setError(null);
     if (!showPeople) return;
     if (!org || !authToken() || !apiConfigured()) {
       setError("Sign in and select a workspace above to manage its members and invitations.");
       return;
     }
-    const [m, i] = await Promise.all([
-      apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/members`),
-      apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/invites`),
-    ]);
-    if (m.error) setError(m.error.message);
-    else setMembers(m.data ?? []);
-    if (i.error) setError(i.error.message);
-    else setInvites(i.data ?? []);
+    const allowed = managePeople ?? canManagePeople;
+    const memberResult = await apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/members`);
+    if (memberResult.error) {
+      setError(formatApiErrorMessage(memberResult.error.message));
+      setMembers([]);
+    } else {
+      setMembers(memberResult.data ?? []);
+    }
+
+    // Invites require user.manage — viewers/analysts must not hit this endpoint.
+    if (!allowed) {
+      setInvites([]);
+      return;
+    }
+    const inviteResult = await apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/invites`);
+    if (inviteResult.error) {
+      setError(formatApiErrorMessage(inviteResult.error.message));
+      setInvites([]);
+    } else {
+      setInvites(inviteResult.data ?? []);
+    }
   };
 
   useEffect(() => {
-    void reload();
-    if (!showBranding) return;
+    let cancelled = false;
+    if (showPeople) {
+      setPeopleCapabilityReady(false);
+      if (!org || !authToken()) {
+        setCanManagePeople(false);
+        setPeopleCapabilityReady(true);
+        void reload(false);
+      } else {
+        void hasOrgPermission(org, "user.manage")
+          .then((allowed) => {
+            if (cancelled) return;
+            setCanManagePeople(allowed);
+            setPeopleCapabilityReady(true);
+            void reload(allowed);
+          })
+          .catch(() => {
+            if (cancelled) return;
+            setCanManagePeople(false);
+            setPeopleCapabilityReady(true);
+            void reload(false);
+          });
+      }
+    }
+    if (!showBranding) {
+      return () => {
+        cancelled = true;
+      };
+    }
     if (org && authToken()) {
       const cached = peekCachedWorkspaceLogo(org);
       if (cached !== undefined) setLogoUrl(cached);
       else setLogoUrl(undefined);
-      void getWorkspaceBranding(org).then((branding) => setLogoUrl(branding.logoUrl)).catch(() => setLogoUrl(null));
-      void canManageWorkspaceBranding(org).then(setCanManageBranding).catch(() => setCanManageBranding(false));
+      void getWorkspaceBranding(org).then((branding) => {
+        if (!cancelled) setLogoUrl(branding.logoUrl);
+      }).catch(() => {
+        if (!cancelled) setLogoUrl(null);
+      });
+      void canManageWorkspaceBranding(org).then((allowed) => {
+        if (!cancelled) setCanManageBranding(allowed);
+      }).catch(() => {
+        if (!cancelled) setCanManageBranding(false);
+      });
     } else {
       setLogoUrl(null);
       setCanManageBranding(false);
     }
+    return () => {
+      cancelled = true;
+    };
   }, [org, mode]);
 
   async function onWorkspaceLogoChange(event: { currentTarget: HTMLInputElement }) {
@@ -413,23 +465,18 @@ function OrganisationPanel({
 
   async function onInvite(e: FormEvent) {
     e.preventDefault();
-    if (!org) return;
+    if (!org || !canManagePeople) return;
     setMsg(null);
     const res = await apiPost<Record<string, unknown>>(`/v1/orgs/${org}/invites`, {
       email: inviteEmail,
       role_key: inviteRole,
     });
     if (res.error) {
-      const raw = res.error.message;
-      let detail = raw;
-      try {
-        const parsed = JSON.parse(raw) as { message?: string };
-        if (typeof parsed.message === "string" && parsed.message.trim()) detail = parsed.message;
-      } catch {
-        // Nest sometimes returns plain text; keep raw.
-      }
+      const detail = formatApiErrorMessage(res.error.message);
       if (/organisation_invitations_pending_email_uq|duplicate key|already has a pending invitation/i.test(detail)) {
         setMsg("That email already has a pending invitation. Revoke it from the list above, then send again.");
+      } else if (/Missing permission:\s*user\.manage/i.test(detail)) {
+        setMsg("Your role cannot send invitations. Ask a workspace administrator.");
       } else {
         setMsg(`Invite failed: ${detail}`);
       }
@@ -454,13 +501,11 @@ function OrganisationPanel({
       setMsg(`Invitation sent to ${invitedEmail}. They will get an email with a join link.`);
     }
     setInviteEmail("");
-    void reload();
-    const inv = await apiGet<Record<string, unknown>[]>(`/v1/orgs/${org}/invites`);
-    if (inv.data) setInvites(inv.data);
+    void reload(true);
   }
 
   async function onRemoveMember(memberUserId: string, label: string) {
-    if (!org) return;
+    if (!org || !canManagePeople) return;
     const confirmed = window.confirm(`Remove ${label} from this workspace? Their membership will be deleted.`);
     if (!confirmed) return;
     setMemberBusyId(memberUserId);
@@ -469,24 +514,21 @@ function OrganisationPanel({
     const res = await apiPost<Record<string, unknown>>(`/v1/orgs/${org}/members/${memberUserId}/revoke`, {});
     setMemberBusyId(null);
     if (res.error) {
-      const raw = res.error.message;
-      let detail = raw;
-      try {
-        const parsed = JSON.parse(raw) as { message?: string };
-        if (typeof parsed.message === "string" && parsed.message.trim()) detail = parsed.message;
-      } catch {
-        // Nest may return plain text.
-      }
-      setMsg(detail);
+      const detail = formatApiErrorMessage(res.error.message);
+      setMsg(/Missing permission:\s*user\.manage/i.test(detail)
+        ? "Your role cannot remove members. Ask a workspace administrator."
+        : detail);
       return;
     }
     setMsg("Member removed from this workspace.");
-    void reload();
+    void reload(true);
   }
 
   const title = showPeople ? "People & access" : "Workspace settings";
   const lead = showPeople
-    ? "Review membership and send invitations. The workspace creator account cannot be removed."
+    ? (canManagePeople
+      ? "Review membership and send invitations. The workspace creator account cannot be removed."
+      : "Review who belongs to this workspace. Inviting and removing people requires a workspace administrator.")
     : "Personalise this workspace and manage its identity.";
 
   return (
@@ -555,37 +597,43 @@ function OrganisationPanel({
             })}
             emptyLabel="No members in this workspace yet."
           />
-          <h2 className="section-title">Pending invitations</h2>
-          <p className="page-lead">Only outstanding invites appear here. After someone accepts, they move to Members.</p>
-          <DataTable
-            columns={[
-              { key: "email", label: "Email" },
-              { key: "status", label: "Status" },
-              { key: "expires_at", label: "Expires" },
-              { key: "roles", label: "Role" },
-            ]}
-            rows={invites}
-            emptyLabel="No pending invitations."
-          />
-          <form className="inline-form" onSubmit={onInvite}>
-            <input
-              type="email"
-              required
-              placeholder="invitee@example.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-            />
-            <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
-              <option value="read_only_viewer">Read-only viewer</option>
-              <option value="operations_manager">Operations manager</option>
-              <option value="security_analyst">Security analyst</option>
-              <option value="facility_manager">Facility manager</option>
-              <option value="organisation_administrator">Workspace administrator</option>
-            </select>
-            <button type="submit" className="btn">
-              Send invite
-            </button>
-          </form>
+          {peopleCapabilityReady && canManagePeople ? (
+            <>
+              <h2 className="section-title">Pending invitations</h2>
+              <p className="page-lead">Only outstanding invites appear here. After someone accepts, they move to Members. Each invite assigns one workspace role with its permissions.</p>
+              <DataTable
+                columns={[
+                  { key: "email", label: "Email" },
+                  { key: "status", label: "Status" },
+                  { key: "expires_at", label: "Expires" },
+                  { key: "roles", label: "Role" },
+                ]}
+                rows={invites}
+                emptyLabel="No pending invitations."
+              />
+              <form className="inline-form" onSubmit={onInvite}>
+                <input
+                  type="email"
+                  required
+                  placeholder="invitee@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                />
+                <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
+                  <option value="read_only_viewer">Read-only viewer</option>
+                  <option value="operations_manager">Operations manager</option>
+                  <option value="security_analyst">Security analyst</option>
+                  <option value="facility_manager">Facility manager</option>
+                  <option value="organisation_administrator">Workspace administrator</option>
+                </select>
+                <button type="submit" className="btn">
+                  Send invite
+                </button>
+              </form>
+            </>
+          ) : peopleCapabilityReady ? (
+            <p className="page-lead">Your role can view members but cannot send invitations or change access. Ask a workspace administrator if you need a different role.</p>
+          ) : null}
           {msg && <p className="page-lead">{msg}</p>}
         </>
       )}

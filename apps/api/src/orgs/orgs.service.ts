@@ -238,7 +238,7 @@ export class OrgsService {
   async listMembers(user: AuthUser, organisationId: string) {
     await this.requirePermission(user, organisationId, "org.read");
     const sb = this.users.create(user.accessToken);
-    const [{ data, error }, orgResult] = await Promise.all([
+    const [{ data, error }, orgResult, canManagePeople] = await Promise.all([
       sb
         .from("memberships")
         .select("user_id, role_id, status, roles(key, name)")
@@ -249,6 +249,7 @@ export class OrgsService {
         .select("created_by_user_id")
         .eq("id", organisationId)
         .maybeSingle(),
+      this.checkPermission(user, organisationId, "user.manage"),
     ]);
     if (error) throw new BadRequestException(error.message);
     if (orgResult.error) throw new BadRequestException(orgResult.error.message);
@@ -265,10 +266,11 @@ export class OrgsService {
       this.log.warn(`Could not enrich membership profiles: ${profileError.message}`);
       return members.map((row) => {
         const member = row as { user_id: string };
+        const isCreator = creatorId !== "" && String(member.user_id) === creatorId;
         return {
           ...member,
-          is_workspace_creator: creatorId !== "" && String(member.user_id) === creatorId,
-          can_remove: creatorId !== "" && String(member.user_id) !== creatorId && String(member.user_id) !== user.id,
+          is_workspace_creator: isCreator,
+          can_remove: canManagePeople && !isCreator && String(member.user_id) !== user.id,
         };
       });
     }
@@ -287,7 +289,7 @@ export class OrgsService {
         email: profile?.email ?? null,
         display_name: profile?.display_name ?? null,
         is_workspace_creator: isCreator,
-        can_remove: !isCreator && String(member.user_id) !== user.id,
+        can_remove: canManagePeople && !isCreator && String(member.user_id) !== user.id,
       };
     });
   }
